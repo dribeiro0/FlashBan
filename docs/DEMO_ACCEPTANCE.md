@@ -27,7 +27,7 @@ These are fixture targets, not claims that a chosen color or size meets WCAG thr
 - Explicit opt-in Start, always-visible Stop, Escape to stop, and automatic stop/reset on blur or hidden document. Returning focus never restarts playback.
 - Short bounded run (proposed maximum three seconds, subject to owner review), then static state. Never loop indefinitely or repeatedly restart automatically.
 - With prefers-reduced-motion enabled, keep visual fixtures static; offer static logs/specifications rather than encouraging an override. Mark active-run validation not performed.
-- Do not automatically start a stimulus as an acceptance test. Capture measurement data only in an agreed controlled environment; prefer static presentation evidence.
+- Do not start a stimulus outside an explicitly operator-approved, bounded acceptance session. Capture measurement data only in an agreed controlled environment; prefer static presentation evidence.
 - Controls and page text meet AA contrast, support keyboard operation and visible focus, and have clear labels. Use a polite status announcement only when run state changes, not on each frame.
 - Demo Stop affects only the fixture. Never label it as proof that the extension's safety overlay works.
 
