@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<meta name="description" content="CSS keyframes fixture: synthetic demo fixture for Photosensitive Seizure Shield. Expected active-run verdict: block.">
+<title>CSS keyframes fixture · FlashBan demo fixture</title>
+<link rel="stylesheet" href="css/fixtures.css">
+<script type="module" src="js/fixture.js"></script>
+</head>
+<body data-kind="css">
+<p><a href="index.html">All fixtures</a></p>
+<main>
+<h1>CSS keyframes fixture</h1>
+<p class="warning" role="note"><strong>Warning:</strong> pressing Start shows a synthetic light/dark change at 4 cycles per second with a target duration of 3 seconds. Do not start it if you may be sensitive to flashing, and warn anyone who can see the screen first. Low brightness is not a safety guarantee. To stop: Escape, the Stop button, or switch window or tab.</p>
+<p>One element whose background color is driven by a CSS <code>@keyframes</code> animation.</p>
+<p><strong>Source:</strong> Start adds a class applying <code>animation: fixture-cycle 250ms step-end 12</code> (also self-limits to 3 s); a script timer removes it at the time limit. No animation exists before Start.</p>
+<p><strong>Expected active-run verdict:</strong> <code>block</code> (declared intent from the page tag; not a measurement, not proof of safety).</p>
+<section class="panel" aria-labelledby="settings-h">
+<h2 id="settings-h">Configured settings</h2>
+<dl class="settings">
+<dt>Configured frequency</dt><dd id="cfg-frequency">loading</dd>
+<dt>Run length</dt><dd id="cfg-duration">loading</dd>
+<dt>Colors</dt><dd>#8c8c8c and #2b2b2b (neutral grays); not calibrated for luminance or WCAG thresholds</dd>
+<dt>Target</dt><dd>up to 48rem wide, 3:2; effective area not verified</dd>
+</dl>
+</section>
+<p class="muted">The run targets a three-second deadline. Browser stalls may delay cleanup; the summary reports actual elapsed time.</p>
+<p id="reduced-note" class="panel" hidden>Reduced motion is enabled, so Start is disabled and this page stays static. Active-run validation not performed; see the configured settings instead.</p>
+<div class="controls">
+<button type="button" id="start">Start</button>
+<button type="button" id="stop">Stop</button>
+</div>
+<p><strong>Status:</strong> <span id="status" role="status" aria-live="polite">Stopped. Content is static until you press Start.</span></p>
+<div id="target" class="css-target" role="img" aria-label="Fixture box, dark gray when stopped"></div>
+<section class="panel" aria-labelledby="obs-h">
+<h2 id="obs-h">Observed (this page only)</h2>
+<p id="observed">No run yet.</p>
+<p><strong>Detector telemetry:</strong> unavailable. This page does not read shield results; check extension diagnostics.</p>
+</section>
+</main>
+</body>
+</html>
