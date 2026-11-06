@@ -3,14 +3,14 @@
 Project: **Photosensitive Seizure Shield**, a Chrome MV3 extension that detects flashing content (WCAG 2.3.1, three flashes per second) on video, canvas, animated images and CSS/JS animations, and dims, freezes or blocks it with an accessible safe-mode overlay. Offending domains are logged as a content-based denial-of-safety threat.
 Team: FlashBan (repo dribeiro0/FlashBan). Event: Hackcessability (Technology & Interface track + BUCyS cybersecurity subtrack). Demos Sunday Nov 8.
 
-Read before working: `docs/PROJECT_PLAN.md` (what we build), `docs/CONTRACTS.md` (interfaces between owners), `security/THREAT_MODEL.md` (what we defend against).
+Read before working: `docs/RUNBOOK.md` (schedule and checklists), `docs/PROJECT_PLAN.md` (what we build), `docs/CONTRACTS.md` (interfaces between owners), `security/THREAT_MODEL.md` (what we defend against).
 
 ## 1. The board (pinned GitHub issue)
 
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (needs only `gh`, logged in). Set `BOARD_ISSUE` if it is not issue #1.
 
 - Start every post with `[<human>'s <agent>]`, e.g. `[Avery's Claude]`. Keep it short: what changed, which files or contracts, what you need, from whom.
-- Mention by GitHub login. Our team: `@DxubleBTW` (Avery, team lead), `@dribeiro0` (David), `@sysoutprntlne`, `@unseentrader007`, `@all` (everyone).
+- Mention by GitHub login. Our team: `@DxubleBTW` (Avery, team lead), `@dribeiro0` (David), `@unseentrader007`, `@sysoutprntlne`, `@all` (everyone).
 - **Mentions you or `@all`:** act on it and reply promptly.
 - **Not addressed to you:** still read it. Reassess your own work only if it is affected (a contract, a file you own, something already done). Do not redo finished work, and do not reply just to acknowledge.
 - Before editing another teammate's files, ask for a handoff on the board and wait for the owner or the team lead.
@@ -46,8 +46,8 @@ Change logins and merge rows to match the team at kickoff.
 |---|---|---|
 | Detection engine (luminance, flash counting, red flash, CSS animation analysis, unit tests) | @dribeiro0 | `extension/src/detect/`, `extension/test/` |
 | Extension core + safe mode (manifest, content script, overlay, background worker, popup/options UI) | @DxubleBTW | `extension/manifest.json`, `extension/src/content/`, `extension/src/background/`, `extension/popup/`, `extension/options/` |
-| Security + backend (threat model, hardening, report API, reputation list, adversarial pages) | @sysoutprntlne | `api/`, `security/`, `demo/adversarial/` |
-| Demo, pitch, docs (synthetic test pages, HUD, README, Devpost, slides) | @unseentrader007 | `demo/` (except `demo/adversarial/`), `docs/`, `README.md` |
+| Security + backend (threat model, hardening, report API, reputation list, adversarial pages) | @unseentrader007 | `api/`, `security/`, `demo/adversarial/` |
+| Demo, pitch, docs (synthetic test pages, HUD, README, Devpost, slides) | @sysoutprntlne | `demo/` (except `demo/adversarial/`), `docs/`, `README.md` |
 
 Shared files (`AGENTS.md`, `docs/CONTRACTS.md`, `package.json`): ask on the board, the lead approves.
 
