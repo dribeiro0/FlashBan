@@ -21,6 +21,7 @@ ES modules need HTTP, so `file://` will not work. The pages load no external med
 | `canvas.html` | block | 2D canvas `fillRect` of the whole canvas |
 | `css.html` | block | CSS `@keyframes` (`250ms step-end 12`), applied only after Start |
 | `dom.html` | block | class toggle on one element |
+| `video.html` | block | same-origin `<video>` playing a clip recorded locally by Prepare (hidden canvas, `captureStream` + `MediaRecorder`, `blob:` URL) |
 | `static.html` | allow | nothing changes; no timer, animation or loop |
 
 Behavior on every page:
@@ -31,7 +32,14 @@ Behavior on every page:
 - The page shows the configured frequency separately from what it observed: script-side apply timestamps, or CSS `animationiteration` counts. These are not measured display frames.
 - Detector telemetry is shown as "unavailable". The pages do not read shield results.
 
-Code: `js/run-state.js` holds the pure, DOM-free run and timing logic with an injected clock and scheduler. `js/fixture.js` wires up the DOM. `css/fixtures.css` holds the shared styles.
+Video page (`video.html`) specifics:
+- Prepare is a separate explicit step. It draws into a canvas that is never added to the page and records about 3.25 s (250 ms dark lead-in, then the 3 s pattern) with `MediaRecorder`. Nothing is shown while recording. Stop, Escape, blur, a hidden document or reduced motion aborts it, cancels its timers and stops the capture tracks; late recorder events are ignored.
+- If `MediaRecorder`, `canvas.captureStream()` or a WebM format is missing, the page says the fixture is unavailable and Prepare and Start stay disabled. A failed or aborted preparation keeps no clip.
+- The prepared clip loads paused on its dark first frame, with no autoplay, loop or native controls. Any playback not started by Start is paused at once. Start plays it under the same 3 s run controller; Stop and every other stop reason pause and seek back to the first frame.
+- Preparing again revokes the previous `blob:` URL; pagehide revokes the current one.
+- The page reports configured values separately from browser observations: recording wall time, draw-change times, clip size, playback position at stop and (where `requestVideoFrameCallback` exists) presented frames. Encoded frame timing is not measured.
+
+Code: `js/run-state.js` holds the pure, DOM-free run and timing logic with an injected clock and scheduler. `js/video-prep.js` holds the pure video preparation and playback lifecycle on top of it, with capture, recorder, timers and URLs injected. `js/fixture.js` wires up the canvas, CSS, DOM and static pages; `js/video-fixture.js` wires up `video.html`. `css/fixtures.css` holds the shared styles.
 
 ## Test
 
@@ -39,7 +47,7 @@ Code: `js/run-state.js` holds the pure, DOM-free run and timing logic with an in
 node --test demo/test/
 ```
 
-Run the test command from the repository root (or use `node --test test/` from `demo/`). These tests cover only the pure run-state logic: bounds, delayed callbacks, stop/cancel, duplicate loops, restart, reduced motion and invalid input. They do not cover the browser, the detector or the extension.
+Run the test command from the repository root (or use `node --test test/` from `demo/`). These tests cover only the pure logic: run bounds, delayed callbacks, stop/cancel, duplicate loops, restart, reduced motion and invalid input; and for video, preparation abort and timer/track cleanup, late recorder events, finalize timeout, URL revocation on replacement and dispose, and pause/reset on every stop, using fake recorders and media. They do not cover the browser, the detector or the extension.
 
 ## Known limits (unverified)
 
@@ -47,4 +55,5 @@ Run the test command from the repository root (or use `node --test test/` from `
 - Effective flash area, luminance and the WCAG preset boundaries have not been verified with the detection owner. The target is up to 48rem wide at 3:2, so the area depends on viewport, zoom and DPR.
 - Under load, the browser may display fewer than 4 cycles per second. Record actual timing for acceptance evidence.
 - The CSS page reports iteration events, not per-frame color changes.
-- Video and GIF fixtures are not implemented. See `docs/DEMO_ACCEPTANCE.md`.
+- Video preparation/playback and cleanup were checked separately in headless Chromium; native Safari and manual screen-reader checks remain outstanding. `MediaRecorder` output is variable frame rate; the codec may shift colors and frame timing, and the clip duration is often not reported. Frame durations are not known exactly.
+- The GIF fixture is not implemented. See `docs/DEMO_ACCEPTANCE.md`.

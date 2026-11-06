@@ -52,6 +52,7 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   background-color: var(--rest);
   border: 1px solid #555;
 }
+video#target { object-fit: fill; }
 #target.is-light { background-color: var(--light); }
 #target.css-target.is-running {
   /* 250 ms per cycle = 4 cycles/s; 12 iterations = 3 s, so CSS also self-bounds. */
