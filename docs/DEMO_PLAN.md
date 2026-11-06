@@ -1,19 +1,19 @@
 # Demo and pitch plan
 
 Owner: @sysoutprntlne. Planning draft, November 6, 2026.
-This is a proposed revision to PROJECT_PLAN.md section 7, pending lead approval; it does not replace that script or the runbook. Resolve the canonical script before rehearsal.
+The canonical demo script is [PROJECT_PLAN.md section 7](PROJECT_PLAN.md#7-demo-script-about-3-minutes) (confirmed by @DxubleBTW on the board, November 6). This file does not replace it: it adds timings, the evidence each step needs, and fallbacks. If the two disagree, section 7 wins.
 No product behavior has been verified. Main currently contains planning and board tooling, not a loadable extension. Confirm event rules before implementing fixtures or product code.
 
 ## Three-minute presentation
 
-| Time | Message | Evidence required before presenting as working |
-| --- | --- | --- |
-| 0:00–0:25 | Flashing web content creates an accessibility barrier and can be weaponized. Our aim is to reduce exposure. | Static illustration; never surprise the audience with a flashing example. |
-| 0:25–1:10 | Show detection and the static safe-mode overlay on one synthetic canvas fixture. | Recorded run with preset, timestamps, detector output, and expected/actual verdict. Use a static evidence slide if unavailable. |
-| 1:10–1:40 | Demonstrate the same workflow for video and CSS content; add JS only if time permits. | Separate verified runs; do not imply coverage from the canvas result. |
-| 1:40–2:10 | Show keyboard access, visible focus, a screen-reader announcement, and an explicit reveal action. | Manual keyboard and screen-reader checks against the shipped overlay. |
-| 2:10–2:35 | Explain local domain logging and the security threat model. | Local-log evidence. Mention reporting/reputation as implemented only after extension-to-backend opt-in reporting and list consumption are verified; otherwise label planned. |
-| 2:35–3:00 | State limitations, what passed, and next steps. | Actual test summary. No guaranteed protection or medical-device claims. |
+| Time | Section 7 step | Message | Evidence required before presenting as working |
+| --- | --- | --- | --- |
+| 0:00–0:25 | 1 | Flashing web content creates an accessibility barrier and can be weaponized. Our aim is to reduce exposure. | Static illustration; never surprise the audience with a flashing example. |
+| 0:25–1:10 | 2 | Show detection and the static safe-mode overlay on one synthetic canvas fixture. | Recorded run with preset, timestamps, detector output, and expected/actual verdict. Use a static evidence slide if unavailable. |
+| 1:10–1:40 | 3 | Demonstrate the same workflow for video and CSS content; add JS only if time permits. Show GIF look-ahead only if it is built (stretch). | Separate verified runs; do not imply coverage from the canvas result. |
+| 1:40–2:05 | 4 | Explain local domain logging and the security threat model; show one adversarial page failing to evade, if tested. | Local-log evidence. Mention reporting/reputation as implemented only after extension-to-backend opt-in reporting and list consumption are verified; otherwise label planned. |
+| 2:05–2:35 | 5 | Show keyboard access, visible focus, a screen-reader announcement, and an explicit reveal action. | Manual keyboard and screen-reader checks against the shipped overlay. |
+| 2:35–3:00 | 5 (limits) | State limitations, what passed, and next steps. | Actual test summary. No guaranteed protection or medical-device claims. |
 
 Default to static screenshots, logs, and presenter narration. Live stimuli are optional, require advance warning and explicit operator consent, and must not be shown to an audience without agreement. Low brightness does not establish safety. Do not solicit testing from photosensitive people.
 
@@ -22,8 +22,8 @@ Default to static screenshots, logs, and presenter narration. Live stimuli are o
 1. **Problem:** web flashing as an accessibility and abuse problem; static visual only.
 2. **Approach:** discover content → analyze continuously → guard/cover → explicit reveal. Distinguish reactive detection from pre-render protection.
 3. **Evidence:** source, preset, expected verdict, actual verdict, measurement, commit tested. Empty evidence means “not tested.”
-4. **Accessible controls:** keyboard, focus, screen reader, reduced motion; include only checked behavior.
-5. **Security:** local logging, unreadable-media policy, attack cases; separate built/tested from planned.
+4. **Security:** local logging, unreadable-media policy, attack cases; separate built/tested from planned.
+5. **Accessible controls:** keyboard, focus, screen reader, reduced motion; include only checked behavior.
 6. **Limits and next steps:** cross-origin/DRM limits, initial exposure, false positives/negatives, incomplete coverage. Not a medical device; no guarantee of protection.
 
 ## Evidence gate
@@ -49,4 +49,4 @@ If the extension is unavailable, present this as a design walkthrough. Show arch
 - Ask the lead to confirm event rules, source priorities, and the demo environment before implementation.
 - Request an existing read-only telemetry path from core; do not create a page-message protocol or change contracts unilaterally.
 - Prioritize video, canvas and CSS fixture specifications in DEMO_ACCEPTANCE.md after kickoff; JS is additional. GIF look-ahead remains stretch.
-- Freeze features around Sunday 10:00 per the runbook. Get lead approval of one canonical script, reconcile the runbook reference, then rehearse twice using the presentation machine.
+- Freeze features around Sunday 10:00 per the runbook. Rehearse section 7 twice using the presentation machine.
