@@ -13,10 +13,11 @@ All fixtures start stopped with static content. Separate expected outcomes from 
 | --- | --- | --- | --- | --- |
 | P0 | canvas.html | One same-origin canvas; configurable opposing luminance transitions with timestamps; whole visible canvas region toggles. Default design: four complete cycles per second. | block | Actual frame timestamps, calibrated luminance/area, detector verdict, guarded state and latency. |
 | P0 | css.html | One element with background-color keyframes; four complete cycles per second; no animation until explicit Start. | block | Computed keyframes/duration, actual playback state, animation-analysis result, static overlay. |
-| P0 | dom.html | One element whose class toggles between two fixed states; schedule with real elapsed time, not accumulated frame counts. Four complete cycles per second. | block | Actual mutation timestamps, source attribution, detector verdict and overlay. Mutation count alone is not a flash measurement. |
+| P1 | dom.html | One element whose class toggles between two fixed states; schedule with real elapsed time, not accumulated frame counts. Four complete cycles per second. | block | Actual mutation timestamps, source attribution, detector verdict and overlay. Mutation count alone is not a flash measurement. |
 | P0 | static.html | Same dimensions and static appearance; no changing styles, timers, or drawing loop. | allow | No false violation during a recorded observation window; initial guarded-start treatment is evaluated separately. |
 | P1 | slow-canvas.html | One complete cycle per second using the same calibrated general-flash colors and area. | allow | Under agreed strict/WCAG settings: no violation during the observation window. Confirm final preset rules with detection owner. |
-| P1 | generated-media | Same-origin synthetic GIF/video with known frame durations; added only after canvas/CSS/DOM work. | block | Decoder/playback timestamps, actual detection and fallback behavior. No look-ahead claim without evidence. |
+| P0 | video.html | Same-origin synthetic video with known frame durations; must-have alongside canvas/CSS, start paused. | block | Playback timestamps, actual detection, guard state and fallback behavior; core + detection owners verify integration. |
+| P1 | generated-gif | Synthetic GIF with known frame durations; stretch after must-have paths. | block | Decoder timing, detection and fallback evidence. No look-ahead claim without evidence. |
 
 These are fixture targets, not claims that a chosen color or size meets WCAG thresholds. Before implementation, detection owner must confirm paired transition counting, luminance values, area conversion, preset boundaries, and the test window. A four-cycle target does not guarantee four displayed cycles under load. Record actual timing.
 
@@ -29,6 +30,14 @@ These are fixture targets, not claims that a chosen color or size meets WCAG thr
 - Do not automatically start a stimulus as an acceptance test. Capture measurement data only in an agreed controlled environment; prefer static presentation evidence.
 - Controls and page text meet AA contrast, support keyboard operation and visible focus, and have clear labels. Use a polite status announcement only when run state changes, not on each frame.
 - Demo Stop affects only the fixture. Never label it as proof that the extension's safety overlay works.
+
+## Controlled integration checks (pending core/lead agreement)
+
+The meta tag alone cannot drive an automatic verdict check while a fixture is stopped. After an operator explicitly consents to a bounded test session, an agreed harness may activate the existing Start control, wait for the documented measurement window, compare the real detector verdict to the tag, then stop. No page-load activation or unattended recurring runs. This is a proposed test procedure, not a new runtime interface; owner approval is required before implementation.
+
+Guarded start needs a separate recorded test: with the operator-approved session active, insert a fresh media element and verify the core guard exists during its first rendered frames and warm-up. Record actual guard/application timing rather than assuming it from the final overlay. Keep the visual covered while collecting diagnostic evidence wherever possible.
+
+Also test an existing element that remains static past warm-up before Start. Its initial guard may already have been released: continuous reaction is required, and first-frame protection cannot be assumed. Track this with the core owner and coordinate with security's late-start test instead of duplicating their fixture. Until evidence exists, disclose this exposure gap in the pitch.
 
 ## Verification matrix
 
@@ -55,6 +64,7 @@ Record commit, Chrome/platform, preset, viewport, zoom, device pixel ratio, stim
 2. How does core identify JS-driven elements and attribute guard state? Do not invent selectors, custom events, or message formats.
 3. Which final preset thresholds and area interpretation should fixtures target? Spec constants and viewport aggregation still need owner sign-off.
 4. What observation and latency acceptance windows does the lead approve? The proposed run duration is not a settled detector requirement.
-5. Which event rules permit code before kickoff? Keep this work as planning until confirmed.
+5. Lead/core must approve the controlled activation procedure and guarded-start evidence above; no automatic checker is currently implemented.
+6. Which event rules permit code before kickoff? Keep this work as planning until confirmed.
 
 Security-owned adversarial coverage (unreadable media, overlay removal, late starts, CPU flooding, and split area) is tracked in security/THREAT_MODEL.md; do not duplicate or report it as tested here.
