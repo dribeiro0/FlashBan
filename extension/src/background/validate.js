@@ -8,6 +8,8 @@ const SEVERITIES = ["none", "warn", "block"];
 const REASONS = ["general", "red", "both"];
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 export const MAX_LOG_DOMAINS = 1000;
+export const LOG_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // entries older than 30 days are deleted
+const MAX_URL_LENGTH = 2048;
 
 /** @param {unknown} x @param {number} min @param {number} max */
 const num = (x, min, max) => typeof x === "number" && Number.isFinite(x) && x >= min && x <= max;
@@ -73,6 +75,17 @@ export function validateContentMessage(raw) {
     case "lockdown":
       if (typeof m.on !== "boolean") return null;
       return { type: "lockdown", v: 1, on: m.on };
+    case "probeImage": {
+      if (typeof m.url !== "string" || m.url.length > MAX_URL_LENGTH) return null;
+      let u;
+      try {
+        u = new URL(m.url);
+      } catch {
+        return null;
+      }
+      if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+      return { type: "probeImage", v: 1, url: u.href };
+    }
     case "violation": {
       const report = validateFlashReport(m.report);
       if (!report || !SOURCES.includes(/** @type {any} */ (m.source)) || !num(m.at, 0, 1e15)) return null;
@@ -147,10 +160,30 @@ export function applyViolation(log, domain, source, report, at) {
       }
     : { count: 1, firstSeen: at, lastSeen: at, maxFps: fps, sources: [source] };
 
+  for (const [name, entry] of Object.entries(domains)) {
+    if (at - entry.lastSeen > LOG_RETENTION_MS) delete domains[name];
+  }
   const names = Object.keys(domains);
   if (names.length > MAX_LOG_DOMAINS) {
     names.sort((a, b) => domains[a].lastSeen - domains[b].lastSeen);
     for (const name of names.slice(0, names.length - MAX_LOG_DOMAINS)) delete domains[name];
   }
+  return { v: 1, domains };
+}
+
+/**
+ * Return a log without entries older than the retention period, or the same
+ * object if nothing changed (so callers can skip a write).
+ * @param {unknown} log
+ * @param {number} now
+ * @returns {ViolationLog}
+ */
+export function pruneLog(log, now) {
+  if (!isObj(log) || /** @type {any} */ (log).v !== 1 || !isObj(/** @type {any} */ (log).domains)) return emptyLog();
+  const base = /** @type {ViolationLog} */ (log);
+  const stale = Object.entries(base.domains).filter(([, e]) => !isObj(e) || !(now - e.lastSeen <= LOG_RETENTION_MS));
+  if (stale.length === 0) return base;
+  const domains = { ...base.domains };
+  for (const [name] of stale) delete domains[name];
   return { v: 1, domains };
 }

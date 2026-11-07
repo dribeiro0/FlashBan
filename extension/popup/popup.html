@@ -57,8 +57,20 @@
         </div>
         <div class="row">
           <input type="checkbox" id="failClosed" />
-          <label for="failClosed">Dim media that can't be checked</label>
+          <label for="failClosed">Dim media that can't be checked while it plays</label>
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Your data</legend>
+        <p id="data-summary" class="data-summary">Loading…</p>
+        <details id="data-details" hidden>
+          <summary>Sites in your log</summary>
+          <ul id="data-list" class="data-list"></ul>
+        </details>
+        <button type="button" id="clear-data">Clear my data</button>
+        <p id="data-status" class="hint data-note" role="status" aria-live="polite"></p>
+        <p class="hint data-note">Kept only on this computer, never sent anywhere. Entries older than 30 days are deleted automatically.</p>
       </fieldset>
 
       <details>

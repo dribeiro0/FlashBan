@@ -3,7 +3,8 @@
 // before it's used (threat T7, review checklist G6).
 
 import { normalizeSettings, registrableDomain, isValidDomain } from "../shared/settings.js";
-import { validateContentMessage, validateHudSubscribe, applyViolation } from "./validate.js";
+import { validateContentMessage, validateHudSubscribe, applyViolation, pruneLog } from "./validate.js";
+import { animatedFromBytes } from "./imagesniff.js";
 
 const HUD_MIN_GAP_MS = 100; // at most 10 relayed messages per second per source
 const HUD_PAGE_PREFIX = chrome.runtime.getURL("hud/");
@@ -58,6 +59,20 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 let logChain = Promise.resolve();
 
+/** Drop entries older than the retention period (30 days). */
+function pruneStoredLog() {
+  logChain = logChain
+    .then(async () => {
+      const stored = await chrome.storage.local.get("log");
+      if (stored.log === undefined) return;
+      const pruned = pruneLog(stored.log, Date.now());
+      if (pruned !== stored.log) await chrome.storage.local.set({ log: pruned });
+    })
+    .catch(() => {});
+}
+pruneStoredLog(); // every time the worker starts
+chrome.runtime.onStartup.addListener(pruneStoredLog);
+
 /** Serialize log writes so concurrent violations aren't lost. */
 function recordViolation(/** @type {string} */ domain, /** @type {string} */ source, /** @type {any} */ report, /** @type {number} */ at) {
   logChain = logChain
@@ -94,10 +109,79 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     case "lockdown":
       setLockdown(sender, msg.on);
       return false;
+    case "probeImage":
+      probeImage(msg.url).then((animated) => sendResponse({ type: "probeResult", v: 1, animated }));
+      return true; // async response
     default:
       return false;
   }
 });
+
+// ---------------------------------------------------------------- image animation probe
+// Cross-origin images can't be read in the page, so the background fetches
+// the file's first bytes (no cookies) and reads its container headers to tell
+// a still image from an animated one. Only a boolean goes back to the page.
+
+const PROBE_MAX_BYTES = 512 * 1024;
+const PROBE_TIMEOUT_MS = 4000;
+const PROBE_MAX_CONCURRENT = 4;
+/** @type {Map<string, Promise<boolean | null>>} */
+const probeCache = new Map();
+let probesRunning = 0;
+/** @type {(() => void)[]} */
+const probeQueue = [];
+
+/** @param {string} url @returns {Promise<boolean | null>} */
+function probeImage(url) {
+  let p = probeCache.get(url);
+  if (!p) {
+    p = withProbeSlot(() => fetchAnimated(url));
+    probeCache.set(url, p);
+    if (probeCache.size > 500) probeCache.delete(probeCache.keys().next().value);
+  }
+  return p;
+}
+
+/** @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
+async function withProbeSlot(fn) {
+  if (probesRunning >= PROBE_MAX_CONCURRENT) await new Promise((r) => probeQueue.push(() => r(undefined)));
+  probesRunning++;
+  try {
+    return await fn();
+  } finally {
+    probesRunning--;
+    probeQueue.shift()?.();
+  }
+}
+
+/** @param {string} url */
+async function fetchAnimated(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { credentials: "omit", redirect: "follow", signal: ctrl.signal });
+    if (!res.ok || !res.body) return null;
+    const reader = res.body.getReader();
+    let buf = new Uint8Array(0);
+    let verdict = null;
+    while (buf.length < PROBE_MAX_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const next = new Uint8Array(buf.length + value.length);
+      next.set(buf);
+      next.set(value, buf.length);
+      buf = next;
+      verdict = animatedFromBytes(buf);
+      if (verdict !== null) break;
+    }
+    reader.cancel().catch(() => {});
+    return verdict ?? animatedFromBytes(buf);
+  } catch {
+    return null; // unknown: the page treats it as animated (fail closed)
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ---------------------------------------------------------------- page lockdown
 

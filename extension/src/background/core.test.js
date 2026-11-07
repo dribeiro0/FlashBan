@@ -153,3 +153,58 @@ test("validateContentMessage: lockdown", () => {
   assert.deepEqual(validateContentMessage({ type: "lockdown", v: 1, on: false, css: "body{}" }), { type: "lockdown", v: 1, on: false }, "no page-supplied CSS ever passes");
   assert.equal(validateContentMessage({ type: "lockdown", v: 1, on: "yes" }), null);
 });
+
+// ---------------------------------------------------------------- auto-dim: image probe, log retention
+import { animatedFromBytes } from "./imagesniff.js";
+import { pruneLog, LOG_RETENTION_MS } from "./validate.js";
+
+// Real files made with Pillow: still and 2-frame animated versions of each format.
+const IMG = {
+  gif1: "R0lGODdhCAAIAIEAAAAAAAAAAAAAAAAAACwAAAAACAAIAAAIDwABCBxIsKDBgwgTKkwYEAA7",
+  gif2: "R0lGODlhCAAIAIEAAAAAAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAACAAIAAAIDwABCBxIsKDBgwgTKkwYEAAh+QQBCgABACwAAAAACAAIAIH///8AAAAAAAAAAAAIDwABCBxIsKDBgwgTKkwYEAA7",
+  webp1: "UklGRhoAAABXRUJQVlA4TA4AAAAvB8ABAAcQEf0PRET/Aw==",
+  webp2: "UklGRoQAAABXRUJQVlA4WAoAAAACAAAABwAABwAAQU5JTQYAAAAAAAAAAABBTk1GJgAAAAAAAAAAAAcAAAcAAGQAAAJWUDhMDgAAAC8HwAEABxAR/Q9ERP8DQU5NRioAAAAAAAAAAAAHAAAHAABkAAAAVlA4TBEAAAAvB8ABAAfQ//73v/+BiOh/AAA=",
+  png1: "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAADElEQVR4XmNgGB4AAADIAAFUheOTAAAAAElFTkSuQmCC",
+  apng: "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACGFjVEwAAAACAAAAAPONk3AAAAAaZmNUTAAAAAAAAAAIAAAACAAAAAAAAAAAAAEACgAA8k66YgAAAAxJREFUeF5jYBgeAAAAyAABVIXjkwAAABpmY1RMAAAAAQAAAAgAAAAIAAAAAAAAAAAAAQAKAABpPVC2AAAAG2ZkQVQAAAACeF5j/P//PwM2wIRVlIFhkEoAAFbUAw3peKtRAAAAAElFTkSuQmCC",
+};
+const bytes = (k) => new Uint8Array(Buffer.from(IMG[k], "base64"));
+
+test("animatedFromBytes tells still from animated GIF, WebP and PNG/APNG", () => {
+  assert.equal(animatedFromBytes(bytes("gif1")), false);
+  assert.equal(animatedFromBytes(bytes("gif2")), true);
+  assert.equal(animatedFromBytes(bytes("webp1")), false);
+  assert.equal(animatedFromBytes(bytes("webp2")), true);
+  assert.equal(animatedFromBytes(bytes("png1")), false);
+  assert.equal(animatedFromBytes(bytes("apng")), true);
+});
+
+test("animatedFromBytes returns null when it can't tell (fail closed in the page)", () => {
+  assert.equal(animatedFromBytes(new Uint8Array(5)), null);
+  assert.equal(animatedFromBytes(new TextEncoder().encode("<html>not an image</html>")), null);
+  assert.equal(animatedFromBytes(bytes("gif1").slice(0, 20)), null, "truncated single-frame GIF is unknown");
+  assert.equal(animatedFromBytes(bytes("gif2").slice(0, bytes("gif2").length - 1)), true, "second frame already seen");
+});
+
+test("validateContentMessage: probeImage accepts only http(s) URLs", () => {
+  assert.deepEqual(validateContentMessage({ type: "probeImage", v: 1, url: "https://cdn.example.com/a.gif" }), { type: "probeImage", v: 1, url: "https://cdn.example.com/a.gif" });
+  assert.equal(validateContentMessage({ type: "probeImage", v: 1, url: "file:///etc/passwd" }), null);
+  assert.equal(validateContentMessage({ type: "probeImage", v: 1, url: "chrome://settings" }), null);
+  assert.equal(validateContentMessage({ type: "probeImage", v: 1, url: "https://x.com/" + "a".repeat(3000) }), null);
+  assert.equal(validateContentMessage({ type: "probeImage", v: 1, url: 42 }), null);
+});
+
+test("pruneLog drops entries older than 30 days and keeps the object when nothing changes", () => {
+  const now = 100 * LOG_RETENTION_MS;
+  const fresh = { v: 1, domains: { "a.com": { count: 1, firstSeen: now - 10, lastSeen: now - 10, maxFps: 4, sources: ["video"] } } };
+  assert.equal(pruneLog(fresh, now), fresh, "unchanged object returned, so no write");
+  const mixed = { v: 1, domains: { ...fresh.domains, "old.com": { count: 2, firstSeen: 0, lastSeen: now - LOG_RETENTION_MS - 1, maxFps: 9, sources: ["gif"] } } };
+  const out = pruneLog(mixed, now);
+  assert.deepEqual(Object.keys(out.domains), ["a.com"]);
+  assert.deepEqual(pruneLog("junk", now), { v: 1, domains: {} });
+});
+
+test("applyViolation also expires entries older than 30 days", () => {
+  let log = applyViolation(undefined, "old.com", "video", { flashesPerSecond: 4 }, 0);
+  log = applyViolation(log, "new.com", "video", { flashesPerSecond: 4 }, LOG_RETENTION_MS + 1);
+  assert.deepEqual(Object.keys(log.domains), ["new.com"]);
+});

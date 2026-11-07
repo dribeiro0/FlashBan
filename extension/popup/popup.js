@@ -10,6 +10,11 @@ const hud = /** @type {HTMLInputElement} */ ($("hud"));
 const openHud = /** @type {HTMLButtonElement} */ ($("open-hud"));
 const presetRadios = /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll('input[name="preset"]'));
 const onFlashRadios = /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll('input[name="onFlash"]'));
+const dataSummary = $("data-summary");
+const dataDetails = $("data-details");
+const dataList = $("data-list");
+const dataStatus = $("data-status");
+const clearData = /** @type {HTMLButtonElement} */ ($("clear-data"));
 
 /** @type {import("../src/shared/settings.js").Settings} */
 let settings = normalizeSettings(undefined);
@@ -31,6 +36,8 @@ async function init() {
   hud.addEventListener("change", () => save({ hud: hud.checked }));
   siteBox.addEventListener("change", onSiteToggle);
   openHud.addEventListener("click", onOpenHud);
+  clearData.addEventListener("click", onClearData);
+  await renderData();
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   tabId = typeof tab?.id === "number" ? tab.id : null;
@@ -96,6 +103,10 @@ async function refreshStatus() {
     statusEl.textContent = `Off for ${domain}.`;
     return;
   }
+  if (status.repeatOffender && status.enabled && !status.lockdown) {
+    statusEl.textContent = `FlashBan has found flashing on ${domain} before, so it's being extra careful here (strict, and media it can't check stays dimmed).`;
+    return;
+  }
   if (status.lockdown) {
     statusEl.textContent = "This page kept flashing and tried to remove FlashBan's protection, so the whole page is dimmed. To see it anyway, turn off protection for this site below.";
     return;
@@ -107,6 +118,35 @@ async function refreshStatus() {
   let text = `On. ${capitalize(parts.join(", "))}.`;
   if (status.detector === "error") text += " The flash detector failed to load, so media is dimmed.";
   statusEl.textContent = text;
+}
+
+/** The local log: count, list, clear. Text only (textContent), never HTML. */
+async function renderData() {
+  const stored = await chrome.storage.local.get("log");
+  const domains = stored.log && typeof stored.log.domains === "object" ? stored.log.domains : {};
+  const rows = Object.entries(domains).sort((a, b) => (b[1]?.lastSeen ?? 0) - (a[1]?.lastSeen ?? 0));
+  dataList.replaceChildren();
+  if (rows.length === 0) {
+    dataSummary.textContent = "Your log is empty. FlashBan hasn't hidden flashing on any site yet.";
+    dataDetails.hidden = true;
+    clearData.disabled = true;
+    return;
+  }
+  dataSummary.textContent = `FlashBan has hidden flashing on ${rows.length} site${rows.length === 1 ? "" : "s"}. Only the site name and the time are kept.`;
+  for (const [name, e] of rows) {
+    const li = document.createElement("li");
+    const when = Number.isFinite(e?.lastSeen) ? new Date(e.lastSeen).toLocaleDateString() : "unknown date";
+    li.textContent = `${name}: ${e?.count ?? 1} time${e?.count === 1 ? "" : "s"}, last on ${when}`;
+    dataList.append(li);
+  }
+  dataDetails.hidden = false;
+  clearData.disabled = false;
+}
+
+async function onClearData() {
+  await chrome.storage.local.remove("log");
+  await renderData();
+  dataStatus.textContent = "Your FlashBan data was cleared.";
 }
 
 async function onOpenHud() {

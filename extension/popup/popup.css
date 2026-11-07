@@ -102,6 +102,23 @@ button:disabled {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
+.data-note {
+  margin-left: 0;
+}
+.data-summary {
+  margin: 4px 0 6px;
+}
+.data-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.data-list li {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+.hint[role="status"]:empty {
+  display: none;
+}
 .note {
   margin: 14px 0 0;
   color: var(--muted);
