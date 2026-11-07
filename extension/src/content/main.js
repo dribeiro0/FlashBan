@@ -27,7 +27,11 @@ const DOM_TICK_BUDGET_MS = 3; // ...and stops early when a tick has used this mu
 const PAGE_CHECK_MS = 1200; // the one page-wide "checking" dim, once per page
 // Media we can't analyse (lead decision, Sat 4:10 PM: option B): "always" dims
 // it whether it plays or not; "while-active" is option A (dim only while it
-// plays or animates; uses the background image probe).
+// plays or animates). Under both, a cross-origin WebP/APNG image is asked
+// about through the background probe first: a still photo in an animated-
+// capable format can't flash, and sites serve most photos as .webp, so dimming
+// every one of them would make the page unusable. GIFs are never probed and
+// always count as animated (threat T4; the probe's limits are in the threat model).
 const UNVERIFIABLE_POLICY = "always";
 const WARN_HOLD_MS = 500; // keep a "warn" dim this long after the last warn
 const GAP_WARNS_TO_DIM = 2; // video: ignore one isolated sampling gap; dim when gaps repeat within 1 s
@@ -908,7 +912,7 @@ class Source {
     this.unverifiable = reason;
     this.persistentDim = true;
     unverifiables.add(this);
-    if (UNVERIFIABLE_POLICY === "while-active" && this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
+    if (this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
     this.applyUnverifiableDim();
     startUnverifiableTimer();
   }
@@ -921,10 +925,15 @@ class Source {
     return true; // canvas and anything else we can't read: assume it may animate
   }
 
+  /** Could it flash at all? A cross-origin image the probe found to be a still can't. */
+  canAnimate() {
+    return this.kind !== "gif" || this.animated !== false;
+  }
+
   applyUnverifiableDim() {
     const el = this.el;
     if (!this.unverifiable || safemode.wasShownByUser(el)) return;
-    const dim = enabled && settings.failClosed && (UNVERIFIABLE_POLICY === "always" || repeatOffender || this.isActive());
+    const dim = enabled && settings.failClosed && this.canAnimate() && (UNVERIFIABLE_POLICY === "always" || repeatOffender || this.isActive());
     const mode = safemode.guardMode(el);
     if (dim) {
       if (mode !== "cover") safemode.guard(el, "dim", this.unverifiable, { canShow: true, announce: false });
