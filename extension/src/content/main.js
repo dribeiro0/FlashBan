@@ -73,6 +73,9 @@ let canvasLoop = 0;
 let domLoop = 0;
 let lastDriverPrune = 0;
 let lockedDown = false; // page lockdown CSS applied (see onTamper)
+let repeatOffender = false; // this site (or frame) has a past violation in the local log
+/** @type {Set<Source>} */ const unverifiables = new Set();
+let unverifiableTimer = 0;
 let animTimer = 0;
 let nextId = 1;
 let lastPageHud = 0;
@@ -86,8 +89,9 @@ const siteDomain = topSiteDomain();
 init().catch((err) => console.warn("[FlashBan] init failed", err));
 
 async function init() {
-  const stored = await chrome.storage.local.get("settings");
+  const stored = await chrome.storage.local.get(["settings", "log"]);
   settings = normalizeSettings(stored.settings);
+  repeatOffender = isRepeatOffender(stored.log);
   chrome.storage.onChanged.addListener(onStorageChanged);
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
   safemode.onUserShow(onUserShow);
@@ -98,7 +102,7 @@ async function init() {
   detectorStatus = loaded.status;
   if (typeof detect.createAggregator === "function") {
     try {
-      aggregator = detect.createAggregator(settings.preset);
+      aggregator = detect.createAggregator(effectivePreset());
     } catch {
       aggregator = null;
     }
@@ -123,17 +127,20 @@ function applyEnabled() {
 
 /** @param {Record<string, chrome.storage.StorageChange>} changes @param {string} area */
 function onStorageChanged(changes, area) {
-  if (area !== "local" || !changes.settings) return;
-  const prevPreset = settings.preset;
-  settings = normalizeSettings(changes.settings.newValue);
-  if (enabled && settings.preset !== prevPreset) {
+  if (area !== "local") return;
+  const prevPreset = effectivePreset();
+  if (changes.log) repeatOffender = isRepeatOffender(changes.log.newValue);
+  if (changes.settings) settings = normalizeSettings(changes.settings.newValue);
+  if (!changes.log && !changes.settings) return;
+  for (const s of unverifiables) s.applyUnverifiableDim(); // settings or offender status may change the answer
+  if (enabled && effectivePreset() !== prevPreset) {
     for (const s of allSources()) {
       s.detector = null; // rebuilt with the new preset on the next sample
       s.resetDetector();
     }
     if (typeof detect?.createAggregator === "function") {
       try {
-        aggregator = detect.createAggregator(settings.preset);
+        aggregator = detect.createAggregator(effectivePreset());
       } catch {
         aggregator = null;
       }
@@ -156,6 +163,7 @@ function onRuntimeMessage(msg, sender, sendResponse) {
     dimmed: c.dim,
     covered: c.cover,
     lockdown: lockedDown,
+    repeatOffender,
   });
   return false;
 }
@@ -202,6 +210,9 @@ function stop() {
     lockedDown = false;
     send({ type: "lockdown", v: 1, on: false });
   }
+  unverifiables.clear();
+  clearInterval(unverifiableTimer);
+  unverifiableTimer = 0;
 }
 
 // ---------------------------------------------------------------- discovery
@@ -336,6 +347,8 @@ class Source {
     this.costSamples = 0;
     this.stopped = false; // unverifiable, static or user-shown: no more sampling
     this.persistentDim = false;
+    /** @type {string | null} */ this.unverifiable = null; // why we can't analyse it
+    /** @type {boolean | null} */ this.animated = null; // cross-origin images: from the background probe
     this.lastChange = 0;
     this.lastRebuild = 0;
     this.resizeChurn = 0;
@@ -349,6 +362,11 @@ class Source {
   attachVideoListeners() {
     const v = /** @type {HTMLVideoElement} */ (this.el);
     this.onPlay = () => {
+      this.checkVideoReadable();
+      if (this.unverifiable) {
+        this.applyUnverifiableDim(); // dim the moment playback starts
+        return;
+      }
       if (safemode.guardMode(v) === "cover" && !safemode.wasShownByUser(v)) {
         v.pause(); // the page may not restart covered flashing video
         return;
@@ -356,11 +374,43 @@ class Source {
       this.resetDetector();
       this.scheduleVideo();
     };
-    this.onPauseOrSeek = () => this.resetDetector();
+    this.onPauseOrSeek = () => {
+      if (this.unverifiable) this.applyUnverifiableDim(); // paused or ended: show it again
+      else this.resetDetector();
+    };
     v.addEventListener("play", this.onPlay, true);
     v.addEventListener("playing", this.onPlay, true);
     v.addEventListener("pause", this.onPauseOrSeek, true);
     v.addEventListener("seeked", this.onPauseOrSeek, true);
+    v.addEventListener("ended", this.onPauseOrSeek, true);
+    this.onMeta = () => this.checkVideoReadable();
+    v.addEventListener("loadedmetadata", this.onMeta, true);
+    this.checkVideoReadable();
+  }
+
+  /**
+   * Decide before the first frame whether we'll be able to read this video:
+   * a cross-origin source without a crossorigin attribute will taint the
+   * canvas, and encrypted (DRM) video reads as black. Marking it now means it
+   * dims on the "play" event, before any frame is shown.
+   */
+  checkVideoReadable() {
+    const v = /** @type {HTMLVideoElement} */ (this.el);
+    if (this.unverifiable) return;
+    if (v.mediaKeys) {
+      this.markUnverifiable(REASONS.protected);
+      return;
+    }
+    const src = v.currentSrc || v.src;
+    if (!src || v.crossOrigin) return; // no source yet, or CORS requested (sampling will confirm)
+    let u;
+    try {
+      u = new URL(src, location.href);
+    } catch {
+      return;
+    }
+    if (u.protocol === "blob:" || u.protocol === "data:" || u.origin === location.origin) return;
+    this.markUnverifiable(REASONS.crossOrigin);
   }
 
   /** @param {boolean} visible */
@@ -430,7 +480,7 @@ class Source {
     }
     try {
       this.detector = detect.createDetector({
-        preset: settings.preset,
+        preset: effectivePreset(),
         sampleWidth: this.sw,
         sampleHeight: this.sh,
         realAreaScale: 1 / scale, // CSS px per sample px
@@ -505,7 +555,7 @@ class Source {
   /** @param {number} t */
   beginGuardedStart(t) {
     this.guardedStartDone = true;
-    if (!settings.guardedStart || this.cssW * this.cssH < GUARD_START_MIN_AREA) return;
+    if (!(settings.guardedStart || repeatOffender) || this.cssW * this.cssH < GUARD_START_MIN_AREA) return;
     if (safemode.isGuarded(this.el) || safemode.wasShownByUser(this.el)) return;
     this.warmupUntil = t + WARMUP_MS;
     safemode.guard(this.el, "dim", REASONS.checking, { canShow: false });
@@ -566,7 +616,7 @@ class Source {
     try {
       soft = startSoften(v, {
         detect,
-        preset: settings.preset,
+        preset: effectivePreset(), // strict on repeat-offender sites, like everything else
         onFail: (failReport) => {
           this.soft = null;
           this.softFailed = true;
@@ -607,7 +657,7 @@ class Source {
   sendHud(report, t) {
     if (!settings.hud || t - this.lastHud < HUD_INTERVAL_MS) return;
     this.lastHud = t;
-    send({ type: "report", v: 1, sourceId: this.id, source: this.kind, preset: settings.preset, report, at: Date.now() });
+    send({ type: "report", v: 1, sourceId: this.id, source: this.kind, preset: effectivePreset(), report, at: Date.now() });
   }
 
   /** @param {any} report @param {number} t */
@@ -632,16 +682,59 @@ class Source {
     }
   }
 
-  /** Fail closed for media we can't analyse (threat T4, T5). @param {string} reason */
+  /**
+   * Media we can't analyse (threats T4, T5). Auto-dim (lead decision, Sat 3:34 PM):
+   * dimmed while it plays or animates, even on a first visit; paused or still
+   * media stays visible; sites with a past violation always dim it.
+   * @param {string} reason
+   */
   markUnverifiable(reason) {
-    if (this.stopped) return;
-    this.stopped = true;
+    if (this.unverifiable) return;
+    this.stopped = true; // no more sampling
+    this.unverifiable = reason;
     this.persistentDim = true;
-    if (settings.failClosed && !safemode.wasShownByUser(this.el)) {
-      safemode.guard(this.el, "dim", reason, { canShow: true });
-    } else if (safemode.guardMode(this.el) === "dim") {
-      safemode.release(this.el);
+    unverifiables.add(this);
+    if (this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
+    this.applyUnverifiableDim();
+    startUnverifiableTimer();
+  }
+
+  /** Is it moving right now (as far as we can tell without pixels)? */
+  isActive() {
+    const el = this.el;
+    if (el instanceof HTMLVideoElement) return !el.paused && !el.ended;
+    if (this.kind === "gif") return this.animated !== false; // animated or not known yet
+    return true; // canvas and anything else we can't read: assume it may animate
+  }
+
+  applyUnverifiableDim() {
+    const el = this.el;
+    if (!this.unverifiable || safemode.wasShownByUser(el)) return;
+    const dim = enabled && settings.failClosed && (repeatOffender || this.isActive());
+    const mode = safemode.guardMode(el);
+    if (dim) {
+      if (mode !== "cover") safemode.guard(el, "dim", this.unverifiable, { canShow: true, announce: false });
+    } else if (mode === "dim") {
+      safemode.release(el);
     }
+  }
+
+  /** Ask the background whether a cross-origin image file is animated. */
+  probeAnimation() {
+    const img = /** @type {HTMLImageElement} */ (this.el);
+    const url = img.currentSrc || img.src;
+    if (!/^https?:/i.test(url)) return;
+    try {
+      chrome.runtime
+        .sendMessage({ type: "probeImage", v: 1, url })
+        .then((res) => {
+          if (res && res.type === "probeResult" && typeof res.animated === "boolean") {
+            this.animated = res.animated;
+            this.applyUnverifiableDim();
+          }
+        })
+        .catch(() => {});
+    } catch {}
   }
 
   dispose() {
@@ -658,7 +751,9 @@ class Source {
       if (this.onPauseOrSeek) {
         v.removeEventListener("pause", this.onPauseOrSeek, true);
         v.removeEventListener("seeked", this.onPauseOrSeek, true);
+        v.removeEventListener("ended", this.onPauseOrSeek, true);
       }
+      if (this.onMeta) v.removeEventListener("loadedmetadata", this.onMeta, true);
     }
   }
 }
@@ -703,7 +798,7 @@ class DomSource extends Source {
     this.lastRebuild = t;
     this.area = area;
     try {
-      this.detector = detect.createDetector({ preset: settings.preset, sampleWidth: 1, sampleHeight: 1, realAreaScale: Math.sqrt(area) });
+      this.detector = detect.createDetector({ preset: effectivePreset(), sampleWidth: 1, sampleHeight: 1, realAreaScale: Math.sqrt(area) });
     } catch {
       this.markUnverifiable(REASONS.error);
       return false;
@@ -881,7 +976,7 @@ function domTick(now) {
  */
 function animationContext(a) {
   /** @type {{ preset: string, backdropLuminance?: number }} */
-  const ctx = { preset: settings.preset };
+  const ctx = { preset: effectivePreset() };
   const target = /** @type {KeyframeEffect | null} */ (a.effect)?.target;
   if (target instanceof Element) {
     try {
@@ -889,6 +984,35 @@ function animationContext(a) {
     } catch {}
   }
   return ctx;
+}
+
+// ---------------------------------------------------------------- repeat offenders and auto-dim
+
+/** Sites with a past violation get the strict preset (STRATEGY 7.6). */
+function effectivePreset() {
+  return repeatOffender ? "strict" : settings.preset;
+}
+
+/** @param {unknown} log */
+function isRepeatOffender(log) {
+  const domains = /** @type {any} */ (log)?.domains;
+  if (!domains || typeof domains !== "object") return false;
+  return (!!siteDomain && !!domains[siteDomain]) || (!!frameDomain && !!domains[frameDomain]);
+}
+
+/** Re-check media we can't analyse twice a second (play/pause events cover most changes). */
+function startUnverifiableTimer() {
+  if (unverifiableTimer) return;
+  unverifiableTimer = setInterval(() => {
+    for (const s of unverifiables) {
+      if (!s.el.isConnected) unverifiables.delete(s);
+      else s.applyUnverifiableDim();
+    }
+    if (unverifiables.size === 0) {
+      clearInterval(unverifiableTimer);
+      unverifiableTimer = 0;
+    }
+  }, 500);
 }
 
 // ---------------------------------------------------------------- CSS animations

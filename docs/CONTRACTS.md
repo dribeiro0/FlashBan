@@ -85,6 +85,10 @@ Settings live in `chrome.storage.local` under `settings` and are normalized by `
 
 **Page lockdown (threat T6):** when a page keeps removing or restyling the overlay (5 times in 2 s), the content script sends `{ type: "lockdown", v: 1, on: true }` and the background applies a fixed stylesheet with `chrome.scripting.insertCSS({ origin: "USER" })` to that frame: media hidden, animations paused, page dimmed and grey, plus a banner. Pages can't see or remove it. `{ ..., on: false }` removes it when the user turns protection off for the site. The message never carries CSS.
 
+**Auto-dim (lead decision, Sat 3:34 PM):** media the content script can't read (cross-origin without CORS, DRM, tainted canvas, unreadable styles) is dimmed only while it plays or animates; paused or still media stays visible. Sites with a past violation in the local log are repeat offenders: strict preset, guarded start, and unverifiable media always dimmed. `status` also carries `repeatOffender: boolean`.
+
+**Image probe:** for cross-origin animated-format images the content script sends `{ type: "probeImage", v: 1, url }` (http/https only, at most 2048 chars) and gets `{ type: "probeResult", v: 1, animated: true | false | null }`. The background fetches at most 512 KB without cookies (4 s timeout, 4 at a time, cached) and reads only container headers. `null` means unknown, treated as animated.
+
 **DOM flicker:** elements whose class/style/hidden attributes keep changing are sampled as `source: "dom"`: a 1x1 frame of their estimated on-screen colour, with `realAreaScale = sqrt(visible area)`.
 
 `domain` is the registrable domain only (for example `example.com`), never a full URL.
@@ -108,6 +112,8 @@ type HudMsg =
 - After `hudSubscribe`, and whenever the setting changes, the background sends `{ type: "hudStatus", v: 1, enabled: boolean }` so the HUD can say "Demo HUD is off" instead of waiting.
 
 ## 4. Local log (owner: Extension core), stored in `chrome.storage.local`
+
+Entries older than 30 days are deleted (on every write and when the worker starts). The popup shows the log (site and date only) and can clear it ("Clear my data").
 
 ```json
 { "v": 1, "domains": { "example.com": { "count": 3, "firstSeen": 1731000000000, "lastSeen": 1731003600000, "maxFps": 7.5, "sources": ["video", "css"] } } }
