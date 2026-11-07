@@ -96,6 +96,8 @@ An attacker can still use hundreds of tiny iframes to exhaust CPU: that is T5 an
 
 ## 7. CPU budget (threat T5)
 
+**Measured Nov 7 and changed:** in headed Chrome 157 on a laptop, reading one 320 x 180 canvas into 128 x 72 (`drawImage` + `getImageData`) costs 2.3 ms median but 8.2 ms mean (GPU stalls, p95 18 ms). The detector push is 0.14–0.35 ms. A single running mean of both trips on ordinary long-running canvases, so `createCostMeter` (`cost.js`, exported from `index.js`) judges them separately: readback by its **median** over 60 frames (limit 12 ms), and the detector by its **mean** (limit 1.5 ms). It skips frames that didn't change and counts non-finite costs as over (fail closed). The numbers below are the original planning values.
+
 Starting numbers, to be measured on Saturday and then edited here:
 
 | Item | Starting value |
