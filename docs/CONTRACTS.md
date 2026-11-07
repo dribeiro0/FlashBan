@@ -81,6 +81,23 @@ type Msg =
 
 `domain` is the registrable domain only (for example `example.com`), never a full URL.
 
+### 3a. HUD read path (owner: Extension core; reader: Demo HUD)
+
+The HUD is an **extension page** (`extension/hud/hud.html`, opened from the popup), not part of a web page, so a malicious page can never read or spoof detector numbers. It is off unless the "Demo HUD" setting is on.
+
+- HUD connects with `chrome.runtime.connect({ name: "hud" })` and sends `{ type: "hudSubscribe", v: 1, tabId: number }`.
+- Background relays reports for that tab only, throttled to at most 10 per second per source:
+
+```ts
+type HudMsg =
+  | { type: "report"; v: 1; tabId: number; sourceId: string; source: "video" | "canvas" | "css" | "gif" | "dom"; preset: DetectorOptions["preset"]; report: FlashReport; at: number }
+  | { type: "page"; v: 1; tabId: number; aggregate: { violation: boolean; totalAreaPx: number; ids: string[] }; at: number };
+```
+
+- Content scripts send the same `report` objects to the background on the existing runtime channel; the background checks `sender.id === chrome.runtime.id` and drops them if the Demo HUD setting is off.
+- The HUD shows only the fields listed in section 1, labelled "detector estimates", and "unavailable" when no report has arrived for 1 s.
+- `sourceId` is an opaque per-element id from the content script. No URLs, selectors or page text are sent.
+
 ## 4. Local log (owner: Extension core), stored in `chrome.storage.local`
 
 ```json
