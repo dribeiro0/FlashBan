@@ -98,7 +98,6 @@ async function refreshStatus() {
   if (status.dimmed) parts.push(`${status.dimmed} dimmed`);
   parts.push(`watching ${status.sources} media item${status.sources === 1 ? "" : "s"}`);
   let text = `On. ${capitalize(parts.join(", "))}.`;
-  if (status.detector === "stub") text += " (Development build: flash detector not installed yet.)";
   if (status.detector === "error") text += " The flash detector failed to load, so media is dimmed.";
   statusEl.textContent = text;
 }

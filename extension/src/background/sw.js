@@ -58,8 +58,10 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       getSettings().then((s) => sendResponse({ type: "settings", ...s }));
       return true; // async response
     case "violation": {
-      // Trust the frame URL Chrome gives us over the domain in the message.
-      const domain = registrableDomain(sender.url || "") || msg.domain;
+      // The domain comes only from what Chrome reports about the sender: the
+      // frame URL, or its origin for about:blank and srcdoc frames. Never from
+      // the message itself.
+      const domain = registrableDomain(sender.url || "") || registrableDomain(sender.origin || "");
       if (isValidDomain(domain)) recordViolation(domain, msg.source, msg.report, Date.now());
       return false;
     }

@@ -9,10 +9,28 @@
     dimAllMedia();
   });
 
+  const SELECTOR = "video, canvas, img[src$='.gif' i], img[src$='.webp' i], img[src$='.apng' i]";
+
+  /** Inline !important styles beat any page stylesheet rule. @param {Element} el */
+  function dim(el) {
+    if (el instanceof HTMLElement) el.style.setProperty("filter", "brightness(0.25) contrast(0.6) grayscale(1)", "important");
+  }
+
   function dimAllMedia() {
-    const style = document.createElement("style");
-    style.textContent =
-      "video, canvas, img[src$='.gif' i], img[src$='.webp' i], img[src$='.apng' i] { filter: brightness(0.25) contrast(0.6) !important; }";
-    (document.head || document.documentElement).appendChild(style);
+    const scan = (/** @type {ParentNode} */ root) => root.querySelectorAll?.(SELECTOR).forEach(dim);
+    scan(document);
+    new MutationObserver((records) => {
+      for (const r of records) {
+        if (r.type === "attributes") {
+          if (r.target instanceof Element && r.target.matches(SELECTOR)) dim(r.target);
+          continue;
+        }
+        r.addedNodes.forEach((n) => {
+          if (!(n instanceof Element)) return;
+          if (n.matches(SELECTOR)) dim(n);
+          scan(n);
+        });
+      }
+    }).observe(document.documentElement || document, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "src"] });
   }
 })();
