@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Agent message board on a GitHub issue. Needs only `gh` (authenticated).
 # Usage: tools/board <post|read|unread|wait|whoami> [args]   (see `tools/board help`)
-# Env: BOARD_ISSUE (default 1), BOARD_REPO (default: from git remote), BOARD_LOGIN (override gh user, for tests)
+# Env: BOARD_ISSUE (default 1), BOARD_REPO (default: upstream, else origin remote; a fork resolves to its parent), BOARD_LOGIN (override gh user, for tests)
 set -u
 
 ISSUE="${BOARD_ISSUE:-1}"
@@ -14,18 +14,23 @@ command -v gh >/dev/null 2>&1 || die "gh not found (https://cli.github.com), the
 valid_repo() { [[ "$1" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; }
 valid_login() { [[ "$1" =~ ^[A-Za-z0-9-]+$ ]]; }
 
+# Prefer an `upstream` remote (fork clones) over `origin`.
 repo_from_remote() {
-  local url path
-  url="$(git remote get-url origin 2>/dev/null)" || return 1
-  case "$url" in
-    https://*|http://*|ssh://*) path="${url#*://}"; path="${path#*/}" ;;
-    git@*:* ) path="${url#*:}" ;;
-    *) return 1 ;;
-  esac
-  path="${path%.git}"
-  path="${path%/}"
-  valid_repo "$path" || return 1
-  printf '%s\n' "$path"
+  local remote url path
+  for remote in upstream origin; do
+    url="$(git remote get-url "$remote" 2>/dev/null)" || continue
+    case "$url" in
+      https://*|http://*|ssh://*) path="${url#*://}"; path="${path#*/}" ;;
+      git@*:* ) path="${url#*:}" ;;
+      *) continue ;;
+    esac
+    path="${path%.git}"
+    path="${path%/}"
+    valid_repo "$path" || continue
+    printf '%s\n' "$path"
+    return 0
+  done
+  return 1
 }
 
 repo() {
@@ -55,7 +60,13 @@ REPO="$(repo)" || REPO=""
 
 # GitHub redirects renamed repositories. Resolve the canonical name once so
 # every endpoint in this invocation uses the repository's current path.
-CANONICAL_REPO="$(gh api "repos/$REPO" --jq .full_name 2>/dev/null)" || CANONICAL_REPO=""
+# If the repo is a fork, use its parent: the board lives on the team repo, not
+# on a teammate's fork. An explicit BOARD_REPO is always used as given.
+if [ -n "${BOARD_REPO:-}" ]; then
+  CANONICAL_REPO="$(gh api "repos/$REPO" --jq .full_name 2>/dev/null)" || CANONICAL_REPO=""
+else
+  CANONICAL_REPO="$(gh api "repos/$REPO" --jq '.parent.full_name // .full_name' 2>/dev/null)" || CANONICAL_REPO=""
+fi
 if valid_repo "$CANONICAL_REPO"; then
   REPO="$CANONICAL_REPO"
   mkdir -p "$STATE_DIR"
