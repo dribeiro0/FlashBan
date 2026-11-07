@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Seizure Shield</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Seizure Shield</h1>
+      <p id="status" class="status" role="status" aria-live="polite">Checking this page…</p>
+
+      <div class="row">
+        <input type="checkbox" id="site-enabled" disabled />
+        <label for="site-enabled">Protect <span id="site-name">this site</span></label>
+      </div>
+
+      <fieldset>
+        <legend>Sensitivity</legend>
+        <div class="row">
+          <input type="radio" name="preset" id="preset-strict" value="strict" aria-describedby="hint-strict" />
+          <label for="preset-strict">Strict (recommended)</label>
+        </div>
+        <p class="hint" id="hint-strict">Stricter than WCAG. Hides anything flashing more than twice a second.</p>
+        <div class="row">
+          <input type="radio" name="preset" id="preset-wcag" value="wcag" aria-describedby="hint-wcag" />
+          <label for="preset-wcag">WCAG</label>
+        </div>
+        <p class="hint" id="hint-wcag">The WCAG 2.3.1 limit: more than three flashes a second over a large area.</p>
+        <div class="row">
+          <input type="radio" name="preset" id="preset-relaxed" value="relaxed" aria-describedby="hint-relaxed" />
+          <label for="preset-relaxed">Relaxed</label>
+        </div>
+        <p class="hint" id="hint-relaxed">WCAG limits with fewer precautions.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Precautions</legend>
+        <div class="row">
+          <input type="checkbox" id="guardedStart" />
+          <label for="guardedStart">Dim new videos and animations while they're checked</label>
+        </div>
+        <div class="row">
+          <input type="checkbox" id="failClosed" />
+          <label for="failClosed">Dim media that can't be checked</label>
+        </div>
+      </fieldset>
+
+      <details>
+        <summary>Demo tools</summary>
+        <div class="row">
+          <input type="checkbox" id="hud" />
+          <label for="hud">Demo HUD (shows the detector's numbers)</label>
+        </div>
+        <button type="button" id="open-hud">Open HUD for this tab</button>
+      </details>
+
+      <p class="note">Seizure Shield reduces exposure to flashing content. It is not a medical device and can't guarantee protection.</p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

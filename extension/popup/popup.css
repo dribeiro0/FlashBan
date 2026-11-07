@@ -1,0 +1,109 @@
+/* Static UI: no animations or transitions anywhere (our own UI must never flash). */
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #4a4a4a; /* 8.9:1 on white */
+  --border: #767676;
+  --focus: #1a5fd0;
+  --accent-bg: #1a5fd0;
+  --accent-fg: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161616;
+    --fg: #f2f2f2;
+    --muted: #c8c8c8; /* 11:1 on #161616 */
+    --border: #8a8a8a;
+    --focus: #8ab4ff;
+    --accent-bg: #8ab4ff;
+    --accent-fg: #0b1b33;
+  }
+}
+* {
+  box-sizing: border-box;
+  transition: none !important;
+  animation: none !important;
+}
+body {
+  margin: 0;
+  width: 340px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main {
+  padding: 14px 16px 16px;
+}
+h1 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.status {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+fieldset {
+  margin: 12px 0 0;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0 0;
+}
+.row input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex: none;
+}
+.hint {
+  margin: 2px 0 6px 26px;
+  color: var(--muted);
+  font-size: 13px;
+}
+details {
+  margin: 12px 0 0;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+button {
+  margin: 8px 0 0;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 2px solid var(--accent-bg);
+  border-radius: 6px;
+  background: var(--accent-bg);
+  color: var(--accent-fg);
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 1;
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
