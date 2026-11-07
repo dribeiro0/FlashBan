@@ -19,7 +19,9 @@ Scoring:
 
 | Shield did | Counts as |
 |---|---|
-| "Flashing content hidden" cover appeared, or a violation was sent | block |
+| "Flashing content hidden" cover appeared | block |
+| Soften layer showed and stayed (output verified by its own detector) | soften (counts as block) |
+| Violation sent but nothing visible protected the user (e.g. the page deleted the cover) | detected (counts as allow: a FAIL on block pages) |
 | Still dimmed at the end of the run | block (fail-closed dim) |
 | Only the short guarded-start "Checking for flashing…" dim | allow |
 | Nothing | allow |

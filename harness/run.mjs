@@ -131,7 +131,7 @@ function shieldPanels(node, out = []) {
   if (node.attributes) {
     const a = node.attributes;
     for (let i = 0; i < a.length; i += 2) {
-      if (a[i] === "aria-label" && /Flashing content hidden|dimmed by Seizure Shield/i.test(a[i + 1])) out.push(a[i + 1]);
+      if (a[i] === "aria-label" && /Flashing content hidden|dimmed by Seizure Shield|softened by FlashBan/i.test(a[i + 1])) out.push(a[i + 1]);
     }
   }
   for (const c of node.children || []) shieldPanels(c, out);
@@ -237,6 +237,7 @@ async function main() {
       // for flashing" dim is expected on every moving source for ~800 ms, so a
       // dim only counts if it is still there at the end of the run.
       let everCovered = false;
+      let everSoftened = false;
       let firstCoverMs = null;
       let lastPanels = [];
       let shot = null;
@@ -252,7 +253,8 @@ async function main() {
         await sleep(150);
         const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true }, sessionId);
         lastPanels = shieldPanels(root);
-        const covered = lastPanels.some((p) => /hidden/i.test(p));
+        if (lastPanels.some((p) => /softened/i.test(p))) everSoftened = true;
+        const covered = lastPanels.some((p) => /hidden|softened/i.test(p));
         if (covered && !everCovered) {
           everCovered = true;
           firstCoverMs = Date.now() - startedAt;
@@ -273,8 +275,15 @@ async function main() {
       const violations = JSON.parse(result.value);
       const covered = everCovered;
       const dimmed = panels.some((p) => /dimmed/i.test(p)); // still dimmed at the end
-      const actual = covered || violations.length ? "block" : dimmed ? "dim" : "allow";
-      const verdict = actual === "dim" ? "block" : actual; // fail-closed dim counts as block
+      const stillSoftened = panels.some((p) => /softened/i.test(p));
+      const fellBack = everSoftened && panels.some((p) => /hidden/i.test(p));
+      // Only what the user would actually see counts. A violation message with
+      // no cover on screen (e.g. the page deleted it) is "detected", not protected.
+      const actual = everSoftened && !fellBack && (stillSoftened || !panels.length)
+        ? "soften"
+        : covered ? "block" : dimmed ? "dim" : violations.length ? "detected" : "allow";
+      // Protective outcomes: soften (output verified below the limit), cover, or fail-closed dim.
+      const verdict = actual === "dim" || actual === "soften" ? "block" : actual === "detected" ? "allow" : actual;
       results.push({
         page: page.rel,
         title: page.title,
