@@ -19,8 +19,9 @@ const report = (extra = {}) => ({
 test("settings: defaults and junk input", () => {
   assert.deepEqual(normalizeSettings(undefined), { ...DEFAULT_SETTINGS, allowlist: [] });
   assert.deepEqual(normalizeSettings("nope"), { ...DEFAULT_SETTINGS, allowlist: [] });
+  assert.equal(DEFAULT_SETTINGS.preset, "wcag", "WCAG limits by default; Strict is opt-in");
   const s = normalizeSettings({ preset: "evil", guardedStart: "yes", hud: true, allowlist: ["Example.COM", "bad domain", "example.com", 42] });
-  assert.equal(s.preset, "strict");
+  assert.equal(s.preset, "wcag");
   assert.equal(s.guardedStart, true);
   assert.equal(s.hud, true);
   assert.deepEqual(s.allowlist, ["example.com"]);

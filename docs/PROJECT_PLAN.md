@@ -87,8 +87,8 @@ Fail-closed policy: if the detector cannot analyze something (tainted canvas, DR
 
 ### 4.4 Sensitivity presets
 
-- **Strict (default):** stricter than WCAG. Flags above 2 flashes per second, lower area threshold, treats any red flash as a violation.
-- **WCAG:** the standard thresholds above.
+- **Strict:** stricter than WCAG. Flags above 2 flashes per second, lower area threshold, treats any red flash as a violation.
+- **WCAG (default):** the standard thresholds above. Default since Sat 4:28 PM (lead decision): Strict also flagged ordinary fast motion in testing.
 - **Relaxed:** WCAG thresholds, no guarded start.
 
 ### 4.5 Cross-origin limits (be honest in the demo)
