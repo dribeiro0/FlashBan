@@ -30,6 +30,23 @@ html::after {
 
 /** @type {Set<string>} "tabId:frameId" with lockdown applied */
 const lockedFrames = new Set();
+const LOCKDOWN_TITLE = "FlashBan dimmed this page: it was flashing and kept trying to remove FlashBan's protection. Open FlashBan to turn off protection for this site.";
+
+/**
+ * The lockdown banner is CSS generated content, which screen readers may
+ * never reach, so the toolbar button also says what happened (badge + label).
+ * @param {number} tabId @param {boolean} on
+ */
+function markTab(tabId, on) {
+  try {
+    chrome.action.setBadgeText({ tabId, text: on ? "!" : "" });
+    if (on) {
+      chrome.action.setBadgeBackgroundColor({ tabId, color: "#ffd84d" });
+      chrome.action.setBadgeTextColor?.({ tabId, color: "#121212" });
+    }
+    chrome.action.setTitle({ tabId, title: on ? LOCKDOWN_TITLE : "FlashBan" });
+  } catch {}
+}
 
 /** @type {import("../shared/settings.js").Settings | null} */
 let settingsCache = null;
@@ -201,6 +218,7 @@ async function setLockdown(sender, on) {
       await chrome.scripting.removeCSS({ target, css: LOCKDOWN_CSS, origin: "USER" });
       lockedFrames.delete(key);
     }
+    markTab(tabId, [...lockedFrames].some((k) => k.startsWith(`${tabId}:`)));
   } catch (err) {
     console.warn("[FlashBan] lockdown failed", err);
   }
@@ -211,7 +229,15 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   // A navigation or reload drops inserted CSS; forget this tab's lockdowns.
-  if (info.status === "loading") for (const key of [...lockedFrames]) if (key.startsWith(`${tabId}:`)) lockedFrames.delete(key);
+  if (info.status !== "loading") return;
+  let had = false;
+  for (const key of [...lockedFrames]) {
+    if (key.startsWith(`${tabId}:`)) {
+      lockedFrames.delete(key);
+      had = true;
+    }
+  }
+  if (had) markTab(tabId, false);
 });
 
 // ---------------------------------------------------------------- HUD relay (CONTRACTS 3a)

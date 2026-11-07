@@ -17,11 +17,16 @@ const SAMPLE_BUDGET_PX = 128 * 72; // pixels per sampled frame (aspect kept)
 const DEGRADED_BUDGET_PX = 64 * 36;
 const MIN_MEDIA_CSS_PX = 16; // ignore media smaller than this on either side
 const GUARD_START_MIN_AREA = 64 * 64; // smaller media skip guarded start
-const WARMUP_MS = 800; // guarded-start dim at least this long
-const WARN_HOLD_MS = 1000; // keep a "warn" dim this long after the last warn
+const VIDEO_CHECK_MS = 2000; // a video that starts gets a light, see-through dim for this long
+const PAGE_CHECK_MS = 1200; // the one page-wide "checking" dim, once per page
+// Media we can't analyse (lead decision, Sat 4:10 PM: option B): "always" dims
+// it whether it plays or not; "while-active" is option A (dim only while it
+// plays or animates; uses the background image probe).
+const UNVERIFIABLE_POLICY = "always";
+const WARN_HOLD_MS = 500; // keep a "warn" dim this long after the last warn
+const GAP_WARNS_TO_DIM = 2; // video: ignore one isolated sampling gap; dim when gaps repeat within 1 s
 const HUD_INTERVAL_MS = 100; // max 10 reports per second per source
 const VIOLATION_MSG_INTERVAL_MS = 10_000;
-const COST_LIMIT_MS = 3; // average sampling + detector cost per frame
 const MAX_ACTIVE = 24; // visible sources analysed at once (threat T5)
 const STATIC_IMAGE_MS = 3000; // stop sampling images that never change
 const RESIZE_MIN_GAP_MS = 2000; // rebuild the detector at most this often
@@ -51,7 +56,7 @@ const REASONS = {
   checking: "Checking it for flashing before showing it.",
   crossOrigin: "It comes from another site, so it can't be checked for flashing.",
   protected: "It is protected video that can't be checked for flashing.",
-  tooCostly: "There is too much moving media to check all of it.",
+  tooCostly: "FlashBan couldn't keep up checking this, so it's dimmed to be safe.",
   tooMany: "There is too much moving media on this page to check all of it.",
   error: "It couldn't be checked for flashing.",
   detectorError: "The flash detector failed to load, so media is dimmed to be safe.",
@@ -81,6 +86,7 @@ let domLoop = 0;
 let lastDriverPrune = 0;
 let lockedDown = false; // page lockdown CSS applied (see onTamper)
 let repeatOffender = false; // this site (or frame) has a past violation in the local log
+let pageCheckDone = false; // the page-wide "checking" dim has been shown on this page
 /** @type {Set<Source>} */ const unverifiables = new Set();
 let unverifiableTimer = 0;
 let animTimer = 0;
@@ -350,14 +356,17 @@ class Source {
     this.cssH = 0;
     /** @type {OffscreenCanvas | null} */ this.canvas = null;
     /** @type {OffscreenCanvasRenderingContext2D | null} */ this.ctx = null;
+    // Dim timers run on performance.now(), never on frame timestamps: video
+    // frame times (rVFC expectedDisplayTime) can be on a different footing.
     this.warmupUntil = 0;
     this.warnUntil = 0;
     this.guardedStartDone = false;
     this.prevHash = -1;
     this.lastHud = 0;
     this.lastViolationMsg = 0;
-    this.costAvg = 0;
-    this.costSamples = 0;
+    // CPU budget (threat T5): readback judged on its median, the detector on
+    // its mean, unchanged frames left out (David's createCostMeter, #43).
+    /** @type {any} */ this.cost = typeof detect?.createCostMeter === "function" ? detect.createCostMeter() : null;
     this.stopped = false; // unverifiable, static or user-shown: no more sampling
     this.persistentDim = false;
     /** @type {string | null} */ this.unverifiable = null; // why we can't analyse it
@@ -367,6 +376,8 @@ class Source {
     this.resizeChurn = 0;
     this.vfcHandle = 0;
     this.lastT = 0;
+    this.lastPresented = -1; // video: rVFC presentedFrames of the last sample
+    this.completeFrames = false;
     /** @type {{ stop(): void } | null} */ this.soft = null; // soften layer while active
     this.softFailed = false; // soften fell back to block once: don't retry on this element
     if (kind === "video") this.attachVideoListeners();
@@ -385,6 +396,9 @@ class Source {
         return;
       }
       this.resetDetector();
+      this.lastPresented = -1;
+      // Guarded start from the "play" event, before the first frame is shown.
+      if (!this.guardedStartDone) this.beginGuardedStart(performance.now());
       this.scheduleVideo();
     };
     this.onPauseOrSeek = () => {
@@ -451,7 +465,12 @@ class Source {
       this.vfcHandle = v.requestVideoFrameCallback((now, meta) => {
         this.vfcHandle = 0;
         // Display time, not media time: playbackRate 2x flashes twice as fast for the viewer.
-        this.sample(meta.expectedDisplayTime || now);
+        // Every presented frame sampled (presentedFrames moved by exactly 1)?
+        // Then a long gap is just the video's own frame rate, not missed frames.
+        const presented = typeof meta.presentedFrames === "number" ? meta.presentedFrames : -1;
+        const complete = presented >= 0 && this.lastPresented >= 0 && presented === this.lastPresented + 1;
+        this.lastPresented = presented;
+        this.sample(meta.expectedDisplayTime || now, complete);
         if (!v.paused && !v.ended) this.scheduleVideo();
       });
     } else {
@@ -513,8 +532,12 @@ class Source {
     this.lastT = 0;
   }
 
-  /** @param {number} t  display timestamp in ms */
-  sample(t) {
+  /**
+   * @param {number} t  display timestamp in ms
+   * @param {boolean} [complete]  video only: no presented frame was skipped since the last sample
+   */
+  sample(t, complete = false) {
+    this.completeFrames = complete;
     if (this.stopped || !this.visible || !enabled) return;
     // Softened: the soften layer reads and verifies every frame itself, so
     // skip the raw read (saves a second readback). While it's only checking
@@ -542,11 +565,15 @@ class Source {
       return this.markUnverifiable(name === "SecurityError" ? REASONS.crossOrigin : REASONS.error);
     }
 
+    const readMs = performance.now() - t0;
+    let changed = true; // every video frame from requestVideoFrameCallback is new
+
     // Guarded start for canvases and images: dim as soon as the content moves.
     if (this.kind !== "video") {
       const hash = quickHash(data);
+      changed = this.prevHash === -1 || hash !== this.prevHash;
       if (this.prevHash === -1 || hash !== this.prevHash) {
-        if (this.prevHash !== -1 && !this.guardedStartDone) this.beginGuardedStart(t);
+        if (this.prevHash !== -1 && !this.guardedStartDone) this.beginGuardedStart(performance.now());
         this.lastChange = t;
       } else if (this.kind === "gif" && t - this.lastChange > STATIC_IMAGE_MS) {
         this.stopped = true; // a still image: nothing to watch
@@ -554,57 +581,45 @@ class Source {
       this.prevHash = hash;
     }
     if (this.kind === "video" && !this.guardedStartDone) {
-      this.beginGuardedStart(t);
+      this.beginGuardedStart(performance.now());
     }
 
     let report;
+    const t1 = performance.now();
     try {
       report = this.detector.push({ t, pixels: data });
     } catch {
       report = null;
     }
-    const cost = performance.now() - t0;
-    this.trackCost(cost);
+    const detectMs = performance.now() - t1;
     if (!report) return this.markUnverifiable(REASONS.error);
     this.handleReport(report, t);
-  }
-
-  /** @param {number} t */
-  beginGuardedStart(t) {
-    this.guardedStartDone = true;
-    if (!(settings.guardedStart || repeatOffender) || this.cssW * this.cssH < GUARD_START_MIN_AREA) return;
-    if (safemode.isGuarded(this.el) || safemode.wasShownByUser(this.el)) return;
-    this.warmupUntil = t + WARMUP_MS;
-    if (this.startChecking(t)) return; // soften while checking: no dim, no interruption
-    safemode.guard(this.el, "dim", REASONS.checking, { canShow: false });
+    this.trackCost(readMs, detectMs, changed);
   }
 
   /**
-   * Soften (instead of dimming) while new or uncertain media is checked.
-   * Returns false if soften can't be used here; the caller then dims.
-   * @param {number} t
+   * Guarded start (lead decision, Sat 4:10 PM): one light page-wide dim the
+   * first time media appears, instead of a dim on every element, and a light
+   * see-through dim for a few seconds on a video that starts. The detector
+   * still covers or softens anything that flashes, usually within 0.3-1 s.
+   * @param {number} now  performance.now()
    */
-  startChecking(t) {
-    if (this.soft) return true;
-    if (settings.onFlash !== "soften" || this.softFailed || !softenable(this.el)) return false;
-    let soft = null;
-    try {
-      soft = startSoften(/** @type {any} */ (this.el), {
-        detect,
-        preset: effectivePreset(),
-        checking: true,
-        onFail: (failReport) => {
-          this.soft = null;
-          this.softFailed = true;
-          this.block(failReport || { violation: true, severity: "block", reason: "unknown" }, performance.now());
-        },
-      });
-    } catch {
-      soft = null;
+  beginGuardedStart(now) {
+    this.guardedStartDone = true;
+    if (!(settings.guardedStart || repeatOffender)) return;
+    if (this.kind !== "video") {
+      pageCheckOnce();
+      return;
     }
-    if (!soft) return false;
-    this.soft = soft;
-    return true;
+    let area = this.cssW * this.cssH;
+    if (!area) {
+      const r = this.el.getBoundingClientRect(); // before the first sample (e.g. on "play")
+      area = r.width * r.height;
+    }
+    if (area < GUARD_START_MIN_AREA) return;
+    if (safemode.isGuarded(this.el) || safemode.wasShownByUser(this.el)) return;
+    this.warmupUntil = now + VIDEO_CHECK_MS;
+    safemode.guard(this.el, "dim", REASONS.checking, { canShow: false, light: true });
   }
 
   /** @param {any} report @param {number} t */
@@ -652,17 +667,17 @@ class Source {
     return true;
   }
 
-  /** @param {number} cost */
-  trackCost(cost) {
-    this.costSamples++;
-    this.costAvg += (cost - this.costAvg) / Math.min(this.costSamples, 30);
-    if (this.costSamples < 30 || this.costAvg <= COST_LIMIT_MS) return;
+  /** @param {number} readMs @param {number} detectMs @param {boolean} changed */
+  trackCost(readMs, detectMs, changed) {
+    if (!this.cost || this.stopped) return;
+    this.cost.add({ readMs, detectMs, changed });
+    const c = this.cost.check();
+    if (!c?.over) return;
     if (this.budgetPx > DEGRADED_BUDGET_PX) {
-      // Step down once (David's DESIGN section 7), then fail closed.
+      // Step down once to a smaller sample (DESIGN section 7), then fail closed.
       this.budgetPx = DEGRADED_BUDGET_PX;
       this.detector = null;
-      this.costSamples = 0;
-      this.costAvg = 0;
+      this.cost.reset?.();
     } else {
       this.markUnverifiable(REASONS.tooCostly);
     }
@@ -670,6 +685,23 @@ class Source {
 
   /** @param {any} report @param {number} t */
   handleReport(report, t) {
+    // A video sampled on every presented frame can't hide flashes between
+    // samples, so the detector's gap rule ("undersampled", and the block after a
+    // full-window gap, which carries no reason) doesn't apply: a 10 fps video
+    // legitimately has 100 ms between frames. Without this, low-frame-rate
+    // videos stayed in "checking" for good.
+    if (this.kind === "video" && this.completeFrames && report.undersampled && !report.reason) {
+      report = { ...report, severity: "none", violation: false, undersampled: false };
+    }
+    // Busy pages: the compositor keeps showing video frames while the page's
+    // main thread is blocked, so we sometimes miss a few. One isolated gap
+    // can't hide a flash pattern (that needs 5-7 transitions in a second), so
+    // only repeated gaps keep the "checking" dim on.
+    if (this.kind === "video" && report.severity === "warn" && report.undersampled && !report.violation) {
+      this.gapTimes = (this.gapTimes || []).filter((x) => x > t - 1000);
+      this.gapTimes.push(t);
+      if (this.gapTimes.length < GAP_WARNS_TO_DIM) report = { ...report, severity: "none" };
+    }
     const el = this.el;
     this.sendHud(report, t);
     if (aggregator) this.updateAggregate(report, t);
@@ -712,12 +744,17 @@ class Source {
       return;
     }
     if (report.severity === "warn") {
-      this.warnUntil = t + WARN_HOLD_MS;
-      if (!safemode.isGuarded(el) && !this.startChecking(t)) safemode.guard(el, "dim", REASONS.checking, { canShow: false });
+      // Only videos get a (light) dim for a warn; other elements keep being
+      // checked without a dim on every piece. A real violation still covers.
+      if (this.kind === "video") {
+        this.warnUntil = performance.now() + WARN_HOLD_MS;
+        if (!safemode.isGuarded(el)) safemode.guard(el, "dim", REASONS.checking, { canShow: false, light: true });
+      }
       return;
     }
     // Clean report: lift a temporary dim once warm-up and any warn hold are over.
-    if (safemode.guardMode(el) === "dim" && !this.persistentDim && t >= this.warmupUntil && t >= this.warnUntil) {
+    const nowMs = performance.now();
+    if (safemode.guardMode(el) === "dim" && !this.persistentDim && nowMs >= this.warmupUntil && nowMs >= this.warnUntil) {
       safemode.release(el);
     }
   }
@@ -737,6 +774,7 @@ class Source {
     let soft = null;
     try {
       soft = startSoften(/** @type {any} */ (v), {
+        onTamper: () => safemode.reportTamper(),
         detect,
         preset: effectivePreset(), // strict on repeat-offender sites, like everything else
         onFail: (failReport) => {
@@ -821,7 +859,7 @@ class Source {
     this.unverifiable = reason;
     this.persistentDim = true;
     unverifiables.add(this);
-    if (this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
+    if (UNVERIFIABLE_POLICY === "while-active" && this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
     this.applyUnverifiableDim();
     startUnverifiableTimer();
   }
@@ -837,7 +875,7 @@ class Source {
   applyUnverifiableDim() {
     const el = this.el;
     if (!this.unverifiable || safemode.wasShownByUser(el)) return;
-    const dim = enabled && settings.failClosed && (repeatOffender || this.isActive());
+    const dim = enabled && settings.failClosed && (UNVERIFIABLE_POLICY === "always" || repeatOffender || this.isActive());
     const mode = safemode.guardMode(el);
     if (dim) {
       if (mode !== "cover") safemode.guard(el, "dim", this.unverifiable, { canShow: true, announce: false });
@@ -846,11 +884,25 @@ class Source {
     }
   }
 
-  /** Ask the background whether a cross-origin image file is animated. */
+  /**
+   * Ask the background whether a cross-origin WebP/APNG file is animated.
+   * Never for GIFs: a server can tell the probe from the page's own request and
+   * cloak it (still frame to the probe, strobe to the page), and GIFs are
+   * nearly always animated anyway, so a cross-origin GIF always counts as
+   * animated (threat T4). WebP/APNG keep the probe for usability (most are
+   * still images); the cloaking risk there is a documented limit.
+   */
   probeAnimation() {
     const img = /** @type {HTMLImageElement} */ (this.el);
     const url = img.currentSrc || img.src;
     if (!/^https?:/i.test(url)) return;
+    let path = "";
+    try {
+      path = new URL(url).pathname.toLowerCase();
+    } catch {
+      return;
+    }
+    if (path.endsWith(".gif")) return; // stays "animated or unknown": dimmed while visible
     try {
       chrome.runtime
         .sendMessage({ type: "probeImage", v: 1, url })
@@ -1115,6 +1167,13 @@ function animationContext(a) {
 
 // ---------------------------------------------------------------- repeat offenders and auto-dim
 
+/** The single page-wide check: shown the first time media appears on this page. */
+function pageCheckOnce() {
+  if (pageCheckDone || !enabled) return;
+  pageCheckDone = true;
+  safemode.checkPage("Checking this page for flashing…", PAGE_CHECK_MS);
+}
+
 /** Sites with a past violation get the strict preset (STRATEGY 7.6). */
 function effectivePreset() {
   return repeatOffender ? "strict" : settings.preset;
@@ -1285,6 +1344,17 @@ function onTamper() {
   if (lockedDown || !enabled) return;
   lockedDown = true;
   send({ type: "lockdown", v: 1, on: true });
+  // The lockdown CSS hides the page's media; stop soften layers so we don't
+  // keep re-inserting them for the attacker's MutationObserver to delete.
+  for (const s of allSources()) {
+    if (s.soft && !s.soft.dom) {
+      const soft = s.soft;
+      s.soft = null;
+      try {
+        soft.stop();
+      } catch {}
+    }
+  }
 }
 
 /** The user pressed "Show anyway". @param {Element} el */

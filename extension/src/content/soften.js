@@ -54,10 +54,11 @@ export function softenable(el) {
  * Start softening a video, canvas or image. Returns null if it can't (the
  * caller then blocks or dims as before).
  * @param {HTMLVideoElement | HTMLCanvasElement | HTMLImageElement} el
- * @param {{ detect: any, preset: string, onFail: (report?: any) => void, checking?: boolean }} opts
+ * @param {{ detect: any, preset: string, onFail: (report?: any) => void, checking?: boolean, onTamper?: () => void }} opts
+ *   onTamper: called whenever the page removed or restyled the soften layer (threat T6)
  * @returns {{ stop(): void, release(): void, promote(): void, readonly checking: boolean } | null}
  */
-export function startSoften(el, { detect, preset, onFail, checking = false }) {
+export function startSoften(el, { detect, preset, onFail, checking = false, onTamper }) {
   if (!detect || typeof detect.createDetector !== "function" || !softenable(el)) return null;
   const isVideo = el instanceof HTMLVideoElement;
   if (isVideo && /** @type {HTMLVideoElement} */ (el).mediaKeys) return null; // DRM: frames can't be read
@@ -140,9 +141,20 @@ export function startSoften(el, { detect, preset, onFail, checking = false }) {
   let frameRaf = 0;
   let placeRaf = 0;
 
+  let attachedOnce = false;
   function attach() {
-    if (!host.isConnected) document.documentElement.append(host);
-    if ((host.getAttribute("style") || "") !== hostStyle) host.setAttribute("style", hostStyle);
+    // After the first attach, a missing or restyled host means the page is
+    // attacking the layer (like overlay-killer does to the cover). Report it so
+    // repeated attacks reach the page lockdown, which the page can't undo.
+    if (!host.isConnected) {
+      if (attachedOnce) onTamper?.();
+      document.documentElement.append(host);
+    }
+    if ((host.getAttribute("style") || "") !== hostStyle) {
+      if (attachedOnce) onTamper?.();
+      host.setAttribute("style", hostStyle);
+    }
+    attachedOnce = true;
     if (!layer.matches(":popover-open")) {
       try {
         layer.showPopover();

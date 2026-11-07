@@ -12,7 +12,7 @@
 //   temporary dim is released, which is skipped under prefers-reduced-motion.
 // - "Show anyway" only works for trusted (real user) clicks or key presses.
 
-const FADE_MS = 600;
+const FADE_MS = 250;
 const ANNOUNCE_GAP_MS = 5000;
 const COMPACT_W = 220;
 const COMPACT_H = 110;
@@ -62,14 +62,46 @@ const SHADOW_CSS = `
     color: #ffffff;
   }
   .panel[hidden] { display: none; }
-  /* Both states are clearly a FlashBan cover, not a frozen page: near-opaque
-     or opaque, a yellow frame, and a label that is always visible. */
+  /* Dim: the content stays visible but clearly darker, with a yellow frame and
+     a small label in the corner. Safety math: a 72% black layer leaves at most
+     28% of the sRGB value, so even a white/black strobe swings relative
+     luminance by under 0.07 (WCAG's flash threshold is 0.10), and grayscale
+     takes the colour out of red flashes. Cover: opaque, centred message. */
   .panel.dim {
-    background: rgba(18, 18, 18, 0.94);
-    -webkit-backdrop-filter: grayscale(1) brightness(0.4) blur(8px);
-    backdrop-filter: grayscale(1) brightness(0.4) blur(8px);
+    justify-content: flex-start; align-items: flex-start; text-align: left;
+    gap: 6px; padding: 8px;
+    background: rgba(0, 0, 0, 0.72);
+    -webkit-backdrop-filter: grayscale(1);
+    backdrop-filter: grayscale(1);
     box-shadow: inset 0 0 0 3px #ffd84d;
   }
+  .panel.dim .title, .panel.dim .reason {
+    background: #121212; padding: 3px 8px; border-radius: 4px; max-width: calc(100% - 16px);
+  }
+  .panel.dim .title { font-size: 14px; }
+  .panel.dim.checking .reason { display: none; }
+  /* Light dim: a short, see-through check on a video that just started.
+     Clicks go through to the video's own controls. */
+  .panel.dim.light {
+    background: rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    pointer-events: none;
+  }
+  /* One page-wide check, shown once per page. Never blocks clicks. */
+  .pagecheck {
+    position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start;
+    padding-top: 12px; background: rgba(0, 0, 0, 0.45); pointer-events: none;
+    box-shadow: inset 0 0 0 3px #ffd84d; opacity: 1; transition: opacity ${FADE_MS}ms linear;
+  }
+  .pagecheck.fading { opacity: 0; }
+  .pagecheck p {
+    margin: 0; padding: 6px 12px; border-radius: 6px; background: #121212; color: #ffffff;
+    font: 600 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .pagecheck .brand { margin-right: 8px; display: inline-block; }
+  @media (prefers-reduced-motion: reduce) { .pagecheck { transition: none; } }
+  .panel.dim button { min-height: 32px; padding: 4px 12px; font-size: 13px; }
   .panel.cover { background: #121212; box-shadow: inset 0 0 0 3px #ffd84d; }
   .brand {
     margin: 0; padding: 2px 8px; border-radius: 4px;
@@ -139,8 +171,9 @@ let lastRaiseCheck = 0;
  * @param {Element} el
  * @param {"dim" | "cover"} mode
  * @param {string} reason   plain-language text shown and announced to the user
- * @param {{ canShow?: boolean, announce?: boolean }} [opts]
+ * @param {{ canShow?: boolean, announce?: boolean, light?: boolean }} [opts]
  *   canShow: offer a "Show anyway" button (default: true for cover, false for dim)
+ *   light: a see-through dim that doesn't block clicks (a video's short check)
  */
 export function guard(el, mode, reason, opts = {}) {
   if (!(el instanceof Element) || userShown.has(el)) return;
@@ -150,7 +183,7 @@ export function guard(el, mode, reason, opts = {}) {
   if (!g) {
     const panel = document.createElement("div");
     panel.className = "panel";
-    g = { el, mode, reason, canShow: false, panel, fadeTimer: 0, rendered: false };
+    g = { el, mode, reason, canShow: false, panel, fadeTimer: 0, rendered: false, light: false };
     guards.set(el, g);
     /** @type {HTMLDivElement} */ (layer).append(panel);
   }
@@ -160,8 +193,9 @@ export function guard(el, mode, reason, opts = {}) {
     g.fadeTimer = 0;
   }
   const canShow = opts.canShow ?? mode === "cover";
+  const light = mode === "dim" && !!opts.light;
   const isNew = !g.rendered;
-  const changed = isNew || wasFading || g.mode !== mode || g.reason !== reason || g.canShow !== canShow;
+  const changed = isNew || wasFading || g.mode !== mode || g.reason !== reason || g.canShow !== canShow || g.light !== light;
   // Callers may guard the same element on every frame; only rebuild the panel
   // when something changed, or keyboard focus on its button would be lost.
   if (!changed) return;
@@ -169,6 +203,7 @@ export function guard(el, mode, reason, opts = {}) {
   g.mode = mode;
   g.reason = reason;
   g.canShow = canShow;
+  g.light = light;
   g.rendered = true;
   render(g);
   position(g);
@@ -261,6 +296,48 @@ export function counts() {
 /** Remove every guard (used when the user turns the shield off for this site). */
 export function releaseAll() {
   for (const g of [...guards.values()]) removeGuard(g);
+  hidePageCheck(true);
+}
+
+/** @type {HTMLDivElement | null} */ let pagePanel = null;
+let pageTimer = 0;
+
+/**
+ * One light, page-wide "checking" dim, shown once per page instead of a dim on
+ * every element. It lifts by itself after `ms` and never blocks clicks. Not
+ * announced: it's brief and would be noise for screen-reader users.
+ * @param {string} text @param {number} ms
+ */
+export function checkPage(text, ms) {
+  ensureLayer();
+  if (pagePanel) return;
+  pagePanel = document.createElement("div");
+  pagePanel.className = "pagecheck";
+  pagePanel.setAttribute("aria-hidden", "true");
+  const chip = document.createElement("p");
+  const brand = document.createElement("span");
+  brand.className = "brand";
+  brand.textContent = "FlashBan";
+  chip.append(brand, document.createTextNode(text));
+  pagePanel.append(chip);
+  /** @type {HTMLDivElement} */ (layer).append(pagePanel);
+  openLayer();
+  pageTimer = setTimeout(() => hidePageCheck(false), ms);
+}
+
+/** @param {boolean} immediate */
+function hidePageCheck(immediate) {
+  clearTimeout(pageTimer);
+  const p = pagePanel;
+  if (!p) return;
+  const done = () => {
+    p.remove();
+    if (pagePanel === p) pagePanel = null;
+    if (guards.size === 0) closeLayer();
+  };
+  if (immediate || reducedMotion.matches) return done();
+  p.classList.add("fading");
+  setTimeout(done, FADE_MS);
 }
 
 // ---------------------------------------------------------------- internals
@@ -327,7 +404,7 @@ function raise() {
 /** @param {Guard} g */
 function render(g) {
   const { panel } = g;
-  panel.className = `panel ${g.mode}`;
+  panel.className = `panel ${g.mode}${g.mode === "dim" && !g.canShow ? " checking" : ""}${g.light ? " light" : ""}`;
   panel.replaceChildren();
   panel.setAttribute("role", "group");
   panel.setAttribute("aria-label", g.mode === "cover" ? "Flashing content hidden by FlashBan" : "Content dimmed by FlashBan");
@@ -390,7 +467,7 @@ function removeGuard(g) {
   g.fadeTimer = 0;
   g.panel.remove();
   guards.delete(g.el);
-  if (guards.size === 0) closeLayer();
+  if (guards.size === 0 && !pagePanel) closeLayer();
 }
 
 /** @param {string} text */
