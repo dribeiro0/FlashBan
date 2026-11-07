@@ -30,6 +30,9 @@ No real media and nothing that is shown on a screen. Every vector is generated a
 | F8 | Burst: 4 flashes (8 transitions) in 900 ms, then constant 3 s | violation during the burst; report returns to none once the burst is 1000 ms old. The detector does not latch (latching is the content script's job) |
 | F9 | Preset `strict`, half-period 167 ms (about 3 Hz, 6 transitions) | **violation** (3 flashes > 2); same input under `wcag` is none |
 | F10 | Preset `strict`, 2 Hz | none |
+| F11 | Calm constant gray for 5 s with **one** stray transition (a single 0.3 step) in the middle, then constant again (test requested by the lead) | none, never `warn` or `block`. One transition is `ceil(1/2) = 1` flash, far from the limit of 3 |
+| F12 | One isolated flash pair (2 transitions) every 1.5 s for 10 s | none (never more than 1 flash in any window) |
+| F13 | A clean 3-flash burst (6 transitions) and a stray 7th transition 100 ms later, all inside one window | **violation**. This is the `ceil` edge, expected by design; recorded so nobody "fixes" it by accident |
 
 ## 2. Amplitude and darker-state limit
 
@@ -59,14 +62,14 @@ All area vectors run 4 Hz (violating rate) on a `64 x 36` frame, `realAreaScale 
 
 ## 4. Aggregation across elements (threat T2)
 
-Tested on `createAggregator()` with synthetic reports `{ id, t, areaPx, redAreaPx }`, `wcag` preset.
+Tested on `createAggregator(preset)` (`update(r)` and `result(t)`) with synthetic reports `{ id, t, areaPx, redAreaPx }`, `wcag` preset.
 
 | ID | Input | Expected |
 |---|---|---|
 | G1 | 10 ids, each `areaPx` 2,560, all reported at the same `t` (sum 25,600) | **aggregate violation**, even though each is under 21,824; all 10 ids returned as contributors |
 | G2 | Same, but 9 ids at 2,560 (sum 23,040) | **violation**; 8 ids (sum 20,480) is none |
 | G3 | 10 ids as in G1 but 5 of them last reported 1,500 ms earlier | none (stale reports are dropped, remaining sum 12,800) |
-| G4 | One id reports and then `remove(id)` is called | contributes nothing afterwards |
+| G4 | `result(t)` with no updates ever made | `violation: false`, `totalAreaPx` 0, `ids` empty, no throw (the contract has no `remove`; ids drop out by going stale) |
 | G5 | Same id reports twice in one window | counted once, latest report only |
 | G6 | Sum exactly 21,824 | none; 21,825 or more is a violation |
 | G7 | Red areas from several ids exceeding the threshold while general area does not | violation, reason `red` |
