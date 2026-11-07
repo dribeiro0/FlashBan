@@ -60,7 +60,7 @@ Record commit, Chrome/platform, preset, viewport, zoom, device pixel ratio, stim
 
 ## Open integration questions
 
-1. The fields the HUD may read are fixed in `docs/CONTRACTS.md` section 1 (`flashesPerSecond`, `redFlashesPerSecond`, `areaPx`, `areaPct`, `severity`, `reason`, `sampleRateHz`, `undersampled`, labeled "detector estimates"). Still open: the read-only path by which those reports reach the HUD. Until agreed, use extension diagnostics or captured logs.
+1. The fields the HUD may read are fixed in `docs/CONTRACTS.md` section 1 (`flashesPerSecond`, `redFlashesPerSecond`, `areaPx`, `areaPct`, `severity`, `reason`, `sampleRateHz`, `undersampled`, labeled "detector estimates"). The read path is settled in `docs/CONTRACTS.md` section 3a: the HUD is an extension page (`extension/hud/hud.html`) subscribed over `chrome.runtime.connect({ name: "hud" })`, and it works only when the Demo HUD setting is on. Demo pages never read shield results themselves.
 2. How does core identify JS-driven elements and attribute guard state? Do not invent selectors, custom events, or message formats.
 3. Which final preset thresholds and area interpretation should fixtures target? Spec constants and viewport aggregation still need owner sign-off.
 4. What observation and latency acceptance windows does the lead approve? The proposed run duration is not a settled detector requirement.

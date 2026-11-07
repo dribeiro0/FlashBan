@@ -34,6 +34,7 @@ Run this once @DxubleBTW posts the manifest and message format, and again at fea
 | G3 | No `onMessageExternal` / `onConnectExternal` listener, unless needed and also validated. | `grep -rn "External" extension/` | T7 |
 | G4 | The content script never trusts `window.postMessage`, DOM events or page globals as commands (pages can forge them). | `grep -rnE "addEventListener\(['\"]message|postMessage" extension/src/content/` | T6, T7 |
 | G5 | `domain` in a `violation` message is the registrable domain computed by the extension, never taken from page input. | Read where `domain` is set. | T7, T11 |
+| G6 | HUD path (`docs/CONTRACTS.md` section 3a): `onConnect` accepts the `hud` port only from our own extension page (`sender.id === chrome.runtime.id`, `sender.url` under `chrome-extension://<our id>/hud/`, no `sender.tab` content script). `hudSubscribe` is validated (integer `tabId`). Reports are relayed only while the Demo HUD setting is on, for that one tab, throttled to 10 per second per source. Relayed messages contain no URL, selector or page text. | Read the `onConnect` handler; connect from a content script and confirm it is refused; turn the setting off and confirm the relay stops. | T6, T7, T11 |
 
 ## 4. Safe-mode overlay (`extension/src/content/safemode.ts`)
 
@@ -76,11 +77,11 @@ These are mainly proven by the adversarial pages (see [ADVERSARIAL_PLAN.md](ADVE
 | T3 red-only | D3 |
 | T4 unreadable pixels | M3, O6 |
 | T5 CPU exhaustion | C5, O6, D5 |
-| T6 overlay removal | M4, M6, C3, G4, O1, O2, O3, O5 |
-| T7 message spoofing | M4, M6, G1 to G5, P4 |
+| T6 overlay removal | M4, M6, C3, G4, G6, O1, O2, O3, O5 |
+| T7 message spoofing | M4, M6, G1 to G6, P4 |
 | T8 late start | D4 |
 | T9 report poisoning | backend: see [api/DESIGN.md](../api/DESIGN.md) |
 | T10 API spam | backend: see [api/DESIGN.md](../api/DESIGN.md) |
-| T11 privacy leak | M2, G5, P1, P2 |
+| T11 privacy leak | M2, G5, G6, P1, P2 |
 | T12 supply chain / remote code | M1, M2, M3, M5, C1, C2, C4, P3 |
 | T13 overlay flicker | O4 |
