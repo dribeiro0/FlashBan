@@ -15,7 +15,7 @@
   var hz = Number(stage.dataset.hz) || 0; // full on/off cycles per second
 
   var params = new URLSearchParams(location.search);
-  var seconds = Math.min(10, Math.max(1, Number(params.get("seconds")) || 3)); // bounded run, ?seconds=1..10
+  var seconds = Math.min(10, Math.max(1, Number(params.get("seconds")) || Number(stage.dataset.seconds) || 3)); // bounded run, ?seconds=1..10 (data-seconds sets a page default)
 
   var running = false;
   var raf = 0;
