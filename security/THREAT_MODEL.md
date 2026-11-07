@@ -56,3 +56,7 @@ Each page states its expected result. A pass means the shield blocks or fails cl
 
 - Content in native apps or outside the browser.
 - Guaranteed protection: the shield reduces risk, it is not a medical device. The README and the popup must say this.
+
+## Known limits
+
+- The extension is fingerprintable: its modules are listed in `web_accessible_resources` so the content script can `import()` them, which means any page can fetch them at a fixed `chrome-extension://<id>/` URL and learn the shield is installed (for example, to target users who have it). `use_dynamic_url` would rotate the URL but breaks module imports in Chrome 153. The fix is bundling the content script into one file; not done this weekend. (Security review of PR #8, M4.)
