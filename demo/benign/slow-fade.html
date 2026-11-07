@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="allow">
+<meta name="harness-seconds" content="8">
+<title>Slow fade | FlashBan benign fixture</title>
+<link rel="stylesheet" href="../demo.css">
+<link rel="stylesheet" href="benign.css">
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: moving test content.</strong> This page is a synthetic fixture for the FlashBan extension. It is meant to be ordinary, non-hazardous motion, but it still changes brightness. If you are sensitive to changing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>Slow fade</h1>
+<p>Fades from dark to light over 2 seconds and back over 2 seconds (a quarter of a cycle per second).</p>
+<p class="meta">Expected shield verdict: <strong>allow</strong> (a false positive if the shield hides or dims it after the first moment). Area 320 by 180 CSS px. Default run 6 s; add <code>?seconds=N</code> (1 to 15). <a href="index.html">All benign fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<canvas id="stage" class="stage" data-kind="fade" width="320" height="180" aria-label="Test canvas"></canvas>
+<script src="benign.js"></script>
+</body>
+</html>

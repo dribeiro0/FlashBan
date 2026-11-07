@@ -24,6 +24,6 @@ Scoring:
 | Only the short guarded-start "Checking for flashing…" dim | allow |
 | Nothing | allow |
 
-The exit code is 0 when every page matches. Add a page to `demo/` (or `demo/adversarial/`, `demo/benign/`) with the meta tag and the harness picks it up.
+The exit code is 0 when every page matches. Add a page to `demo/` (or `demo/adversarial/`, `demo/benign/`) with the meta tag and the harness picks it up. Runs last 3 s unless the page sets `<meta name="harness-seconds" content="N">` (1 to 15), e.g. for patterns that repeat slowly.
 
 Known limits: headless timing is a little noisier than a real window, so a borderline page can occasionally end as "dim" instead of "block" (both count as block). The harness can only see what the extension shows in the page; it doesn't measure pixels on screen.

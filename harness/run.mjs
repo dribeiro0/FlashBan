@@ -113,7 +113,10 @@ async function pagesToRun() {
         const m = /<meta\s+name="shield-expected"\s+content="(block|allow)"/i.exec(html);
         if (!m) continue;
         const title = (/<title>([^<]*)<\/title>/i.exec(html)?.[1] || e.name).split("|")[0].trim();
-        pages.push({ rel: relative(DEMO, p).replaceAll("\\", "/"), expected: m[1].toLowerCase(), title });
+        // Optional <meta name="harness-seconds" content="N"> for pages whose pattern needs a longer run.
+        const secs = Number(/<meta\s+name="harness-seconds"\s+content="(\d+)"/i.exec(html)?.[1]);
+        const seconds = secs >= 1 && secs <= 15 ? secs : RUN_SECONDS;
+        pages.push({ rel: relative(DEMO, p).replaceAll("\\", "/"), expected: m[1].toLowerCase(), title, seconds });
       }
     }
   }
@@ -198,7 +201,7 @@ async function main() {
     if (SHOTS) await mkdir(SHOTS, { recursive: true });
 
     for (const page of pages) {
-      const url = `http://127.0.0.1:${PORT}/${page.rel}?seconds=${RUN_SECONDS}`;
+      const url = `http://127.0.0.1:${PORT}/${page.rel}?seconds=${page.seconds}`;
       const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank" });
       const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
       await cdp.send("Page.enable", {}, sessionId);
@@ -238,7 +241,7 @@ async function main() {
       let lastPanels = [];
       let shot = null;
       const extra = page.rel.includes("video") ? 4000 : 0; // video page records first
-      const runEnd = startedAt + RUN_SECONDS * 1000 + extra;
+      const runEnd = startedAt + page.seconds * 1000 + extra;
       const shoot = async (suffix) => {
         const { data } = await cdp.send("Page.captureScreenshot", { format: "png" }, sessionId);
         const file = join(SHOTS, page.rel.replaceAll("/", "_").replace(/\.html$/, `${suffix}.png`));

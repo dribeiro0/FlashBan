@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlashBan benign fixtures</title>
+<link rel="stylesheet" href="../demo.css">
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: these pages contain moving test content.</strong> They are meant to be ordinary, non-hazardous motion (the shield should leave them alone), but they still change brightness. Nothing moves until you press Start.</p>
+<h1>FlashBan benign fixtures (false-positive check)</h1>
+<p>Every page here should be <strong>allowed</strong>: no cover and no lasting dim. Each stays under the strict preset's limit (no more than 2 flashes in any second) and at or below #bbbbbb. <code>node harness/run.mjs --only benign</code> runs them all.</p>
+<ul>
+<li><a href="scene-cuts.html">Fast scene cuts</a>: a cut every 700 ms</li>
+<li><a href="camera-flash.html">Single camera flash</a>: one 100 ms flash every 2.5 s</li>
+<li><a href="slow-fade.html">Slow fade</a>: 2 s each way</li>
+<li><a href="sunset.html">Sunset timelapse</a>: slow colour drift including reds</li>
+<li><a href="dark-mode.html">Dark-mode toggle</a>: theme switch every 1.5 s (DOM class change)</li>
+</ul>
+<p><a href="../index.html">Attack and demo fixtures</a></p>
+</body>
+</html>
