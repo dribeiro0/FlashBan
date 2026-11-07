@@ -116,7 +116,10 @@ async function pagesToRun() {
         // Optional <meta name="harness-seconds" content="N"> for pages whose pattern needs a longer run.
         const secs = Number(/<meta\s+name="harness-seconds"\s+content="(\d+)"/i.exec(html)?.[1]);
         const seconds = secs >= 1 && secs <= 15 ? secs : RUN_SECONDS;
-        pages.push({ rel: relative(DEMO, p).replaceAll("\\", "/"), expected: m[1].toLowerCase(), title, seconds });
+        // Optional <meta name="harness-forbid" content="soften,..."> outcomes that fail even though they
+        // count as block elsewhere (on soften-killer pages "soften" means the attack won).
+        const forbid = (/<meta\s+name="harness-forbid"\s+content="([a-z,\s]+)"/i.exec(html)?.[1] || "").split(",").map((s) => s.trim()).filter(Boolean);
+        pages.push({ rel: relative(DEMO, p).replaceAll("\\", "/"), expected: m[1].toLowerCase(), title, seconds, forbid });
       }
     }
   }
@@ -342,7 +345,7 @@ async function main() {
         endPanels: panels,
         expected: page.expected,
         actual,
-        pass: verdict === page.expected,
+        pass: verdict === page.expected && !page.forbid.includes(actual),
         firstCoverMs,
         reasons: [...new Set(violations.map((v) => v.reason).filter(Boolean))],
         sources: [...new Set(violations.map((v) => v.source))],
