@@ -21,5 +21,7 @@ Then open http://localhost:8080/ with the unpacked extension loaded. (Opening th
 | adversarial/overlay-killer.html | canvas strobe plus a script that removes/hides unknown nodes, closes dialogs and popovers, keeps a max z-index layer (T6) | 4 cycles/s, 10 s | block |
 | adversarial/red-only.html | canvas, #c80000 vs #616161 (luminance change 0.004, UCS distance 0.26) (T3) | 4 cycles/s | block |
 | adversarial/late-start.html | canvas, 10 s calm then strobe (T8) | 4 cycles/s for 3 s | block |
+| adversarial/soften-killer-css.html | CSS strobe; page resets playbackRate to 1 every frame (T6) | 4 cycles/s, 6 s | block (cover or lockdown, not soften) |
+| adversarial/soften-killer-dom.html | class-toggle strobe; page strips the soften transition every frame (T6) | 4 cycles/s, 6 s | block (cover or lockdown, not soften) |
 
 Stimulus area is 320 by 180 CSS px (57,600 px), above the 21,824 px WCAG area threshold at 100% zoom. Each light/dark change is about 0.17 in relative luminance (over 0.10), with the dark state below 0.80. The meta tag is the intended verdict, not a measurement: record the detector's actual output when testing.

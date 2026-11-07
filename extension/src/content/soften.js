@@ -1,61 +1,84 @@
-// Soften mode for video (extension/src/detect/SOFTEN_DESIGN.md).
+// Soften mode (extension/src/detect/SOFTEN_DESIGN.md), for video, canvas and
+// same-origin animated images.
 //
-// Instead of covering a flagged video, we keep it playing underneath (audio,
-// captions and controls keep working) and draw a softened copy on top:
-// each frame goes through the pure two-stage low-pass filter (createSoftener)
-// and is shown on a canvas that sits exactly over the video.
+// Instead of covering flagged media, we keep it running underneath (audio,
+// captions, controls and clicks keep working) and draw a softened copy on
+// top: each frame goes through the pure two-stage low-pass filter
+// (createSoftener) and is shown on a canvas that sits exactly over the media.
 //
 // Safety: a SECOND detector checks every softened frame. If it still sees a
-// violation, if the filter fails, if a frame can't be read (cross-origin, DRM)
-// or if the video leaves our canvas (picture-in-picture, fullscreen), we call
-// onFail and the caller falls back to the normal cover (fail closed).
+// violation, if the filter fails, if a frame can't be read (cross-origin, DRM,
+// tainted canvas) or if a video leaves our canvas (picture-in-picture,
+// fullscreen), we call onFail and the caller falls back to the normal cover
+// (fail closed).
+//
+// "Checking" mode (guarded start): the layer can also run while new media is
+// being checked, instead of dimming it. If the media turns out calm, the
+// caller calls release() and the layer fades away; if it flashes, promote()
+// switches the label to "Flashing softened" and it stays.
 //
 // The canvas lives in its own closed shadow root inside a top-layer popover,
 // like the safe-mode overlay, so page CSS can't hide or restyle it. It takes
-// no pointer events, so the page's own video controls stay usable.
+// no pointer events, so the page's own controls stay usable.
 
 import { createSoftener, DEFAULT_TAU } from "../detect/soften.js";
 
 const MAX_SIDE = 256; // detector limit per side
 const BUDGET_PX = 240 * 135; // filter + verify cost per frame stays around 1 ms
+const FADE_MS = 300;
 const TAG = `ss-soft-${Math.random().toString(36).slice(2, 10)}`;
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 const CSS = `
   .layer { position: fixed; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0;
            background: transparent; overflow: hidden; pointer-events: none; }
   .layer::backdrop { display: none; }
-  canvas { position: absolute; left: 0; top: 0; display: block; pointer-events: none; image-rendering: auto; }
+  canvas { position: absolute; left: 0; top: 0; display: block; pointer-events: none; image-rendering: auto;
+           opacity: 1; transition: opacity ${FADE_MS}ms linear; }
   .badge { position: absolute; margin: 8px; padding: 4px 10px; border-radius: 4px; pointer-events: none;
            font: 600 13px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
            color: #ffffff; background: rgba(0, 0, 0, 0.78); border: 1px solid #ffd54a; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { canvas { transition: none; } }
 `;
 
 /**
- * Start softening a video. Returns null if it can't (the caller then blocks).
- * @param {HTMLVideoElement} video
- * @param {{ detect: any, preset: string, onFail: (report?: any) => void }} opts
- * @returns {{ stop(): void } | null}
+ * Can this element be softened at all (before trying to read it)?
+ * @param {Element} el
  */
-export function startSoften(video, { detect, preset, onFail }) {
-  if (!detect || typeof detect.createDetector !== "function") return null;
-  if (video.mediaKeys) return null; // DRM: frames can't be read
-  if (document.pictureInPictureElement === video) return null;
-  if (document.fullscreenElement && document.fullscreenElement.contains(video)) return null;
+export function softenable(el) {
+  return el instanceof HTMLVideoElement || el instanceof HTMLCanvasElement || el instanceof HTMLImageElement;
+}
 
-  const r = video.getBoundingClientRect();
+/**
+ * Start softening a video, canvas or image. Returns null if it can't (the
+ * caller then blocks or dims as before).
+ * @param {HTMLVideoElement | HTMLCanvasElement | HTMLImageElement} el
+ * @param {{ detect: any, preset: string, onFail: (report?: any) => void, checking?: boolean, onTamper?: () => void }} opts
+ *   onTamper: called whenever the page removed or restyled the soften layer (threat T6)
+ * @returns {{ stop(): void, release(): void, promote(): void, readonly checking: boolean } | null}
+ */
+export function startSoften(el, { detect, preset, onFail, checking = false, onTamper }) {
+  if (!detect || typeof detect.createDetector !== "function" || !softenable(el)) return null;
+  const isVideo = el instanceof HTMLVideoElement;
+  if (isVideo && /** @type {HTMLVideoElement} */ (el).mediaKeys) return null; // DRM: frames can't be read
+  if (document.pictureInPictureElement === el) return null;
+  if (document.fullscreenElement && document.fullscreenElement.contains(el)) return null;
+
+  const r = el.getBoundingClientRect();
   if (r.width < 16 || r.height < 16) return null;
   const scale = Math.min(1, Math.sqrt(BUDGET_PX / (r.width * r.height)), MAX_SIDE / r.width, MAX_SIDE / r.height);
   const w = Math.max(1, Math.round(r.width * scale));
   const h = Math.max(1, Math.round(r.height * scale));
 
-  // Work canvas: read video frames at the filter size.
+  // Work canvas: read frames at the filter size.
   const work = new OffscreenCanvas(w, h);
   const wctx = work.getContext("2d", { willReadFrequently: true, alpha: false });
   if (!wctx) return null;
   try {
-    // Probe one read now: a cross-origin video throws here, before we show anything.
-    wctx.drawImage(video, 0, 0, w, h);
+    // Probe one read now: cross-origin media or a tainted canvas throws here,
+    // before we show anything.
+    wctx.drawImage(el, 0, 0, w, h);
     wctx.getImageData(0, 0, 1, 1);
   } catch {
     return null;
@@ -87,10 +110,8 @@ export function startSoften(video, { detect, preset, onFail }) {
   canvas.width = w;
   canvas.height = h;
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", "Video with flashing softened by FlashBan");
   const badge = document.createElement("div");
   badge.className = "badge";
-  badge.textContent = "Flashing softened";
   badge.setAttribute("aria-hidden", "true");
   const live = document.createElement("div");
   live.className = "sr";
@@ -102,13 +123,38 @@ export function startSoften(video, { detect, preset, onFail }) {
   if (!dctx) return null;
   const frame = new ImageData(w, h);
 
+  let isChecking = checking;
+  const what = isVideo ? "Video" : "Animation";
+  function label() {
+    if (isChecking) {
+      canvas.setAttribute("aria-label", `${what} being checked for flashing by FlashBan`);
+      badge.textContent = "Checking for flashing";
+    } else {
+      canvas.setAttribute("aria-label", `${what} with flashing softened by FlashBan`);
+      badge.textContent = "Flashing softened";
+    }
+  }
+  label();
+
   let stopped = false;
   let vfc = 0;
-  let raf = 0;
+  let frameRaf = 0;
+  let placeRaf = 0;
 
+  let attachedOnce = false;
   function attach() {
-    if (!host.isConnected) document.documentElement.append(host);
-    if ((host.getAttribute("style") || "") !== hostStyle) host.setAttribute("style", hostStyle);
+    // After the first attach, a missing or restyled host means the page is
+    // attacking the layer (like overlay-killer does to the cover). Report it so
+    // repeated attacks reach the page lockdown, which the page can't undo.
+    if (!host.isConnected) {
+      if (attachedOnce) onTamper?.();
+      document.documentElement.append(host);
+    }
+    if ((host.getAttribute("style") || "") !== hostStyle) {
+      if (attachedOnce) onTamper?.();
+      host.setAttribute("style", hostStyle);
+    }
+    attachedOnce = true;
     if (!layer.matches(":popover-open")) {
       try {
         layer.showPopover();
@@ -117,7 +163,7 @@ export function startSoften(video, { detect, preset, onFail }) {
   }
 
   function place() {
-    const b = video.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
     canvas.style.left = `${b.left}px`;
     canvas.style.top = `${b.top}px`;
     canvas.style.width = `${b.width}px`;
@@ -136,9 +182,11 @@ export function startSoften(video, { detect, preset, onFail }) {
   /** @param {number} t */
   function onFrame(t) {
     if (stopped) return;
+    if (el instanceof HTMLImageElement && (!el.complete || el.naturalWidth === 0)) return;
+    if (el instanceof HTMLCanvasElement && (el.width === 0 || el.height === 0)) return;
     let data;
     try {
-      wctx.drawImage(video, 0, 0, w, h);
+      wctx.drawImage(el, 0, 0, w, h);
       data = wctx.getImageData(0, 0, w, h).data;
     } catch {
       return fail();
@@ -151,40 +199,70 @@ export function startSoften(video, { detect, preset, onFail }) {
     dctx.putImageData(frame, 0, 0);
   }
 
+  // Video: one softened frame per decoded video frame. Canvas and images:
+  // one per animation frame (that's when they can change).
+  const useVfc = isVideo && typeof (/** @type {HTMLVideoElement} */ (el).requestVideoFrameCallback) === "function";
   function scheduleVideo() {
     if (stopped) return;
-    vfc = video.requestVideoFrameCallback((now, meta) => {
+    vfc = /** @type {HTMLVideoElement} */ (el).requestVideoFrameCallback((now, meta) => {
       vfc = 0;
       onFrame(meta.expectedDisplayTime || now);
       scheduleVideo();
     });
   }
+  /** @param {number} now */
+  function frameTick(now) {
+    if (stopped) return;
+    onFrame(now);
+    frameRaf = requestAnimationFrame(frameTick);
+  }
 
   function tick() {
     if (stopped) return;
-    if (!video.isConnected) return fail();
+    if (!el.isConnected) return fail();
     attach();
     place();
-    raf = requestAnimationFrame(tick);
+    placeRaf = requestAnimationFrame(tick);
   }
 
   const onLeave = () => {
-    if (document.pictureInPictureElement === video || (document.fullscreenElement && document.fullscreenElement.contains(video))) fail();
+    if (document.pictureInPictureElement === el || (document.fullscreenElement && document.fullscreenElement.contains(el))) fail();
   };
-  video.addEventListener("enterpictureinpicture", onLeave);
+  el.addEventListener("enterpictureinpicture", onLeave);
   document.addEventListener("fullscreenchange", onLeave, true);
 
   function stop() {
     if (stopped) return;
     stopped = true;
-    if (vfc) video.cancelVideoFrameCallback?.(vfc);
-    cancelAnimationFrame(raf);
-    video.removeEventListener("enterpictureinpicture", onLeave);
+    if (vfc) /** @type {HTMLVideoElement} */ (el).cancelVideoFrameCallback?.(vfc);
+    cancelAnimationFrame(frameRaf);
+    cancelAnimationFrame(placeRaf);
+    el.removeEventListener("enterpictureinpicture", onLeave);
     document.removeEventListener("fullscreenchange", onLeave, true);
     try {
       layer.hidePopover();
     } catch {}
     host.remove();
+  }
+
+  /** Calm after all: fade the layer out (no sudden jump: threat T13), then stop. */
+  function release() {
+    if (stopped) return;
+    if (reducedMotion.matches) return stop();
+    canvas.style.opacity = "0";
+    badge.textContent = "";
+    setTimeout(stop, FADE_MS + 50);
+  }
+
+  /** It is flashing: keep softening and say so. */
+  function promote() {
+    if (stopped || !isChecking) return;
+    isChecking = false;
+    label();
+    live.textContent = "";
+    setTimeout(() => {
+      if (!stopped) live.textContent = `Flashing in this ${what.toLowerCase()} is being softened. It keeps playing.`;
+    }, 50);
   }
 
   // Show the first softened frame immediately (it equals the current frame,
@@ -193,12 +271,21 @@ export function startSoften(video, { detect, preset, onFail }) {
   place();
   onFrame(performance.now());
   if (stopped) return null;
-  if (typeof video.requestVideoFrameCallback === "function") scheduleVideo();
-  else return (stop(), null);
-  raf = requestAnimationFrame(tick);
-  setTimeout(() => {
-    if (!stopped) live.textContent = "Flashing in this video is being softened. It keeps playing.";
-  }, 50);
+  if (useVfc) scheduleVideo();
+  else frameRaf = requestAnimationFrame(frameTick);
+  placeRaf = requestAnimationFrame(tick);
+  if (!checking) {
+    setTimeout(() => {
+      if (!stopped) live.textContent = `Flashing in this ${what.toLowerCase()} is being softened. It keeps playing.`;
+    }, 50);
+  }
 
-  return { stop };
+  return {
+    stop,
+    release,
+    promote,
+    get checking() {
+      return isChecking;
+    },
+  };
 }

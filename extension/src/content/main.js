@@ -8,7 +8,7 @@
 import * as safemode from "./safemode.js";
 import { loadDetector } from "./detector.js";
 import { backdropOf, effectiveColor, visibleArea, relativeLuminance } from "./domflicker.js";
-import { startSoften } from "./soften.js";
+import { startSoften, softenable } from "./soften.js";
 import { normalizeSettings, registrableDomain } from "../shared/settings.js";
 
 // ---------------------------------------------------------------- tuning
@@ -36,6 +36,12 @@ const ANIM_EXT = /\.(gif|webp|apng)(\?|#|$)/i;
 const DOM_HOT_MUTATIONS = 2; // mutations within 1 s before we start sampling an element
 const DOM_HOT_MS = 1500; // keep sampling this long after the last mutation
 const DOM_FORGET_MS = 10_000; // drop a quiet element's sampler after this
+// Soften for DOM flicker: the browser fades class/style toggles over 2 s.
+const DOM_SOFT_TRANSITION = ["background-color", "color", "opacity", "filter", "border-color", "outline-color", "fill", "stroke", "box-shadow"]
+  .map((p) => `${p} 2s linear`)
+  .join(", ");
+const DOM_SOFT_GRACE_MS = 1500; // the detector window still holds pre-soften flashes this long
+const CSS_SOFT_CYCLES = 1; // slowed CSS animations run at about 1 cycle per second
 const DOM_MIN_AREA = 32 * 32; // CSS px; smaller boxes can't reach the area threshold alone
 const MAX_DOM_SOURCES = 24; // CPU guard (threat T5)
 const DOM_CHILD_SHARE = 0.25; // also watch direct children covering at least this share
@@ -71,6 +77,7 @@ let enabled = false;
 /** @type {WeakSet<ShadowRoot>} */ const observedRoots = new WeakSet();
 /** @type {WeakSet<Animation>} */ const seenAnims = new WeakSet();
 /** @type {Map<Element, Animation[]>} */ const pausedAnims = new Map();
+/** @type {Map<Animation, { rate: number, original: number }>} CSS animations we slowed down (soften) */ const slowedAnims = new Map();
 let canvasLoop = 0;
 /** @type {Map<Element, DomSource>} */ const domSources = new Map();
 /** @type {Map<Element, { times: number[], sources: DomSource[] | null }>} */ const domDrivers = new Map();
@@ -211,6 +218,12 @@ function stop() {
   document.removeEventListener("transitionrun", queueAnimScan, true);
   for (const anims of pausedAnims.values()) for (const a of anims) safePlay(a);
   pausedAnims.clear();
+  for (const [a, s] of slowedAnims) {
+    try {
+      if (a.playbackRate === s.rate) a.playbackRate = s.original;
+    } catch {}
+  }
+  slowedAnims.clear();
   safemode.releaseAll();
   if (lockedDown) {
     lockedDown = false;
@@ -526,6 +539,10 @@ class Source {
   sample(t, complete = false) {
     this.completeFrames = complete;
     if (this.stopped || !this.visible || !enabled) return;
+    // Softened: the soften layer reads and verifies every frame itself, so
+    // skip the raw read (saves a second readback). While it's only checking
+    // (guarded start), keep sampling: the raw detector decides calm or not.
+    if (this.soft && !this.soft.checking) return;
     const el = this.el;
     if (!el.isConnected) return;
     if (el instanceof HTMLVideoElement) {
@@ -605,6 +622,51 @@ class Source {
     safemode.guard(this.el, "dim", REASONS.checking, { canShow: false, light: true });
   }
 
+  /** @param {any} report @param {number} t */
+  noteViolation(report, t) {
+    if (t - this.lastViolationMsg >= VIOLATION_MSG_INTERVAL_MS || !this.lastViolationMsg) {
+      this.lastViolationMsg = t;
+      sendViolation(this.kind, report);
+    }
+  }
+
+  /**
+   * DOM flicker soften: an inline !important transition makes the browser fade
+   * class/style toggles over 2 s. The DOM detector keeps measuring the result;
+   * if it still violates after a grace period, we cover it as before. A page
+   * stripping our transition counts as tampering (toward page lockdown).
+   * @param {any} report @param {number} t
+   */
+  softenDom(report, t) {
+    const el = this.el;
+    if (!(el instanceof HTMLElement || el instanceof SVGElement)) return false;
+    const prev = el.style.getPropertyValue("transition");
+    const prevPriority = el.style.getPropertyPriority("transition");
+    try {
+      el.style.setProperty("transition", DOM_SOFT_TRANSITION, "important");
+    } catch {
+      return false;
+    }
+    const ours = el.style.getPropertyValue("transition");
+    const guardTimer = setInterval(() => {
+      if (!el.isConnected) return;
+      if (el.style.getPropertyValue("transition") !== ours || el.style.getPropertyPriority("transition") !== "important") {
+        safemode.reportTamper();
+        el.style.setProperty("transition", DOM_SOFT_TRANSITION, "important");
+      }
+    }, 250);
+    const stop = () => {
+      clearInterval(guardTimer);
+      if (el.style.getPropertyValue("transition") === ours) {
+        if (prev) el.style.setProperty("transition", prev, prevPriority);
+        else el.style.removeProperty("transition");
+      }
+    };
+    this.soft = { dom: true, since: t, checking: false, stop, release: stop, promote() {} };
+    this.noteViolation(report, t);
+    return true;
+  }
+
   /** @param {number} readMs @param {number} detectMs @param {boolean} changed */
   trackCost(readMs, detectMs, changed) {
     if (!this.cost || this.stopped) return;
@@ -645,10 +707,39 @@ class Source {
     if (aggregator) this.updateAggregate(report, t);
 
     if (safemode.wasShownByUser(el)) return;
-    // While softening, the raw video keeps flashing underneath by design; the
-    // soften layer's own verify detector decides (and falls back to block).
-    if (this.soft) return;
-    if (report.violation || report.severity === "block") {
+    const violating = report.violation || report.severity === "block";
+    if (this.soft) {
+      if (this.soft.dom) {
+        // DOM soften: this detector IS the verifier. Still flashing after the
+        // grace period (or the page beat the transition): cover as before.
+        if (violating && t - this.soft.since > DOM_SOFT_GRACE_MS) {
+          const s = this.soft;
+          this.soft = null;
+          s.stop();
+          this.softFailed = true;
+          this.block(report, t);
+        }
+        return;
+      }
+      if (this.soft.checking) {
+        // Checking (guarded start): flashing -> keep softening; calm -> fade out.
+        if (violating) {
+          this.soft.promote();
+          this.noteViolation(report, t);
+        } else if (report.severity === "warn") {
+          this.warnUntil = t + WARN_HOLD_MS;
+        } else if (t >= this.warmupUntil && t >= this.warnUntil) {
+          const s = this.soft;
+          this.soft = null;
+          s.release();
+        }
+        return;
+      }
+      // Softening: the raw media keeps flashing underneath by design; the
+      // soften layer's own verify detector decides (and falls back to block).
+      return;
+    }
+    if (violating) {
       this.block(report, t);
       return;
     }
@@ -677,10 +768,13 @@ class Source {
    */
   trySoften(report, t) {
     const v = this.el;
-    if (settings.onFlash !== "soften" || this.softFailed || !(v instanceof HTMLVideoElement)) return false;
+    if (settings.onFlash !== "soften" || this.softFailed) return false;
+    if (this.kind === "dom") return this.softenDom(report, t);
+    if (!softenable(v)) return false;
     let soft = null;
     try {
-      soft = startSoften(v, {
+      soft = startSoften(/** @type {any} */ (v), {
+        onTamper: () => safemode.reportTamper(),
         detect,
         preset: effectivePreset(), // strict on repeat-offender sites, like everything else
         onFail: (failReport) => {
@@ -698,17 +792,22 @@ class Source {
     }
     this.soft = soft;
     if (safemode.guardMode(v) === "dim") safemode.release(v, { immediate: true });
-    if (t - this.lastViolationMsg >= VIOLATION_MSG_INTERVAL_MS || !this.lastViolationMsg) {
-      this.lastViolationMsg = t;
-      sendViolation(this.kind, report); // still logged: the site served flashing video
-    }
+    this.noteViolation(report, t); // still logged: the site served flashing media
     return true;
   }
 
   /** @param {any} report @param {number} t */
   block(report, t) {
     const el = this.el;
-    if (this.soft) return; // softening; its verify detector falls back to block itself
+    if (this.soft) {
+      // Already softening. A checking layer becomes a real one ("Flashing
+      // softened"); otherwise its verify detector falls back to block itself.
+      if (this.soft.checking) {
+        this.soft.promote();
+        this.noteViolation(report, t);
+      }
+      return;
+    }
     if (this.trySoften(report, t)) return;
     const reason = REASONS[/** @type {keyof typeof REASONS} */ (report.reason)] || REASONS.unknown;
     safemode.guard(el, "cover", reason, { canShow: true });
@@ -1116,6 +1215,7 @@ function queueAnimScan() {
 
 function scanAnimations() {
   if (!enabled || typeof detect?.analyzeAnimation !== "function") return;
+  checkSlowedAnimations();
   let anims;
   try {
     anims = document.getAnimations();
@@ -1134,24 +1234,96 @@ function scanAnimations() {
     if (!res?.violation) continue;
     const target = /** @type {KeyframeEffect | null} */ (a.effect)?.target;
     if (!(target instanceof Element) || safemode.wasShownByUser(target)) continue;
-    try {
-      a.pause();
-    } catch {}
-    const list = pausedAnims.get(target) || [];
-    list.push(a);
-    pausedAnims.set(target, list);
-    safemode.guard(target, "cover", REASONS.css, { canShow: true });
-    sendViolation("css", {
-      v: 1,
-      flashesPerSecond: Number(res.cyclesPerSecond) || 0,
-      redFlashesPerSecond: 0,
-      areaPx: 0,
-      areaPct: 0,
-      violation: true,
-      severity: "block",
-      reason: "general",
-    });
+    // Soften first: slow the animation down so it keeps moving but can't flash.
+    if (settings.onFlash === "soften" && slowAnimation(a, res)) {
+      sendViolation("css", {
+        v: 1,
+        flashesPerSecond: Number(res.cyclesPerSecond) || 0,
+        redFlashesPerSecond: 0,
+        areaPx: 0,
+        areaPct: 0,
+        violation: true,
+        severity: "block",
+        reason: "general",
+      });
+      continue;
+    }
+    coverAnimation(a, target, res);
   }
+}
+
+/**
+ * Soften a CSS / Web Animation by slowing it to about CSS_SOFT_CYCLES per
+ * second, then re-check it at the new rate with analyzeAnimation. Returns
+ * false (caller pauses and covers) if it can't be slowed enough.
+ * @param {Animation} a @param {any} res
+ */
+function slowAnimation(a, res) {
+  const cps = Number(res?.cyclesPerSecond);
+  if (!(cps > CSS_SOFT_CYCLES)) return false;
+  let original;
+  try {
+    original = a.playbackRate;
+    const rate = original * (CSS_SOFT_CYCLES / cps);
+    a.playbackRate = rate;
+    const again = detect.analyzeAnimation(a, animationContext(a));
+    if (again?.violation) {
+      a.playbackRate = original;
+      return false;
+    }
+    slowedAnims.set(a, { rate: a.playbackRate, original });
+    return true;
+  } catch {
+    try {
+      if (original !== undefined) a.playbackRate = original;
+    } catch {}
+    return false;
+  }
+}
+
+/** Slowed animations the page sped back up: tampering. Pause and cover them. */
+function checkSlowedAnimations() {
+  for (const [a, s] of slowedAnims) {
+    let rate;
+    try {
+      if (a.playState === "finished" || a.playState === "idle") {
+        slowedAnims.delete(a);
+        continue;
+      }
+      rate = a.playbackRate;
+    } catch {
+      continue;
+    }
+    if (Math.abs(rate - s.rate) > 1e-9) {
+      slowedAnims.delete(a);
+      safemode.reportTamper();
+      const target = /** @type {KeyframeEffect | null} */ (a.effect)?.target;
+      if (target instanceof Element && !safemode.wasShownByUser(target)) {
+        coverAnimation(a, target, { cyclesPerSecond: 0 });
+      }
+    }
+  }
+}
+
+/** Pause a flashing animation and cover its element (block). @param {Animation} a @param {Element} target @param {any} res */
+function coverAnimation(a, target, res) {
+  try {
+    a.pause();
+  } catch {}
+  const list = pausedAnims.get(target) || [];
+  list.push(a);
+  pausedAnims.set(target, list);
+  safemode.guard(target, "cover", REASONS.css, { canShow: true });
+  sendViolation("css", {
+    v: 1,
+    flashesPerSecond: Number(res.cyclesPerSecond) || 0,
+    redFlashesPerSecond: 0,
+    areaPx: 0,
+    areaPct: 0,
+    violation: true,
+    severity: "block",
+    reason: "general",
+  });
 }
 
 /** @param {Animation} a */
@@ -1172,6 +1344,17 @@ function onTamper() {
   if (lockedDown || !enabled) return;
   lockedDown = true;
   send({ type: "lockdown", v: 1, on: true });
+  // The lockdown CSS hides the page's media; stop soften layers so we don't
+  // keep re-inserting them for the attacker's MutationObserver to delete.
+  for (const s of allSources()) {
+    if (s.soft && !s.soft.dom) {
+      const soft = s.soft;
+      s.soft = null;
+      try {
+        soft.stop();
+      } catch {}
+    }
+  }
 }
 
 /** The user pressed "Show anyway". @param {Element} el */

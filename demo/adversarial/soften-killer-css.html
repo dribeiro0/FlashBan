@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<meta name="harness-seconds" content="6">
+<title>Soften killer: CSS (threat T6) | Seizure Shield adversarial test</title>
+<link rel="stylesheet" href="../demo.css">
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic attack fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>Soften killer: CSS (threat T6)</h1>
+<p>The CSS keyframe strobe from css.html. FlashBan softens a fast CSS animation by slowing it down (playbackRate). During the run, this page sets playbackRate back to 1 on every frame.</p>
+<p><strong>Pass:</strong> FlashBan covers the box or locks the page down. <strong>Fail:</strong> the box keeps flashing, or FlashBan still says it is softening while the attack runs.</p>
+<p class="meta">Expected shield verdict: <strong>block</strong> (cover or lockdown, not soften). Colors #222222 and #777777, 4 cycles per second, 320 by 180 CSS px. Default run 6 s; add <code>?seconds=N</code> (1 to 10). <a href="../index.html">All fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<p id="attacks">Soften undone 0 times.</p>
+<div id="stage" class="stage" data-kind="css" data-hz="4" data-seconds="6" role="img" aria-label="Test box animated with CSS"></div>
+<script src="../fixture.js"></script>
+<script src="soften-killer.js"></script>
+</body>
+</html>
