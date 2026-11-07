@@ -92,7 +92,8 @@ Gray `G128` is about L = 0.216, close to pure red's L = 0.2126, so a swing betwe
 | ID | Input | Expected |
 |---|---|---|
 | Re1 | 4 Hz square wave, pure red (255,0,0) <-> gray `G128`, full frame | **violation**, reason `red`; `redFlashesPerSecond` 4; general flashes 0 |
-| Re2 | 4 Hz, (200,60,60) <-> (60,200,60). Red share 0.625 is under 0.8, so neither state is saturated red | no red flash. General flash decided by luminance only |
+| Re2 | 4 Hz, magenta (180,0,180) <-> green (0,180,0): chromaticity distance over 0.2, but neither state is saturated red (linear red share under 0.8) | no red flash. General flash decided by luminance only |
+| Re2b | 4 Hz, (200,60,60) <-> (60,200,60). Originally Re2: its red share is 0.625 in gamma values but **0.865 in linear light**, so under our linear convention it is saturated red | red flash (the safe direction of the convention choice) |
 | Re3 | 4 Hz, red (255,0,0) <-> dark red (80,0,0). Same chromaticity, different brightness | reason `general` (luminance delta about 0.19), no red flash |
 | Re4 | 4 Hz, red (255,0,0) <-> white (255,255,255) | **violation**, reason `both` |
 | Re5 | Re1 at 3 Hz (6 transitions per second) | none |
@@ -135,7 +136,7 @@ Fake `Animation` objects with keyframes and timing, no DOM.
 | ID | Input | Expected |
 |---|---|---|
 | C1 | `opacity` 0 <-> 1, duration 125 ms, infinite, alternate (4 cycles per second) | violation, `cyclesPerSecond` 4, `maxLuminanceDelta` large |
-| C2 | Same at duration 1000 ms (1 cycle per second) | none |
+| C2 | Same at duration 1000 ms (one transition per second = 0.5 cycles per second; corrected from "1 cycle") | none |
 | C3 | `background-color` black <-> white, 4 Hz | violation |
 | C4 | `background-color` swing of 0.05 luminance, 8 Hz | none (below 0.10) |
 | C5 | `background-color` `#e8e8e8` <-> `#ffffff` (darker state at or above 0.80), 8 Hz | none |

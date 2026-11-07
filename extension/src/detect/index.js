@@ -19,6 +19,7 @@ import { createTracker, RING } from "./tracker.js";
 import { createRedTracker } from "./red.js";
 
 export { createAggregator } from "./aggregate.js";
+export { analyzeAnimation } from "./css.js";
 
 /**
  * Highest flash count f such that at least `floor` pixels have f or more.
