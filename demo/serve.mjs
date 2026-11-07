@@ -9,11 +9,12 @@ const port = Number(process.argv[2]) || 8080;
 const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript" };
 
 createServer(async (req, res) => {
-  const path = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
-  const file = normalize(join(root, path.endsWith("/") ? path + "index.html" : path));
-  const type = types[extname(file)];
-  if (!file.startsWith(root.endsWith(sep) ? root : root + sep) || !type) { res.writeHead(404).end(); return; }
   try {
+    // Inside the try: a malformed %-escape throws URIError and must not crash the server.
+    const path = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+    const file = normalize(join(root, path.endsWith("/") ? path + "index.html" : path));
+    const type = types[extname(file)];
+    if (!file.startsWith(root.endsWith(sep) ? root : root + sep) || !type) { res.writeHead(404).end(); return; }
     const body = await readFile(file);
     res.writeHead(200, { "Content-Type": type, "X-Content-Type-Options": "nosniff" }).end(body);
   } catch { res.writeHead(404).end(); }
