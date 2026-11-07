@@ -17,8 +17,9 @@ const SAMPLE_BUDGET_PX = 128 * 72; // pixels per sampled frame (aspect kept)
 const DEGRADED_BUDGET_PX = 64 * 36;
 const MIN_MEDIA_CSS_PX = 16; // ignore media smaller than this on either side
 const GUARD_START_MIN_AREA = 64 * 64; // smaller media skip guarded start
-const WARMUP_MS = 800; // guarded-start dim at least this long
-const WARN_HOLD_MS = 1000; // keep a "warn" dim this long after the last warn
+const WARMUP_MS = 500; // guarded-start dim at least this long (content stays visible, darkened)
+const WARN_HOLD_MS = 500; // keep a "warn" dim this long after the last warn
+const GAP_WARNS_TO_DIM = 2; // video: ignore one isolated sampling gap; dim when gaps repeat within 1 s
 const HUD_INTERVAL_MS = 100; // max 10 reports per second per source
 const VIOLATION_MSG_INTERVAL_MS = 10_000;
 const MAX_ACTIVE = 24; // visible sources analysed at once (threat T5)
@@ -354,6 +355,8 @@ class Source {
     this.resizeChurn = 0;
     this.vfcHandle = 0;
     this.lastT = 0;
+    this.lastPresented = -1; // video: rVFC presentedFrames of the last sample
+    this.completeFrames = false;
     /** @type {{ stop(): void } | null} */ this.soft = null; // soften layer while active
     this.softFailed = false; // soften fell back to block once: don't retry on this element
     if (kind === "video") this.attachVideoListeners();
@@ -372,6 +375,9 @@ class Source {
         return;
       }
       this.resetDetector();
+      this.lastPresented = -1;
+      // Guarded start from the "play" event, before the first frame is shown.
+      if (!this.guardedStartDone) this.beginGuardedStart(performance.now());
       this.scheduleVideo();
     };
     this.onPauseOrSeek = () => {
@@ -438,7 +444,12 @@ class Source {
       this.vfcHandle = v.requestVideoFrameCallback((now, meta) => {
         this.vfcHandle = 0;
         // Display time, not media time: playbackRate 2x flashes twice as fast for the viewer.
-        this.sample(meta.expectedDisplayTime || now);
+        // Every presented frame sampled (presentedFrames moved by exactly 1)?
+        // Then a long gap is just the video's own frame rate, not missed frames.
+        const presented = typeof meta.presentedFrames === "number" ? meta.presentedFrames : -1;
+        const complete = presented >= 0 && this.lastPresented >= 0 && presented === this.lastPresented + 1;
+        this.lastPresented = presented;
+        this.sample(meta.expectedDisplayTime || now, complete);
         if (!v.paused && !v.ended) this.scheduleVideo();
       });
     } else {
@@ -500,8 +511,12 @@ class Source {
     this.lastT = 0;
   }
 
-  /** @param {number} t  display timestamp in ms */
-  sample(t) {
+  /**
+   * @param {number} t  display timestamp in ms
+   * @param {boolean} [complete]  video only: no presented frame was skipped since the last sample
+   */
+  sample(t, complete = false) {
+    this.completeFrames = complete;
     if (this.stopped || !this.visible || !enabled) return;
     const el = this.el;
     if (!el.isConnected) return;
@@ -560,7 +575,12 @@ class Source {
   /** @param {number} t */
   beginGuardedStart(t) {
     this.guardedStartDone = true;
-    if (!(settings.guardedStart || repeatOffender) || this.cssW * this.cssH < GUARD_START_MIN_AREA) return;
+    let area = this.cssW * this.cssH;
+    if (!area) {
+      const r = this.el.getBoundingClientRect(); // before the first sample (e.g. on "play")
+      area = r.width * r.height;
+    }
+    if (!(settings.guardedStart || repeatOffender) || area < GUARD_START_MIN_AREA) return;
     if (safemode.isGuarded(this.el) || safemode.wasShownByUser(this.el)) return;
     this.warmupUntil = t + WARMUP_MS;
     safemode.guard(this.el, "dim", REASONS.checking, { canShow: false });
@@ -584,6 +604,23 @@ class Source {
 
   /** @param {any} report @param {number} t */
   handleReport(report, t) {
+    // A video sampled on every presented frame can't hide flashes between
+    // samples, so the detector's gap rule ("undersampled", and the block after a
+    // full-window gap, which carries no reason) doesn't apply: a 10 fps video
+    // legitimately has 100 ms between frames. Without this, low-frame-rate
+    // videos stayed in "checking" for good.
+    if (this.kind === "video" && this.completeFrames && report.undersampled && !report.reason) {
+      report = { ...report, severity: "none", violation: false, undersampled: false };
+    }
+    // Busy pages: the compositor keeps showing video frames while the page's
+    // main thread is blocked, so we sometimes miss a few. One isolated gap
+    // can't hide a flash pattern (that needs 5-7 transitions in a second), so
+    // only repeated gaps keep the "checking" dim on.
+    if (this.kind === "video" && report.severity === "warn" && report.undersampled && !report.violation) {
+      this.gapTimes = (this.gapTimes || []).filter((x) => x > t - 1000);
+      this.gapTimes.push(t);
+      if (this.gapTimes.length < GAP_WARNS_TO_DIM) report = { ...report, severity: "none" };
+    }
     const el = this.el;
     this.sendHud(report, t);
     if (aggregator) this.updateAggregate(report, t);

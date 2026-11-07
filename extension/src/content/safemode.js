@@ -12,7 +12,7 @@
 //   temporary dim is released, which is skipped under prefers-reduced-motion.
 // - "Show anyway" only works for trusted (real user) clicks or key presses.
 
-const FADE_MS = 600;
+const FADE_MS = 250;
 const ANNOUNCE_GAP_MS = 5000;
 const COMPACT_W = 220;
 const COMPACT_H = 110;
@@ -62,14 +62,25 @@ const SHADOW_CSS = `
     color: #ffffff;
   }
   .panel[hidden] { display: none; }
-  /* Both states are clearly a FlashBan cover, not a frozen page: near-opaque
-     or opaque, a yellow frame, and a label that is always visible. */
+  /* Dim: the content stays visible but clearly darker, with a yellow frame and
+     a small label in the corner. Safety math: a 72% black layer leaves at most
+     28% of the sRGB value, so even a white/black strobe swings relative
+     luminance by under 0.07 (WCAG's flash threshold is 0.10), and grayscale
+     takes the colour out of red flashes. Cover: opaque, centred message. */
   .panel.dim {
-    background: rgba(18, 18, 18, 0.94);
-    -webkit-backdrop-filter: grayscale(1) brightness(0.4) blur(8px);
-    backdrop-filter: grayscale(1) brightness(0.4) blur(8px);
+    justify-content: flex-start; align-items: flex-start; text-align: left;
+    gap: 6px; padding: 8px;
+    background: rgba(0, 0, 0, 0.72);
+    -webkit-backdrop-filter: grayscale(1);
+    backdrop-filter: grayscale(1);
     box-shadow: inset 0 0 0 3px #ffd84d;
   }
+  .panel.dim .title, .panel.dim .reason {
+    background: #121212; padding: 3px 8px; border-radius: 4px; max-width: calc(100% - 16px);
+  }
+  .panel.dim .title { font-size: 14px; }
+  .panel.dim.checking .reason { display: none; }
+  .panel.dim button { min-height: 32px; padding: 4px 12px; font-size: 13px; }
   .panel.cover { background: #121212; box-shadow: inset 0 0 0 3px #ffd84d; }
   .brand {
     margin: 0; padding: 2px 8px; border-radius: 4px;
@@ -322,7 +333,7 @@ function raise() {
 /** @param {Guard} g */
 function render(g) {
   const { panel } = g;
-  panel.className = `panel ${g.mode}`;
+  panel.className = `panel ${g.mode}${g.mode === "dim" && !g.canShow ? " checking" : ""}`;
   panel.replaceChildren();
   panel.setAttribute("role", "group");
   panel.setAttribute("aria-label", g.mode === "cover" ? "Flashing content hidden by FlashBan" : "Content dimmed by FlashBan");
