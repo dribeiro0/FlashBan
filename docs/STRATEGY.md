@@ -115,7 +115,7 @@ Using a seizure shield **reveals a health condition**, and the local log shows w
 
 ### 6.5 "What we'd improve next" (one honest risk)
 
-Cross-origin and DRM video can't be measured, so today we dim it ("can't verify"). Next: a user-triggered tab-capture mode (Chrome's `tabCapture` needs a user gesture) to measure what's actually on screen, so protected video can be checked instead of just dimmed.
+Websites can tell that FlashBan is installed by probing its web-accessible extension files, and that can reveal a health condition (photosensitive epilepsy). Fix: bundle the content scripts into one file so nothing is web-accessible. It isn't done yet because Chrome 153 breaks `use_dynamic_url` for module imports, which was the cheap fix (lead decision, Sat 15:12). Second risk, only if words allow: cross-origin and DRM video can't be measured, so today it's dimmed ("can't verify"); a user-started tab-capture mode could measure what's on screen.
 
 ### 6.6 Devpost security answer, draft (~200 words; fill brackets Saturday night with real results; remove anything that didn't ship)
 
@@ -123,7 +123,9 @@ Cross-origin and DRM video can't be measured, so today we dim it ("can't verify"
 
 **What we built.** (1) A safe-mode cover that page scripts can't remove: it lives in a closed shadow root and comes back within a frame if deleted. Our attack page tries [N] removals a second and the content stays covered. (2) Fail-closed analysis: anything we can't read, like cross-origin or DRM video, is dimmed and labeled "can't verify" instead of let through. (3) Hardened messaging: the extension only trusts its own messages, validates every one, and uses minimal permissions with no remote code. Our attack suite passes [X] of [7] evasion tests.
 
-**What's next.** Protected video can't be measured today, only dimmed. We'd add a user-started screen-capture mode to measure what's actually displayed.
+**What's next.** A website can detect that FlashBan is installed by probing its extension files, which could reveal that the user has photosensitive epilepsy. We'd fix it by bundling our scripts into one file so none of them is visible to web pages.
+
+Status check before submitting (Sat 15:15): the overlay currently FAILS `overlay-killer.html` in the harness (the page removes the cover faster than it comes back; reported to Avery). Keep claim (1) and section 6.4 only if the fix lands and the harness passes; otherwise swap (1) for the attack harness itself.
 
 ## 7. Upgrades, ranked by what judges reward
 
