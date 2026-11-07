@@ -230,6 +230,11 @@ export function isTamperLocked() {
   return tamperLocked;
 }
 
+/** Count tampering with something other than the overlay (e.g. a page undoing a soften step). */
+export function reportTamper() {
+  noteTamper(performance.now());
+}
+
 function noteTamper(/** @type {number} */ now) {
   if (tamperLocked) return;
   tamperTimes.push(now);
