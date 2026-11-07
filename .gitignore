@@ -1,1 +1,7 @@
 .board/
+
+# Secrets never go in git (we have none, but just in case)
+.env
+.env.*
+*.pem
+*.key

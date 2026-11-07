@@ -56,11 +56,11 @@ If an agent doesn't wake up: check that `tools/board whoami` prints the exact lo
 
 ## Saturday, Nov 7: build day
 
-Real schedule from the organizers (details, judging criteria and the security-award plan: `docs/STRATEGY.md`, PR #10). Hacking began 1:15 PM. Workshops at 3:00 PM (**Built To Be Trusted**, the security award, CDS 264; one of us goes) and 5:00 PM. Dinner 7:00 PM. **The venue closes about 7:30 PM, so evening work is remote.** We're entering the **Tech Access** track (tracks are chosen on Sunday) plus the Built To Be Trusted award.
+Real schedule from the organizers (details, judging criteria and the security-award plan: `docs/STRATEGY.md`, PR #10). Hacking began 1:15 PM. **We're skipping the workshops** (lead's decision, 3:08 PM). Security-award questions go to the #built-to-be-trusted channel, where BUCyS members can also come to our table. Dinner 7:00 PM. **The venue closes about 7:30 PM, so evening work is remote.** We're entering the **Tech Access** track (tracks are chosen on Sunday) plus the Built To Be Trusted award.
 
 | Time | Goal |
 |---|---|
-| 3:00 PM | Extension core (PR #8) reviewed and merged. One person at the Built To Be Trusted workshop. |
+| 3:00 PM | Extension core (PR #8) reviewed and merged. Detector API complete. |
 | 3:45 PM | David: real general-flash verdicts. Then area and timing 4:30, red 5:15, presets 5:45, aggregator 6:15, CSS animations 6:45 (one PR each, tag Avery). |
 | 4:30 PM | **Checkpoint:** if detector + overlay work end to end, start soften mode (David: pure soften function + tests; Avery: canvas wiring, fade, second detector). Otherwise core work only. |
 | 5:00-7:00 PM | Yaovi's agent (covering Jun): demo pages, HUD, adversarial pages. David: attack harness and false-positive pages once the detector tests pass. |

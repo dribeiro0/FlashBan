@@ -43,8 +43,8 @@ A Chrome (Manifest V3) extension that watches video, canvas, animated images and
 | Sat 12:30 | Opening remarks | |
 | **Sat 1:15 PM** | **Hacking begins** | 13:00 build block |
 | Sat 1:30 | Lunch | |
-| Sat 3:00 | Workshop, **Built To Be Trusted (security), CDS 264** | "Go to the BUCyS workshop" (no time or room) |
-| Sat 5:00 | Second workshop | |
+| Sat 3:00–5:00 | Workshop, **Built To Be Trusted (security), CDS 264** (we're skipping it) | "Go to the BUCyS workshop" (no time or room) |
+| Sat 5:00 | Second workshop (skipping) | |
 | Sat 7:00 | Dinner | 18:00 check-in |
 | **Sat 7:30 PM** | **Closing; the space closes shortly after** | Build block 2 until 23:00 and overnight shifts at the venue |
 | Sun 8:00 AM | Space opens | |
@@ -69,9 +69,10 @@ Accessibility Impact · Technical Depth · Design · Presentation · Creativity.
 ### 4.2 Built To Be Trusted: Most Secure Hack (separate award)
 
 - Every team is entered automatically, any track. The award goes to the team that **best protects its users without making the app harder to use.**
-- **Entry:** answer the Security question on Devpost (**250 words, due Sun 9:00 AM**): (1) What did you protect, and how? The user data your app handles, and 2–3 things you built to keep it safe. (2) What would you improve next? One risk you didn't get to, and how you'd fix it.
+- **Entry:** answer the Security question on Devpost (**150–250 words, due Sun 9:00 AM**): (1) What did you protect, and how? The user data your app handles, and 2–3 things you built to keep it safe. (2) What would you improve next? One risk you didn't get to, and how you'd fix it.
 - **At judging:** show one security feature live in about a minute.
-- **Workshop:** Sat 3:00 PM, CDS 264.
+- **Workshop:** Sat 3:00–5:00 PM, CDS 264. **We're not attending** (lead's decision, 3:08 PM). Ask questions in the #built-to-be-trusted channel; BUCyS members will come to our table.
+- **Official checklist, where we stand:** show user text with `textContent`, not `innerHTML` (done everywhere: overlay, popup, HUD). API keys in `.env` with `.env` in `.gitignore` (we have no keys; `.env` is gitignored anyway). Collect only the data you need (registrable domain only, kept on the user's computer). The login items (login provider, Row Level Security, paste allowed, no CAPTCHAs) don't apply because there is deliberately no login.
 - **Score 1–5:** (1) no security thought, data or keys exposed; (2) some effort, obvious gaps; (3) basics done: real login, keys hidden, minimal data; (4) solid protections that keep data private and stay accessible; (5) security built in thoughtfully, team clearly explains risks and fixes.
 - **Judges may ask:** What's the worst thing someone could do with your app? Where are your API keys? How would a screen-reader user log in?
 
@@ -177,7 +178,7 @@ Avery is lead and breaks ties; only he reassigns work. Owners decide inside thei
 | Time | Goal |
 |---|---|
 | ~2:15 PM | David: detector skeleton on a branch, tag Avery. Jun: merge PR #6, start demo pages |
-| 3:00 PM | Avery's first PR. One person goes to the Built To Be Trusted workshop in CDS 264 |
+| 3:00 PM | Avery's first PR (merged 2:57 PM). No workshops (lead's decision) |
 | ~3:30 PM | Real general-flash detection with tests passing |
 | 4:30 PM | **Checkpoint:** if detector + overlay work end to end, start soften mode (or GIF scan); otherwise only core work |
 | 5:00–7:00 PM | Red flash, presets, aggregator, CSS path; Jun's adversarial pages; harness |
