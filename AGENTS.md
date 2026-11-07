@@ -1,7 +1,7 @@
 # Team rules for every agent
 
 Project: **Photosensitive Seizure Shield**, a Chrome MV3 extension that detects flashing content (WCAG 2.3.1, three flashes per second) on video, canvas, animated images and CSS/JS animations, and dims, freezes or blocks it with an accessible safe-mode overlay. Offending domains are logged as a content-based denial-of-safety threat.
-Team: FlashBan (repo dribeiro0/FlashBan). Event: Hackcessability (Tech Access track + the Built To Be Trusted security award). Feature freeze Sunday 6:00 AM, Devpost due Sunday 9:00 AM, judging 9:30 AM. Product name in slides and README: **FlashBan**.
+Team: FlashBan (repo dribeiro0/FlashBan). Event: Hackcessability (Tech Access track + the Built To Be Trusted security award). Feature freeze Saturday 11:00 PM, Devpost due Sunday 9:00 AM, judging 9:30 AM. Product name in slides and README: **FlashBan**.
 
 Read before working: `docs/RUNBOOK.md` (schedule and checklists), `docs/PROJECT_PLAN.md` (what we build), `docs/CONTRACTS.md` (interfaces between owners), `security/THREAT_MODEL.md` (what we defend against).
 
@@ -71,4 +71,4 @@ Shared files (`AGENTS.md`, `docs/CONTRACTS.md`, `package.json`): ask on the boar
 - **Timestamps, not frame counts.** All flash timing uses real time.
 - **Security.** No secrets, keys or `.env` files in git. No `eval`, no remote code, minimal extension permissions. Validate every message and every API input. Reports contain only the registrable domain and metrics.
 - **Honesty.** Don't claim the shield is a medical device or guaranteed protection. Document known limits (cross-origin media) in the README.
-- **Demo readiness.** `main` always loads as an unpacked extension. Feature freeze Sunday 6:00 AM.
+- **Demo readiness.** `main` always loads as an unpacked extension. Feature freeze Saturday 11:00 PM; after that, bug fixes only.

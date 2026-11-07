@@ -56,7 +56,7 @@ A Chrome (Manifest V3) extension that watches video, canvas, animated images and
 **What this changes:**
 
 - Saturday evening work happens **remotely** after about 7:30 PM. Pick a place (Discord call or a dorm/library) before dinner.
-- Sunday morning has **one hour** before the deadline. Feature freeze is **Sunday 6:00 AM** (lead's decision, 02b8305). Sunday 8:00–9:00 is only for submitting, the final security answer, and one last rehearsal.
+- Sunday morning has **one hour** before the deadline. Feature freeze is **Saturday 11:00 PM** (lead's decision at 3:05 PM, replacing Sunday 6:00 AM). Sunday 8:00–9:00 is only for submitting, the final security answer, and one last rehearsal.
 - The track is **Tech Access** (not "Technology & Interface"). Tracks are chosen on Sunday.
 - Judging is 9:30 AM Sunday.
 
@@ -184,8 +184,8 @@ Avery is lead and breaks ties; only he reassigns work. Owners decide inside thei
 | 7:00 PM | Dinner check-in: what works, what's cut. Soften hard stop |
 | 7:30 PM | Venue closes. Move to the remote spot |
 | 8:00–11:00 PM | Integration, harness run, false-positive check, design polish, screen-reader pass, threat-model Status updates, performance numbers |
-| 11:00 PM | Rehearse the 3-minute pitch twice, record screenshot backups, tag demo release |
-| Sun 6:00 AM | **Feature freeze.** Fill in the Devpost security answer with real results |
+| 11:00 PM | **Feature freeze.** Tag the demo release, rehearse the 3-minute pitch twice, record screenshot backups |
+| 11:00 PM–midnight | Fill in the Devpost security answer with real results; bug fixes only from here |
 | Sun 8:00–9:00 AM | Submit on Devpost (project + security answer), choose Tech Access, one final run-through |
 | Sun 9:30 AM | Judging |
 
@@ -193,7 +193,7 @@ Avery is lead and breaks ties; only he reassigns work. Owners decide inside thei
 
 | Gap | Fix |
 |---|---|
-| Runbook assumes overnight work at the venue and a 10:00 freeze | Remote evening; freeze Sun 6:00 AM; Sunday 8:00–9:00 is submit-only (section 3) |
+| Runbook assumes overnight work at the venue and a 10:00 freeze | Remote evening; freeze Sat 11:00 PM; Sunday 8:00–9:00 is submit-only (section 3) |
 | Track named "Technology & Interface" in AGENTS.md and the runbook | It's **Tech Access** |
 | No judging criteria in the repo | Section 4 |
 | Security award, its rubric and the 250-word answer weren't planned | Section 6, with a draft answer |

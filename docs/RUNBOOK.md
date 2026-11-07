@@ -66,9 +66,10 @@ Real schedule from the organizers (details, judging criteria and the security-aw
 | 5:00-7:00 PM | Yaovi's agent (covering Jun): demo pages, HUD, adversarial pages. David: attack harness and false-positive pages once the detector tests pass. |
 | 7:00 PM | Dinner check-in: what works, what's cut. **Soften mode hard stop.** Agree on the remote spot (Discord call, dorm or library). |
 | 7:30 PM | Venue closes. Move to the remote spot; everyone stays on the board. |
-| 8:00-11:00 PM | Integration, harness run, false-positive check, design polish, screen-reader pass, threat-model Status updates, performance numbers. |
-| 11:00 PM | Rehearse the 3-minute pitch twice (Yaovi presents) and record screenshot backups. |
-| Overnight | Fixes and polish until the freeze. Sleep in shifts so someone always answers tags; anyone away for long closes their agent or sets `BOARD_WAIT=off`. A human checks the board before merging anything big. |
+| 8:00-10:45 PM | **Last feature work:** integration, harness run, false-positive check, design polish, accessibility pass on our own UI (keyboard only, screen reader, contrast, reduced motion), threat-model Status updates, performance numbers. Merge everything by 10:45 PM. |
+| **11:00 PM** | **FEATURE FREEZE.** Avery posts `[Avery] @all feature freeze` and tags the demo release: `git tag demo && git push --tags` (if something breaks in the demo, check out that tag). After this, code gets bug fixes only; docs, slides and the Devpost text can still change. |
+| 11:00 PM-midnight | Rehearse the 3-minute pitch twice on the frozen build (Yaovi presents) and record screenshot backups. Fill in the Devpost security answer with real, tested results (draft in `docs/STRATEGY.md` section 6.6; remove anything that didn't ship). |
+| After midnight | Bug fixes only, then sleep. Anyone away closes their agent or sets `BOARD_WAIT=off`; a human checks the board before merging any fix. |
 
 - [ ] Humans check the board at least every 30 minutes: `tools/board read -n 20`.
 - [ ] Merge small PRs often. `main` must always load as an extension.
@@ -87,12 +88,11 @@ Core detector, overlay and demo come first; upgrades are earned, not planned aro
 
 ---
 
-## Sunday, Nov 8: freeze, submit, judging
+## Sunday, Nov 8: submit and judging
 
 | Time | What |
 |---|---|
-| **6:00 AM** | **FEATURE FREEZE.** Avery posts `[Avery] @all feature freeze`. After this, bug fixes only. Tag the demo release: `git tag demo && git push --tags`. If something breaks in the demo, check out that tag. |
-| 6:00-8:00 AM | Fill in the Devpost security answer with real, tested results (draft in `docs/STRATEGY.md` section 6.6; remove anything that didn't ship). Final README and slides with speaker notes (product name **FlashBan**). Accessibility check of our own UI: keyboard only, a screen reader, contrast, reduced motion. |
+| Before 8:00 AM | Final README and slides with speaker notes (product name **FlashBan**). No code changes except fixes to the frozen build. |
 | 8:00 AM | Space opens. Set up the demo laptop: extension loaded from the `demo` tag, test pages dim, warning ready for the room. |
 | 8:00-9:00 AM | Submit on Devpost: the project plus the 250-word security answer, and choose **Tech Access**. One final run-through. |
 | **9:00 AM** | **Devpost deadline.** |

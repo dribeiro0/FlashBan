@@ -137,8 +137,8 @@ Important: we never use real seizure-inducing videos from the internet and we do
 | Sat 12:00 kickoff | Confirm track, finalize the owner table, agree the contracts in `docs/CONTRACTS.md`. |
 | Sat 12:30 to 18:00 | Detector core with unit tests. Content script finds video/canvas and runs the detector. CSS animation inspection. Safe mode overlay v1. API skeleton. Attend the BUCyS workshop. |
 | Sat 18:00 to 23:00 | End-to-end flow working on synthetic pages. Domain log and report endpoint. Guarded start. Threat model draft. Sleep in shifts. |
-| Sat night (remote) | Integration, harness, false-positive check, polish; rehearse twice at 11:00 PM. The venue closes about 7:30 PM. |
-| Sun 6:00 AM | Feature freeze. Then the security answer, final README/slides and setup only. Devpost due 9:00 AM, judging 9:30 AM. Current schedule: `docs/RUNBOOK.md`. |
+| Sat night (remote) | Integration, harness, false-positive check, polish until 10:45 PM. The venue closes about 7:30 PM. |
+| Sat 11:00 PM | Feature freeze, demo tag, two rehearsals, security answer. Sunday: submit by 9:00 AM, judging 9:30 AM. Current schedule: `docs/RUNBOOK.md`. |
 
 ## 9. Scope control
 
@@ -153,4 +153,4 @@ Do not build: accounts, payments, a dashboard website, anything that needs real 
 - False positives annoy users. Mitigation: hysteresis, a one-click "show anyway", an allowlist, and sensitivity presets.
 - Detector too slow. Mitigation: low-resolution analysis, per-page CPU budget, graceful degradation.
 - We misstate WCAG thresholds. Mitigation: someone reads the spec text and signs off before Sunday.
-- Over-scoping. Mitigation: the must-have list above and a Sunday 10:00 feature freeze.
+- Over-scoping. Mitigation: the must-have list above and a Saturday 11:00 PM feature freeze.
