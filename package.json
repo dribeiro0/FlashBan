@@ -1,0 +1,9 @@
+{
+  "name": "flashban-seizure-shield",
+  "private": true,
+  "type": "module",
+  "description": "Photosensitive Seizure Shield (Hackcessability, team FlashBan)",
+  "scripts": {
+    "test": "node --test"
+  }
+}

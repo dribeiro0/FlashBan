@@ -59,6 +59,8 @@ export function analyzeAnimation(a: Animation): {
 
 Rules: detector code is pure (no DOM, no `chrome.*`), runs in Node for tests, never throws on bad input (returns `severity: "block"` with `violation: true` if input is unreadable, which keeps it fail-closed).
 
+**Module format (decided at kickoff):** plain JavaScript ES modules with JSDoc types, no TypeScript and no build step, so `index.ts` above means `extension/src/detect/index.js`. Imports inside `extension/src/` are relative and end in `.js`; runtime files never import Node built-ins (tests may). The content script loads modules with `import(chrome.runtime.getURL("src/content/main.js"))`, and `src/content/*.js` and `src/detect/*.js` are listed in the manifest's `web_accessible_resources`. Tests run with `npm test` (`node --test`, no dependencies) from the repo root.
+
 ## 2. Safe mode API (owner: Content/UI) used by everything that hides content
 
 ```ts
