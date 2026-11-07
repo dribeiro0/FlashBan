@@ -2,10 +2,23 @@
 // Pure module: no DOM, no chrome.*, no Node built-ins. Time is always the `t`
 // the caller passes in. Never throws: unreadable input fails closed.
 //
-// Status: skeleton with the final API shape. Valid input gets a calm report;
-// real flash analysis lands next (BUILD_ORDER step 2).
+// Status: general flash (luminance) with area, wcag/strict/relaxed limits.
+// Red flash and the full timing rules land in later steps (BUILD_ORDER).
 
-import { WINDOW_MS, GAP_MS, MAX_SAMPLE_SIDE, getPreset } from "./presets.js";
+import {
+  WINDOW_MS,
+  GAP_MS,
+  BACKWARDS_RESET_MS,
+  MAX_SAMPLE_SIDE,
+  LUMA_DELTA,
+  DARKER_STATE_LIMIT,
+  getPreset,
+} from "./presets.js";
+import { lumaFrame } from "./luma.js";
+import { createTracker, RING } from "./tracker.js";
+
+/** Most flashes a pixel can show in one window (ring size / 2). */
+const MAX_COUNT = RING / 2;
 
 /**
  * @typedef {import("./presets.js").PresetName} PresetName
@@ -91,12 +104,32 @@ export function createDetector(opts) {
   }
   if (!ok) return alwaysBlock();
 
-  const expectedLength = opts.sampleWidth * opts.sampleHeight * 4;
+  const preset = /** @type {import("./presets.js").Preset} */ (getPreset(opts.preset));
+  const count = opts.sampleWidth * opts.sampleHeight;
+  const expectedLength = count * 4;
+  const pxArea = opts.realAreaScale * opts.realAreaScale; // CSS px per sample px
+  // A pixel exceeds the limit with more than maxFlashes flashes, i.e. at least
+  // 2 * maxFlashes + 1 transitions in the window (flashes = ceil(n / 2)).
+  const minTransitions = 2 * preset.maxFlashes + 1;
+  // Display floor for flashesPerSecond: 1% of the area threshold, at least one sample pixel.
+  const displayFloor = Math.max(1, Math.ceil((0.01 * preset.areaPx) / pxArea));
+
+  const luma = new Float32Array(count);
+  const tracker = createTracker(count, { delta: LUMA_DELTA, darkLimit: DARKER_STATE_LIMIT });
+  const histogram = new Uint32Array(MAX_COUNT + 1);
 
   /** @type {FlashReport} */
   let last = calmReport();
   /** @type {number | null} */
   let lastT = null;
+  /** After a reset caused by time going backwards, hold "warn" until this time. */
+  let warnUntil = -Infinity;
+
+  function clearState() {
+    tracker.reset();
+    lastT = null;
+    warnUntil = -Infinity;
+  }
 
   /** @param {FrameSample} sample @returns {FlashReport} */
   function analyze(sample) {
@@ -104,17 +137,52 @@ export function createDetector(opts) {
     if (typeof t !== "number" || !Number.isFinite(t)) return blockReport();
     if (!(pixels instanceof Uint8ClampedArray) || pixels.length !== expectedLength) return blockReport();
 
-    // Equal timestamps: ignore the sample, no double counting.
-    if (lastT !== null && t === lastT) return last;
+    if (lastT !== null && t <= lastT) {
+      // Equal or slightly earlier timestamp: ignore, no double counting.
+      if (lastT - t <= BACKWARDS_RESET_MS) return last;
+      // Seek or loop: start over, but hold "warn" for one window so a looping
+      // strobe cannot reset its way to a clean report.
+      tracker.reset();
+      lastT = null;
+      warnUntil = t + WINDOW_MS;
+    }
 
     const dt = lastT === null ? 0 : t - lastT;
     lastT = t;
-    const rate = dt > 0 ? 1000 / dt : 0;
-    const report = calmReport(rate);
-    if (dt > GAP_MS) {
-      report.undersampled = true;
+
+    lumaFrame(pixels, luma);
+    tracker.update(luma, t);
+
+    histogram.fill(0);
+    let over = 0;
+    for (let i = 0; i < count; i++) {
+      const n = tracker.countInWindow(i, t);
+      if (n >= minTransitions) over++;
+      histogram[Math.min(MAX_COUNT, Math.ceil(n / 2))]++;
+    }
+    // Highest flash count f such that at least displayFloor pixels have f or more.
+    let flashes = 0;
+    let atLeast = 0;
+    for (let f = MAX_COUNT; f >= 1; f--) {
+      atLeast += histogram[f];
+      if (atLeast >= displayFloor) {
+        flashes = f;
+        break;
+      }
+    }
+
+    const report = calmReport(dt > 0 ? 1000 / dt : 0);
+    report.flashesPerSecond = flashes;
+    report.areaPx = over * pxArea;
+    report.areaPct = over / count;
+    if (report.areaPx > preset.areaPx) {
+      report.violation = true;
+      report.severity = "block";
+      report.reason = "general";
+    } else if (dt > GAP_MS || t < warnUntil) {
       report.severity = "warn";
     }
+    if (dt > GAP_MS) report.undersampled = true;
     return report;
   }
 
@@ -136,7 +204,7 @@ export function createDetector(opts) {
     },
     reset() {
       last = calmReport();
-      lastT = null;
+      clearState();
     },
   };
 }

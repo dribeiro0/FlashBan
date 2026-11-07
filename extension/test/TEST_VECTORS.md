@@ -6,7 +6,7 @@ No real media and nothing that is shown on a screen. Every vector is generated a
 
 ## Conventions
 
-- Default sample size `16 x 9` (144 px), `realAreaScale = 8` CSS px per sample px, so one sample pixel is 64 px and a full frame is 9,216 px. Area vectors use `64 x 36` (2,304 px) instead, still `realAreaScale = 8`.
+- Default sample size `16 x 9` (144 px), `realAreaScale = 16` CSS px per sample px, so one sample pixel is 256 px and a full frame is 36,864 px (over the 21,824 px threshold). Correction made while coding: the original `realAreaScale = 8` gave a 9,216 px full frame, which can never violate. Area vectors use `64 x 36` (2,304 px) with `realAreaScale = 8`.
 - Default sampling 60 fps with integer-millisecond timestamps (`t = round(i * 1000 / fps)`). Vectors that depend on an exact edge give explicit transition times instead of a frequency, because 3 Hz does not fall on whole milliseconds.
 - Levels are given as sRGB gray bytes. The test helper `lumaOf(g)` returns relative luminance, and each vector asserts its own level pair with it before running (so a typo in a level cannot make a test pass by accident). Values in brackets are approximate, computed by hand.
   - `DARK = 0` (L = 0), `LIGHT = 140` (L about 0.26). Swing about 0.26, darker state far below 0.80.
