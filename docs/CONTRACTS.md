@@ -78,8 +78,10 @@ All messages are `chrome.runtime.sendMessage` objects. The background checks `se
 type Msg =
   | { type: "violation"; v: 1; domain: string; source: "video" | "canvas" | "css" | "gif" | "dom"; report: FlashReport; at: number }
   | { type: "getSettings"; v: 1 }
-  | { type: "settings"; v: 1; preset: DetectorOptions["preset"]; guardedStart: boolean; failClosed: boolean; allowlist: string[] };
+  | { type: "settings"; v: 1; preset: DetectorOptions["preset"]; guardedStart: boolean; failClosed: boolean; allowlist: string[]; hud: boolean };
 ```
+
+Settings live in `chrome.storage.local` under `settings` and are normalized by `extension/src/shared/settings.js` (`normalizeSettings`); content scripts read them directly and follow `storage.onChanged`. The popup asks the top frame for status with `{ type: "getStatus", v: 1 }` and gets `{ type: "status", v: 1, domain, enabled, detector: "loaded" | "stub" | "error", sources, dimmed, covered }`.
 
 `domain` is the registrable domain only (for example `example.com`), never a full URL.
 
@@ -98,7 +100,8 @@ type HudMsg =
 
 - Content scripts send the same `report` objects to the background on the existing runtime channel; the background checks `sender.id === chrome.runtime.id` and drops them if the Demo HUD setting is off.
 - The HUD shows only the fields listed in section 1, labelled "detector estimates", and "unavailable" when no report has arrived for 1 s.
-- `sourceId` is an opaque per-element id from the content script. No URLs, selectors or page text are sent.
+- `sourceId` is an opaque per-element id from the content script. No URLs, selectors or page text are sent. The background prefixes it with the frame (`f0-s1`).
+- After `hudSubscribe`, and whenever the setting changes, the background sends `{ type: "hudStatus", v: 1, enabled: boolean }` so the HUD can say "Demo HUD is off" instead of waiting.
 
 ## 4. Local log (owner: Extension core), stored in `chrome.storage.local`
 
