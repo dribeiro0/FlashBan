@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<title>Overlay killer | Seizure Shield adversarial test</title>
+<link rel="stylesheet" href="../demo.css">
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic attack fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>Overlay killer (threat T6)</h1>
+<p>The canvas strobe from <a href="../canvas.html">canvas.html</a> (4 cycles per second), plus an attacker script. During the run, on every frame and every DOM insertion, the script hides and removes every element the page did not create, closes all open dialogs and popovers, and keeps a full-page layer with the highest z-index on top.</p>
+<p><strong>Pass:</strong> the strobe stays covered by the shield for the whole run, and the cover comes back within a frame whenever the page removes it. <strong>Fail:</strong> you can see the strobe at any point after the first second.</p>
+<p class="meta">Expected shield verdict: <strong>block</strong>. Same colors and area as canvas.html. Default run 10 s; add <code>?seconds=N</code> (1 to 10) to change it. <a href="../index.html">All fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<p id="attacks">Attacks so far: none.</p>
+<canvas id="stage" class="stage" data-kind="canvas" data-hz="4" data-seconds="10" width="320" height="180" aria-label="Test canvas"></canvas>
+<script src="../fixture.js"></script>
+<script src="overlay-killer.js"></script>
+</body>
+</html>
