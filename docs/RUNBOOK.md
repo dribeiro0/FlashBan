@@ -6,21 +6,21 @@ Repo: https://github.com/dribeiro0/FlashBan · Board: [issue #1](https://github.
 |---|---|---|
 | Avery (lead) | @DxubleBTW | Extension core + safe mode |
 | David | @dribeiro0 | Detection engine |
-| | @unseentrader007 | Security + backend |
-| | @sysoutprntlne | Demo, pitch, docs |
+| Jun | @sysoutprntlne | Demo, security + backend |
+| | @unseentrader007 | Presenter (no code) |
 
 ---
 
 ## Friday, Nov 6: setup day
 
 ### 1. David grants access (about 2 min)
-- [ ] Repo **Settings > Collaborators > Add people**: add `sysoutprntlne` and `unseentrader007`, with Write access if it asks for a role.
+- [ ] Repo **Settings > Collaborators > Add people**: add `sysoutprntlne` and `unseentrader007` (the presenter's access is optional: it lets them see the board and PRs).
 - [ ] Tell them to accept the invite (email, or https://github.com/notifications). It expires in 7 days.
 
 ### 2. Avery checks access
 - [ ] Ask Claude (with the FlashBan folder connected): "check that everyone has write access to the repo." Each person should show `write` or `admin`.
 
-### 3. Each teammate sets up their machine (about 10 min each)
+### 3. Each coding teammate sets up their machine (about 10 min each; the presenter skips this)
 Windows: do all of this in **Git Bash** (install Git for Windows from https://git-scm.com if needed), because `tools/board` is a bash script.
 
 - [ ] Install the GitHub CLI.
@@ -47,8 +47,8 @@ If an agent doesn't wake up: check that `tools/board whoami` prints the exact lo
 ### 5. Prep (no product code yet)
 - [ ] **Everyone:** check the Hackcessability rules on code written before kickoff, or ask an organizer. Until then, plan and research only.
 - [ ] **David:** read the WCAG 2.3.1 definitions of "general flash", "red flash" and "flash threshold", and confirm the constants in `docs/PROJECT_PLAN.md` section 3.
-- [ ] **unseentrader007:** read `security/THREAT_MODEL.md` and pick the API stack (Node/Express or Python/FastAPI).
-- [ ] **sysoutprntlne:** read the demo script (plan section 7) and sketch the slides.
+- [ ] **sysoutprntlne:** read `security/THREAT_MODEL.md`, pick the API stack (Node/Express or Python/FastAPI), and sketch the slides from the demo script (plan section 7).
+- [ ] **unseentrader007 (presenter):** read the README and plan sections 1, 2 and 7 so you know the story you'll tell.
 - [ ] **Avery:** read Chrome's MV3 docs on content scripts, `requestVideoFrameCallback`, and the offscreen API.
 - [ ] **Everyone:** charge laptops, bring chargers, and have Chrome installed.
 
@@ -74,8 +74,8 @@ Kickoff 12:00 at CDS 1750. Lunch and dinner are provided. Workshops run througho
 |---|---|
 | David | Luminance + general-flash detector passing Node unit tests; post and tag @DxubleBTW |
 | Avery | Extension loads unpacked; content script finds video/canvas; safe-mode overlay works with a stub detector |
-| unseentrader007 | API skeleton with validated `POST /api/reports`; threat model review of the manifest and messages |
-| sysoutprntlne | 3+ synthetic demo pages (canvas, CSS, JS toggle) with warnings and `shield-expected` meta tags; tag @all |
+| sysoutprntlne | 3+ synthetic demo pages (canvas, CSS, JS toggle) with warnings and `shield-expected` meta tags (tag @all), then a security review of the manifest and messages, then the API skeleton with validated `POST /api/reports` |
+| unseentrader007 | Go to the workshops, take notes on what judges care about, and start a pitch outline with Jun |
 
 - [ ] Humans check the board at least every 30 min: `tools/board read -n 20`.
 - [ ] Merge small PRs often. `main` must always load as an extension.
@@ -87,8 +87,7 @@ Kickoff 12:00 at CDS 1750. Lunch and dinner are provided. Workshops run througho
 ### 18:30-23:00 Build block 2
 - [ ] **Avery + David:** wire in the real detector; detect end-to-end on all demo pages; guarded start.
 - [ ] **David:** red-flash detector and `analyzeAnimation` for CSS.
-- [ ] **unseentrader007:** `GET /api/domains` with the distinct-install threshold, rate limiting, and the first adversarial pages.
-- [ ] **sysoutprntlne:** HUD showing detector numbers, a generated GIF/MP4 test, README draft.
+- [ ] **sysoutprntlne:** `GET /api/domains` with the distinct-install threshold and rate limiting, the first adversarial pages, a HUD showing detector numbers, and a README draft. Post on the board if this is too much and Avery will cut or reassign.
 
 ### Overnight
 - [ ] Sleep in shifts so someone is always awake to answer tags. Agents can keep working, but a human checks the board before merging anything big.
@@ -100,10 +99,11 @@ Kickoff 12:00 at CDS 1750. Lunch and dinner are provided. Workshops run througho
 
 Breakfast is provided. Find out the exact demo and judging time at kickoff and write it here: ______
 
-- [ ] **Morning:** adversarial tests (unseentrader007 runs every page in `demo/adversarial/` and updates the Status column in the threat model). Bug fixes. GIF look-ahead only if everything else works.
+- [ ] **Morning:** adversarial tests (sysoutprntlne runs every page in `demo/adversarial/` and updates the Status column in the threat model). Bug fixes. GIF look-ahead only if everything else works.
 - [ ] **About 10:00: FEATURE FREEZE.** Avery posts `[Avery] @all feature freeze`. After that, only bug fixes and polish.
 - [ ] **Accessibility check on our own UI:** keyboard only, a screen reader (NVDA on Windows, VoiceOver on Mac), contrast, reduced motion.
-- [ ] **sysoutprntlne:** final README, slides, and Devpost/submission text, including the "not a medical device" note and the known limits.
+- [ ] **sysoutprntlne:** final README, slides with speaker notes, and Devpost/submission text, including the "not a medical device" note and the known limits.
+- [ ] **unseentrader007 (presenter):** run the pitch with the slides and speaker notes; the coding teammates drive the live demo laptop.
 - [ ] **Rehearse the 3-minute demo at least twice** (script in `docs/PROJECT_PLAN.md` section 7), on the laptop you'll present with. Keep test-page brightness low and warn the room before any flashing.
 - [ ] Tag a release: `git tag demo && git push --tags`. If something breaks during the demo, check out that tag.
 - [ ] Submit before the deadline. Be there at least 15 min before judging.
