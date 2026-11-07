@@ -22,7 +22,7 @@ html::after {
   content: "FlashBan dimmed this page: it was flashing and kept trying to remove FlashBan's protection. To see it anyway, open FlashBan and turn off protection for this site." !important;
   display: block !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important;
   z-index: 2147483647 !important; margin: 0 !important; padding: 14px 18px !important;
-  background: #121212 !important; color: #ffffff !important; border-bottom: 3px solid #ffd84d !important;
+  background: #121212 !important; color: #ffffff !important;
   font: 600 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
   text-align: center !important; visibility: visible !important; opacity: 1 !important; filter: none !important;
 }

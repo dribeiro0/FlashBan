@@ -51,7 +51,7 @@ const CSS = `
            opacity: 1; transition: opacity ${FADE_MS}ms linear; }
   .badge { position: absolute; margin: 8px; padding: 4px 10px; border-radius: 4px; pointer-events: none;
            font: 600 13px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-           color: #ffffff; background: rgba(0, 0, 0, 0.78); border: 1px solid #ffd54a; }
+           color: #ffffff; background: rgba(0, 0, 0, 0.78); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) { canvas { transition: none; } }
 `;
