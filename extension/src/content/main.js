@@ -21,7 +21,6 @@ const WARMUP_MS = 800; // guarded-start dim at least this long
 const WARN_HOLD_MS = 1000; // keep a "warn" dim this long after the last warn
 const HUD_INTERVAL_MS = 100; // max 10 reports per second per source
 const VIOLATION_MSG_INTERVAL_MS = 10_000;
-const COST_LIMIT_MS = 3; // average sampling + detector cost per frame
 const MAX_ACTIVE = 24; // visible sources analysed at once (threat T5)
 const STATIC_IMAGE_MS = 3000; // stop sampling images that never change
 const RESIZE_MIN_GAP_MS = 2000; // rebuild the detector at most this often
@@ -45,7 +44,7 @@ const REASONS = {
   checking: "Checking it for flashing before showing it.",
   crossOrigin: "It comes from another site, so it can't be checked for flashing.",
   protected: "It is protected video that can't be checked for flashing.",
-  tooCostly: "There is too much moving media to check all of it.",
+  tooCostly: "FlashBan couldn't keep up checking this, so it's dimmed to be safe.",
   tooMany: "There is too much moving media on this page to check all of it.",
   error: "It couldn't be checked for flashing.",
   detectorError: "The flash detector failed to load, so media is dimmed to be safe.",
@@ -343,8 +342,9 @@ class Source {
     this.prevHash = -1;
     this.lastHud = 0;
     this.lastViolationMsg = 0;
-    this.costAvg = 0;
-    this.costSamples = 0;
+    // CPU budget (threat T5): readback judged on its median, the detector on
+    // its mean, unchanged frames left out (David's createCostMeter, #43).
+    /** @type {any} */ this.cost = typeof detect?.createCostMeter === "function" ? detect.createCostMeter() : null;
     this.stopped = false; // unverifiable, static or user-shown: no more sampling
     this.persistentDim = false;
     /** @type {string | null} */ this.unverifiable = null; // why we can't analyse it
@@ -525,9 +525,13 @@ class Source {
       return this.markUnverifiable(name === "SecurityError" ? REASONS.crossOrigin : REASONS.error);
     }
 
+    const readMs = performance.now() - t0;
+    let changed = true; // every video frame from requestVideoFrameCallback is new
+
     // Guarded start for canvases and images: dim as soon as the content moves.
     if (this.kind !== "video") {
       const hash = quickHash(data);
+      changed = this.prevHash === -1 || hash !== this.prevHash;
       if (this.prevHash === -1 || hash !== this.prevHash) {
         if (this.prevHash !== -1 && !this.guardedStartDone) this.beginGuardedStart(t);
         this.lastChange = t;
@@ -541,15 +545,16 @@ class Source {
     }
 
     let report;
+    const t1 = performance.now();
     try {
       report = this.detector.push({ t, pixels: data });
     } catch {
       report = null;
     }
-    const cost = performance.now() - t0;
-    this.trackCost(cost);
+    const detectMs = performance.now() - t1;
     if (!report) return this.markUnverifiable(REASONS.error);
     this.handleReport(report, t);
+    this.trackCost(readMs, detectMs, changed);
   }
 
   /** @param {number} t */
@@ -561,17 +566,17 @@ class Source {
     safemode.guard(this.el, "dim", REASONS.checking, { canShow: false });
   }
 
-  /** @param {number} cost */
-  trackCost(cost) {
-    this.costSamples++;
-    this.costAvg += (cost - this.costAvg) / Math.min(this.costSamples, 30);
-    if (this.costSamples < 30 || this.costAvg <= COST_LIMIT_MS) return;
+  /** @param {number} readMs @param {number} detectMs @param {boolean} changed */
+  trackCost(readMs, detectMs, changed) {
+    if (!this.cost || this.stopped) return;
+    this.cost.add({ readMs, detectMs, changed });
+    const c = this.cost.check();
+    if (!c?.over) return;
     if (this.budgetPx > DEGRADED_BUDGET_PX) {
-      // Step down once (David's DESIGN section 7), then fail closed.
+      // Step down once to a smaller sample (DESIGN section 7), then fail closed.
       this.budgetPx = DEGRADED_BUDGET_PX;
       this.detector = null;
-      this.costSamples = 0;
-      this.costAvg = 0;
+      this.cost.reset?.();
     } else {
       this.markUnverifiable(REASONS.tooCostly);
     }
@@ -719,11 +724,25 @@ class Source {
     }
   }
 
-  /** Ask the background whether a cross-origin image file is animated. */
+  /**
+   * Ask the background whether a cross-origin WebP/APNG file is animated.
+   * Never for GIFs: a server can tell the probe from the page's own request and
+   * cloak it (still frame to the probe, strobe to the page), and GIFs are
+   * nearly always animated anyway, so a cross-origin GIF always counts as
+   * animated (threat T4). WebP/APNG keep the probe for usability (most are
+   * still images); the cloaking risk there is a documented limit.
+   */
   probeAnimation() {
     const img = /** @type {HTMLImageElement} */ (this.el);
     const url = img.currentSrc || img.src;
     if (!/^https?:/i.test(url)) return;
+    let path = "";
+    try {
+      path = new URL(url).pathname.toLowerCase();
+    } catch {
+      return;
+    }
+    if (path.endsWith(".gif")) return; // stays "animated or unknown": dimmed while visible
     try {
       chrome.runtime
         .sendMessage({ type: "probeImage", v: 1, url })
