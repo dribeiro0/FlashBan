@@ -1021,13 +1021,26 @@ class DomSource extends Source {
     this.resetDetector();
   }
 
+  /**
+   * A page element we can't measure is DROPPED, never dimmed: these are the
+   * page's own layout (headers, sidebars, content columns whose classes a
+   * framework keeps toggling), and dimming them as "unverifiable" blacked out
+   * whole sites (YouTube, Sat 6:29 PM). Only an element measured flashing is
+   * softened or covered. Media (video, canvas, images) keeps failing closed.
+   */
+  drop() {
+    this.stopped = true;
+    this.resetDetector();
+    domSources.delete(this.el);
+  }
+
   /** @param {number} t @param {number} area */
   ensureDomDetector(t, area) {
     const resized = !this.detector || Math.abs(area - this.area) > this.area * 0.5;
     if (!resized) return true;
     if (this.detector && t - this.lastRebuild < RESIZE_MIN_GAP_MS) {
       if (++this.resizeChurn > RESIZE_CHURN_LIMIT) {
-        this.markUnverifiable(REASONS.error);
+        this.drop();
         return false;
       }
       return true;
@@ -1037,7 +1050,7 @@ class DomSource extends Source {
     try {
       this.detector = detect.createDetector({ preset: effectivePreset(), sampleWidth: 1, sampleHeight: 1, realAreaScale: Math.sqrt(area) });
     } catch {
-      this.markUnverifiable(REASONS.error);
+      this.drop();
       return false;
     }
     return true;
@@ -1068,7 +1081,7 @@ class DomSource extends Source {
     } catch {
       eff = { color: this.backdrop.color, ok: false };
     }
-    if (!eff.ok) return this.markUnverifiable(REASONS.unknownStyle); // colours we can't read: fail closed
+    if (!eff.ok) return this.drop(); // colours we can't read: stop watching this element (see drop)
     this.pixel[0] = eff.color[0];
     this.pixel[1] = eff.color[1];
     this.pixel[2] = eff.color[2];
@@ -1078,7 +1091,7 @@ class DomSource extends Source {
     } catch {
       report = null;
     }
-    if (!report) return this.markUnverifiable(REASONS.error);
+    if (!report) return this.drop();
     this.handleReport(report, t);
   }
 }
@@ -1165,11 +1178,7 @@ function makeDomSources(el) {
   for (const c of candidates) {
     let s = domSources.get(c);
     if (!s) {
-      if (domSources.size >= MAX_DOM_SOURCES) {
-        // Too many flickering elements to check (threat T5): fail closed on this one.
-        if (settings.failClosed && visibleArea(c).area >= DOM_MIN_AREA) safemode.guard(c, "dim", REASONS.tooMany, { canShow: true });
-        continue;
-      }
+      if (domSources.size >= MAX_DOM_SOURCES) continue; // CPU guard (T5): page elements beyond the cap are not watched, never dimmed (see DomSource.drop)
       s = new DomSource(c);
       domSources.set(c, s);
     }
