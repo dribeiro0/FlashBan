@@ -56,7 +56,7 @@ A Chrome (Manifest V3) extension that watches video, canvas, animated images and
 **What this changes:**
 
 - Saturday evening work happens **remotely** after about 7:30 PM. Pick a place (Discord call or a dorm/library) before dinner.
-- Sunday morning has **one hour** before the deadline. Feature freeze moves to **Saturday night** (proposal: 11:59 PM). Sunday 8:00–9:00 is only for submitting, the final security answer, and one last rehearsal.
+- Sunday morning has **one hour** before the deadline. Feature freeze is **Sunday 6:00 AM** (lead's decision, 02b8305). Sunday 8:00–9:00 is only for submitting, the final security answer, and one last rehearsal.
 - The track is **Tech Access** (not "Technology & Interface"). Tracks are chosen on Sunday.
 - Judging is 9:30 AM Sunday.
 
@@ -185,7 +185,7 @@ Avery is lead and breaks ties; only he reassigns work. Owners decide inside thei
 | 7:30 PM | Venue closes. Move to the remote spot |
 | 8:00–11:00 PM | Integration, harness run, false-positive check, design polish, screen-reader pass, threat-model Status updates, performance numbers |
 | 11:00 PM | Rehearse the 3-minute pitch twice, record screenshot backups, tag demo release |
-| 11:59 PM | **Feature freeze.** Fill in the Devpost security answer with real results |
+| Sun 6:00 AM | **Feature freeze.** Fill in the Devpost security answer with real results |
 | Sun 8:00–9:00 AM | Submit on Devpost (project + security answer), choose Tech Access, one final run-through |
 | Sun 9:30 AM | Judging |
 
@@ -193,7 +193,7 @@ Avery is lead and breaks ties; only he reassigns work. Owners decide inside thei
 
 | Gap | Fix |
 |---|---|
-| Runbook assumes overnight work at the venue and a 10:00 freeze | Remote evening; freeze Sat 11:59 PM; Sunday is submit-only (section 3) |
+| Runbook assumes overnight work at the venue and a 10:00 freeze | Remote evening; freeze Sun 6:00 AM; Sunday 8:00–9:00 is submit-only (section 3) |
 | Track named "Technology & Interface" in AGENTS.md and the runbook | It's **Tech Access** |
 | No judging criteria in the repo | Section 4 |
 | Security award, its rubric and the 250-word answer weren't planned | Section 6, with a draft answer |
@@ -208,7 +208,7 @@ Avery is lead and breaks ties; only he reassigns work. Owners decide inside thei
 ## 11. Board post (David's Claude → team)
 
 > [David's Claude] @DxubleBTW @sysoutprntlne schedule + judging info from the organizers, and proposals (your call, Avery):
-> SCHEDULE (Max's email): hacking began 1:15; venue closes ~7:30 PM Sat, so evening work is remote; Sun doors 8:00, projects + Devpost security answer due 9:00 AM, judging 9:30. Proposal: feature freeze Sat 11:59 PM, rehearse Sat night. Track name is Tech Access.
+> SCHEDULE (Max's email): hacking began 1:15; venue closes ~7:30 PM Sat, so evening work is remote; Sun doors 8:00, projects + Devpost security answer due 9:00 AM, judging 9:30. Proposal (sent): feature freeze Sat 11:59 PM, rehearse Sat night. Decided: freeze Sun 6:00 AM. Track name is Tech Access.
 > JUDGING (Devpost): Accessibility Impact, Technical Depth, Design, Presentation, Creativity. Design has no owner yet: Avery for popup/overlay, Jun for HUD?
 > SECURITY AWARD (Built To Be Trusted, auto-entered): 250-word Devpost answer due 9:00 AM, show one security feature live in ~1 min (proposal: overlay-killer page). Workshop 3 PM CDS 264, can one of you go?
 > UPGRADES, in order: (1) attack harness + benign false-positive pages, David after detector tests pass; (2) soften mode as the 4:30 PM stretch (design in extension/src/detect/SOFTEN_DESIGN.md), hard stop 7 PM; (3) tamper-evident log only if time remains (would change CONTRACTS log shape).
