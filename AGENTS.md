@@ -72,3 +72,20 @@ Shared files (`AGENTS.md`, `docs/CONTRACTS.md`, `package.json`): ask on the boar
 - **Security.** No secrets, keys or `.env` files in git. No `eval`, no remote code, minimal extension permissions. Validate every message and every API input. Reports contain only the registrable domain and metrics.
 - **Honesty.** Don't claim the shield is a medical device or guaranteed protection. Document known limits (cross-origin media) in the README.
 - **Demo readiness.** `main` always loads as an unpacked extension. Feature freeze Saturday 11:00 PM; after that, bug fixes only.
+
+## 6. The security award (Built To Be Trusted): every agent's job
+
+We're auto-entered in BUCyS's **Built To Be Trusted** award. It goes to the team that **best protects its users without making the app harder to use**, scored 1 to 5 (5 = security built in thoughtfully, and the team clearly explains the risks and fixes). Entry: a **150–250 word** Devpost security answer due **Sunday 9:00 AM**, plus one security feature shown live in about a minute at judging (the overlay-killer page). Full plan and draft answer: `docs/STRATEGY.md` sections 4.2 and 6.
+
+**What we protect.** Using FlashBan reveals a health condition (photosensitive epilepsy), and the log shows where someone browses. So our main protection is collecting almost nothing. Every agent keeps it that way, in its own area:
+
+1. **No accounts, logins, identifiers or secrets.** Don't add any. There are no API keys; `.env` is gitignored anyway.
+2. **Minimal data, kept local.** Only the registrable domain and detector numbers, stored on the user's computer. Never full URLs, page content, screenshots or anything that identifies the person.
+3. **Untrusted input stays data.** Use `textContent`, never `innerHTML`. No `eval` and no remote code. Check `sender.id` and the shape of every message and every API input.
+4. **Fail closed, and never trade away accessibility.** Anything we can't check gets dimmed or covered and labelled. Security must not break keyboard use, screen readers or paste, and must never add CAPTCHAs.
+5. **Permissions are a cost.** Post any new manifest permission on the board, with the reason, before merging it.
+6. **Prove it or don't claim it.** Every security claim in the Devpost answer or the pitch must be backed by a passing test, or by a page in `demo/adversarial/` that passes `node harness/run.mjs`. If it doesn't pass, drop the claim.
+7. **Leave evidence.** When you ship something security-relevant, post one board line starting `SECURITY:` with what it defends (a threat id from `security/THREAT_MODEL.md`) and a number (for example "overlay re-applied in 10/10 attack samples"). Those lines become the Devpost answer.
+8. **Be honest about limits.** Known gaps (sites can detect the extension through its web-accessible files; cross-origin and DRM video can't be measured, only dimmed) go in the threat model's Known limits, not under the rug.
+
+Judges may ask: "What's the worst thing someone could do with your app?", "Where are your API keys?", "How would a screen-reader user log in?" Answers are in STRATEGY 6.3. Know them.
