@@ -22,7 +22,7 @@ export const PRESETS = /** @type {const} */ (["strict", "wcag", "relaxed"]);
 /** @type {Settings} */
 export const DEFAULT_SETTINGS = Object.freeze({
   v: 1,
-  preset: "strict",
+  preset: "wcag", // WCAG 2.3.1 limits by default; Strict is one click away in the popup
   guardedStart: true,
   failClosed: true,
   allowlist: [],
