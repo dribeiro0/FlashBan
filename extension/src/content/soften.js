@@ -3,14 +3,18 @@
 //
 // Instead of covering flagged media, we keep it running underneath (audio,
 // captions, controls and clicks keep working) and draw a softened copy on
-// top: each frame goes through the pure two-stage low-pass filter
-// (createSoftener) and is shown on a canvas that sits exactly over the media.
+// top: a canvas that sits exactly over the media and shows the two-stage
+// low-pass filter from SOFTEN_DESIGN.md (s1 += a (x - s1); s2 += a (s1 - s2),
+// a = 1 - exp(-dt / tau)). The filter runs at the media's own resolution on the
+// GPU: drawing a frame with globalAlpha = a over the previous output IS the
+// update s += a (x - s), so there is no per-pixel work on the main thread and
+// no blur (an earlier version filtered a 240x135 copy and scaled it up).
 //
-// Safety: a SECOND detector checks every softened frame. If it still sees a
-// violation, if the filter fails, if a frame can't be read (cross-origin, DRM,
-// tainted canvas) or if a video leaves our canvas (picture-in-picture,
-// fullscreen), we call onFail and the caller falls back to the normal cover
-// (fail closed).
+// Safety: a SECOND detector checks what is actually on screen: it reads the
+// output canvas back at a small size VERIFY_HZ times a second. If it still sees
+// a violation, if a frame can't be read (cross-origin, DRM, tainted canvas) or
+// if a video leaves our canvas (picture-in-picture, fullscreen), we call onFail
+// and the caller falls back to the normal cover (fail closed).
 //
 // "Checking" mode (guarded start): the layer can also run while new media is
 // being checked, instead of dimming it. If the media turns out calm, the
@@ -21,10 +25,14 @@
 // like the safe-mode overlay, so page CSS can't hide or restyle it. It takes
 // no pointer events, so the page's own controls stay usable.
 
-import { createSoftener, DEFAULT_TAU } from "../detect/soften.js";
+import { DEFAULT_TAU } from "../detect/soften.js";
 
 const MAX_SIDE = 256; // detector limit per side
-const BUDGET_PX = 240 * 135; // filter + verify cost per frame stays around 1 ms
+const VERIFY_PX = 160 * 90; // the verifier's readback size
+const VERIFY_HZ = 15; // readbacks per second (a 3 Hz flash needs about 6 samples per second)
+const MAX_DISPLAY_PX = 2560 * 1440; // output canvas cap (device pixels)
+const MAX_STEP = 0.25; // largest share of the way to a new frame any one update may move
+const RESIZE_PCT = 0.1; // rebuild the output canvas when the media grows or shrinks this much
 const FADE_MS = 300;
 const TAG = `ss-soft-${Math.random().toString(36).slice(2, 10)}`;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -67,11 +75,11 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
 
   const r = el.getBoundingClientRect();
   if (r.width < 16 || r.height < 16) return null;
-  const scale = Math.min(1, Math.sqrt(BUDGET_PX / (r.width * r.height)), MAX_SIDE / r.width, MAX_SIDE / r.height);
+  const scale = Math.min(1, Math.sqrt(VERIFY_PX / (r.width * r.height)), MAX_SIDE / r.width, MAX_SIDE / r.height);
   const w = Math.max(1, Math.round(r.width * scale));
   const h = Math.max(1, Math.round(r.height * scale));
 
-  // Work canvas: read frames at the filter size.
+  // Work canvas: the verifier reads the output back at this size.
   const work = new OffscreenCanvas(w, h);
   const wctx = work.getContext("2d", { willReadFrequently: true, alpha: false });
   if (!wctx) return null;
@@ -84,12 +92,32 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     return null;
   }
 
-  const softener = createSoftener({ width: w, height: h, tau: DEFAULT_TAU });
   let verify;
   try {
     verify = detect.createDetector({ preset, sampleWidth: w, sampleHeight: h, realAreaScale: 1 / scale });
   } catch {
     return null;
+  }
+
+  // Output size: the media's size in device pixels, never more than its own
+  // resolution (upscaling adds nothing) and never above MAX_DISPLAY_PX.
+  function outputSize(b) {
+    const dpr = Math.max(1, devicePixelRatio || 1);
+    let ow = b.width * dpr;
+    let oh = b.height * dpr;
+    const nat = el instanceof HTMLVideoElement ? [el.videoWidth, el.videoHeight]
+      : el instanceof HTMLCanvasElement ? [el.width, el.height] : [el.naturalWidth, el.naturalHeight];
+    if (nat[0] > 0 && nat[1] > 0 && (nat[0] < ow || nat[1] < oh)) {
+      const k = Math.min(nat[0] / ow, nat[1] / oh);
+      ow *= k;
+      oh *= k;
+    }
+    if (ow * oh > MAX_DISPLAY_PX) {
+      const k = Math.sqrt(MAX_DISPLAY_PX / (ow * oh));
+      ow *= k;
+      oh *= k;
+    }
+    return [Math.max(1, Math.round(ow)), Math.max(1, Math.round(oh))];
   }
 
   // Display layer.
@@ -107,8 +135,11 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   layer.className = "layer";
   layer.setAttribute("popover", "manual");
   const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
+  let [ow, oh] = outputSize(r);
+  let sizedW = r.width;
+  let sizedH = r.height;
+  canvas.width = ow;
+  canvas.height = oh;
   canvas.setAttribute("role", "img");
   const badge = document.createElement("div");
   badge.className = "badge";
@@ -119,9 +150,14 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   live.setAttribute("aria-live", "polite");
   layer.append(canvas, badge);
   root.append(style, live, layer);
-  const dctx = canvas.getContext("2d");
+  const dctx = canvas.getContext("2d", { alpha: false });
   if (!dctx) return null;
-  const frame = new ImageData(w, h);
+  // Stage 1 of the filter lives in its own canvas; the visible canvas is stage 2.
+  let stage1 = new OffscreenCanvas(ow, oh);
+  let s1ctx = stage1.getContext("2d", { alpha: false });
+  if (!s1ctx) return null;
+  let lastT = NaN; // first frame: a = 1, so the output equals the current frame (no jump: T13)
+  let lastVerify = -Infinity;
 
   let isChecking = checking;
   const what = isVideo ? "Video" : "Animation";
@@ -164,6 +200,19 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
 
   function place() {
     const b = el.getBoundingClientRect();
+    if (Math.abs(b.width - sizedW) > sizedW * RESIZE_PCT || Math.abs(b.height - sizedH) > sizedH * RESIZE_PCT) {
+      // The media changed size (theatre mode, a resized window): new output
+      // canvases at the new size, restarted from the next frame.
+      [ow, oh] = outputSize(b);
+      sizedW = b.width;
+      sizedH = b.height;
+      canvas.width = ow;
+      canvas.height = oh;
+      stage1 = new OffscreenCanvas(ow, oh);
+      s1ctx = stage1.getContext("2d", { alpha: false });
+      if (!s1ctx) return fail();
+      lastT = NaN;
+    }
     canvas.style.left = `${b.left}px`;
     canvas.style.top = `${b.top}px`;
     canvas.style.width = `${b.width}px`;
@@ -179,24 +228,50 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     onFail(report);
   }
 
-  /** @param {number} t */
-  function onFrame(t) {
+  /**
+   * One filter update. Timing uses the wall clock, not the frame's own
+   * timestamp: after a blocked main thread, queued video-frame callbacks
+   * replay in a burst with timestamps 33 ms apart but the same frame on
+   * screen, and the exact filter would then step the same way several times.
+   */
+  function onFrame() {
     if (stopped) return;
+    const t = performance.now();
     if (el instanceof HTMLImageElement && (!el.complete || el.naturalWidth === 0)) return;
     if (el instanceof HTMLCanvasElement && (el.width === 0 || el.height === 0)) return;
+    // Filter update on the GPU: s1 += a (x - s1), s2 += a (s1 - s2).
+    // After a long gap (a blocked main thread) the exact filter would jump
+    // most of the way to the new frame in one step; MAX_STEP keeps every
+    // update a gentle fraction instead. The first frame is a = 1 on purpose.
+    const dt = Number.isFinite(lastT) ? Math.max(0, t - lastT) : Infinity;
+    const a = dt === Infinity ? 1 : Math.min(MAX_STEP, 1 - Math.exp(-dt / 1000 / DEFAULT_TAU));
+    lastT = t;
+    try {
+      s1ctx.globalAlpha = a;
+      s1ctx.drawImage(el, 0, 0, ow, oh);
+      dctx.globalAlpha = a;
+      dctx.drawImage(stage1, 0, 0, ow, oh);
+    } catch {
+      return fail();
+    }
+    // Verify what is on screen: read the OUTPUT back at a small size and run
+    // the second detector on it. Not every frame: a readback costs about a
+    // millisecond, and the detector needs about 6 samples a second for 3 Hz.
+    if (t - lastVerify < 1000 / VERIFY_HZ) return;
+    lastVerify = t;
     let data;
     try {
-      wctx.drawImage(el, 0, 0, w, h);
+      wctx.drawImage(canvas, 0, 0, w, h);
       data = wctx.getImageData(0, 0, w, h).data;
     } catch {
       return fail();
     }
-    const out = softener.push(data, t);
-    if (softener.failed) return fail();
-    const rep = verify.push({ t, pixels: out });
-    if (rep.violation || rep.severity === "block") return fail(rep);
-    frame.data.set(out);
-    dctx.putImageData(frame, 0, 0);
+    const rep = verify.push({ t, pixels: data });
+    // Flashing that got through the filter: fall back to the cover. A "block"
+    // with no reason is the detector's sampling-gap rule (a busy page delayed
+    // our frames); the output is low-passed by construction, so that alone
+    // doesn't fail it.
+    if ((rep.violation || rep.severity === "block") && rep.reason) return fail(rep);
   }
 
   // Video: one softened frame per decoded video frame. Canvas and images:
@@ -204,16 +279,15 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   const useVfc = isVideo && typeof (/** @type {HTMLVideoElement} */ (el).requestVideoFrameCallback) === "function";
   function scheduleVideo() {
     if (stopped) return;
-    vfc = /** @type {HTMLVideoElement} */ (el).requestVideoFrameCallback((now, meta) => {
+    vfc = /** @type {HTMLVideoElement} */ (el).requestVideoFrameCallback(() => {
       vfc = 0;
-      onFrame(meta.expectedDisplayTime || now);
+      onFrame();
       scheduleVideo();
     });
   }
-  /** @param {number} now */
-  function frameTick(now) {
+  function frameTick() {
     if (stopped) return;
-    onFrame(now);
+    onFrame();
     frameRaf = requestAnimationFrame(frameTick);
   }
 
@@ -269,7 +343,7 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   // so there is no sudden jump: threat T13), then keep filtering.
   attach();
   place();
-  onFrame(performance.now());
+  onFrame();
   if (stopped) return null;
   if (useVfc) scheduleVideo();
   else frameRaf = requestAnimationFrame(frameTick);

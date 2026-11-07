@@ -18,6 +18,12 @@ const DEGRADED_BUDGET_PX = 64 * 36;
 const MIN_MEDIA_CSS_PX = 16; // ignore media smaller than this on either side
 const GUARD_START_MIN_AREA = 64 * 64; // smaller media skip guarded start
 const VIDEO_CHECK_MS = 2000; // a video that starts gets a light, see-through dim for this long
+const VIDEO_CHECK_MAX_MS = 3500; // ...and never longer than this, whatever the detector is unsure about
+const MIN_SAMPLE_MS = 80; // sample media at most ~12 times a second (a 3 Hz flash needs ~6; the detector allows 100 ms gaps); a 720p readback costs ~5 ms
+const GAP_WINDOW_MS = 4000; // video: judge missed frames over this long...
+const GAP_MAX_SHARE = 0.5; // ...and if more than this share of samples missed frames, we can't keep up (fail closed, T5)
+const DOM_TICK_MS = 50; // DOM flicker sampling runs at most 20 times a second...
+const DOM_TICK_BUDGET_MS = 3; // ...and stops early when a tick has used this much time (threat T5)
 const PAGE_CHECK_MS = 1200; // the one page-wide "checking" dim, once per page
 // Media we can't analyse (lead decision, Sat 4:10 PM: option B): "always" dims
 // it whether it plays or not; "while-active" is option A (dim only while it
@@ -377,6 +383,10 @@ class Source {
     this.vfcHandle = 0;
     this.lastT = 0;
     this.lastPresented = -1; // video: rVFC presentedFrames of the last sample
+    this.callbacksSinceSample = 0;
+    this.checkDeadline = 0; // video: the light check never outlasts this (performance.now())
+    /** @type {number[]} */ this.sampleTimes = []; // video: recent samples (performance.now())...
+    /** @type {number[]} */ this.missTimes = []; // ...and those where presented frames were missed
     this.completeFrames = false;
     /** @type {{ stop(): void } | null} */ this.soft = null; // soften layer while active
     this.softFailed = false; // soften fell back to block once: don't retry on this element
@@ -397,6 +407,7 @@ class Source {
       }
       this.resetDetector();
       this.lastPresented = -1;
+      this.callbacksSinceSample = 0;
       // Guarded start from the "play" event, before the first frame is shown.
       if (!this.guardedStartDone) this.beginGuardedStart(performance.now());
       this.scheduleVideo();
@@ -465,12 +476,24 @@ class Source {
       this.vfcHandle = v.requestVideoFrameCallback((now, meta) => {
         this.vfcHandle = 0;
         // Display time, not media time: playbackRate 2x flashes twice as fast for the viewer.
-        // Every presented frame sampled (presentedFrames moved by exactly 1)?
-        // Then a long gap is just the video's own frame rate, not missed frames.
+        const t = meta.expectedDisplayTime || now;
         const presented = typeof meta.presentedFrames === "number" ? meta.presentedFrames : -1;
-        const complete = presented >= 0 && this.lastPresented >= 0 && presented === this.lastPresented + 1;
-        this.lastPresented = presented;
-        this.sample(meta.expectedDisplayTime || now, complete);
+        this.callbacksSinceSample++;
+        // Reading a frame back costs milliseconds at 1080p, so sample at most
+        // every MIN_SAMPLE_MS (still ~12 Hz, plenty for a 3 Hz flash), not on
+        // every presented frame of a 60 fps video.
+        if (t - this.lastT >= MIN_SAMPLE_MS || this.lastT === 0) {
+          // "Complete": every presented frame since the last sample came with a
+          // callback (none were skipped by a blocked main thread). Then a long
+          // gap is the video's own frame rate, not missed frames.
+          const complete = presented >= 0 && this.lastPresented >= 0 && presented - this.lastPresented === this.callbacksSinceSample;
+          this.lastPresented = presented;
+          this.callbacksSinceSample = 0;
+          this.sample(t, complete);
+        } else if (this.lastPresented < 0) {
+          this.lastPresented = presented;
+          this.callbacksSinceSample = 0;
+        }
         if (!v.paused && !v.ended) this.scheduleVideo();
       });
     } else {
@@ -619,7 +642,16 @@ class Source {
     if (area < GUARD_START_MIN_AREA) return;
     if (safemode.isGuarded(this.el) || safemode.wasShownByUser(this.el)) return;
     this.warmupUntil = now + VIDEO_CHECK_MS;
+    this.checkDeadline = now + VIDEO_CHECK_MAX_MS;
     safemode.guard(this.el, "dim", REASONS.checking, { canShow: false, light: true });
+    // The check is "a few seconds, see-through" (lead decision): it lifts at the
+    // deadline even if no clean report arrived (buffering, a busy page). The
+    // detector keeps watching and softens or covers anything that flashes.
+    setTimeout(() => {
+      if (this.persistentDim || safemode.guardMode(this.el) !== "dim" || this.soft) return;
+      if (safemode.wasShownByUser(this.el)) return;
+      safemode.release(this.el);
+    }, VIDEO_CHECK_MAX_MS);
   }
 
   /** @param {any} report @param {number} t */
@@ -694,13 +726,24 @@ class Source {
       report = { ...report, severity: "none", violation: false, undersampled: false };
     }
     // Busy pages: the compositor keeps showing video frames while the page's
-    // main thread is blocked, so we sometimes miss a few. One isolated gap
-    // can't hide a flash pattern (that needs 5-7 transitions in a second), so
-    // only repeated gaps keep the "checking" dim on.
-    if (this.kind === "video" && report.severity === "warn" && report.undersampled && !report.violation) {
+    // main thread is blocked, so we sometimes miss a few. A gap-only report
+    // (no flash reason) never covers a video: one isolated gap can't hide a
+    // flash pattern (that needs 5-7 transitions in a second), repeated gaps
+    // keep the short "checking" dim on, and if most samples in GAP_WINDOW_MS
+    // missed frames we can't keep up, so the video is dimmed as unverifiable (T5).
+    if (this.kind === "video") {
+      const nowMs = performance.now();
+      this.sampleTimes.push(nowMs);
+      if (!this.completeFrames) this.missTimes.push(nowMs);
+      while (this.sampleTimes.length && this.sampleTimes[0] < nowMs - GAP_WINDOW_MS) this.sampleTimes.shift();
+      while (this.missTimes.length && this.missTimes[0] < nowMs - GAP_WINDOW_MS) this.missTimes.shift();
+      const full = this.sampleTimes.length >= (GAP_WINDOW_MS / MIN_SAMPLE_MS) * 0.25; // at least ~1 s worth of samples
+      if (full && this.missTimes.length > this.sampleTimes.length * GAP_MAX_SHARE) return this.markUnverifiable(REASONS.tooCostly);
+    }
+    if (this.kind === "video" && report.undersampled && !report.reason) {
       this.gapTimes = (this.gapTimes || []).filter((x) => x > t - 1000);
       this.gapTimes.push(t);
-      if (this.gapTimes.length < GAP_WARNS_TO_DIM) report = { ...report, severity: "none" };
+      report = { ...report, violation: false, severity: this.gapTimes.length < GAP_WARNS_TO_DIM ? "none" : "warn" };
     }
     const el = this.el;
     this.sendHud(report, t);
@@ -746,9 +789,15 @@ class Source {
     if (report.severity === "warn") {
       // Only videos get a (light) dim for a warn; other elements keep being
       // checked without a dim on every piece. A real violation still covers.
+      // A warn holds the light check a little longer, but the check never
+      // outlasts its deadline, and a video is never re-dimmed after it
+      // (lead decision: a few seconds, once). Real violations still soften or cover.
       if (this.kind === "video") {
-        this.warnUntil = performance.now() + WARN_HOLD_MS;
-        if (!safemode.isGuarded(el)) safemode.guard(el, "dim", REASONS.checking, { canShow: false, light: true });
+        const nowMs = performance.now();
+        if (nowMs < this.checkDeadline) {
+          this.warnUntil = Math.min(nowMs + WARN_HOLD_MS, this.checkDeadline);
+          if (!safemode.isGuarded(el)) safemode.guard(el, "dim", REASONS.checking, { canShow: false, light: true });
+        }
       }
       return;
     }
@@ -1049,7 +1098,7 @@ function canvasTick(/** @type {number} */ now) {
       if (typeof v.requestVideoFrameCallback === "function" || v.paused) continue;
     }
     active++;
-    s.sample(now);
+    if (now - s.lastT >= MIN_SAMPLE_MS) s.sample(now);
   }
   if (active) canvasLoop = requestAnimationFrame(canvasTick);
 }
@@ -1124,12 +1173,27 @@ function startDomLoop() {
   if (!domLoop) domLoop = requestAnimationFrame(domTick);
 }
 
+let lastDomTick = -Infinity;
+let domCursor = 0; // round-robin start, so a tick that runs out of budget doesn't starve the same sources
+
 /** @param {number} now */
 function domTick(now) {
   domLoop = 0;
   if (!enabled) return;
+  // Reading an element's computed colour forces a style recalc, which costs
+  // real time on a big page (a 10k-node video site), so this runs at most
+  // every DOM_TICK_MS and stops after DOM_TICK_BUDGET_MS, picking up where
+  // it left off on the next tick.
+  if (now - lastDomTick < DOM_TICK_MS) {
+    domLoop = requestAnimationFrame(domTick);
+    return;
+  }
+  lastDomTick = now;
   let hot = 0;
-  for (const [el, s] of domSources) {
+  const entries = [...domSources];
+  const start = performance.now();
+  for (let i = 0; i < entries.length; i++) {
+    const [el, s] = entries[(domCursor + i) % entries.length];
     if (!el.isConnected) {
       s.dispose();
       domSources.delete(el);
@@ -1142,6 +1206,10 @@ function domTick(now) {
       continue;
     }
     hot++;
+    if (performance.now() - start > DOM_TICK_BUDGET_MS) {
+      domCursor = (domCursor + i) % entries.length;
+      break;
+    }
     s.sample(now);
   }
   if (hot) domLoop = requestAnimationFrame(domTick);
