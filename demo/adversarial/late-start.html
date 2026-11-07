@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<meta name="harness-seconds" content="13">
+<title>Late-start strobe (threat T8) | Seizure Shield adversarial test</title>
+<link rel="stylesheet" href="../demo.css">
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic attack fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>Late-start strobe (threat T8)</h1>
+<p>The canvas strobe from canvas.html, but after Start it stays calm (static dark gray) for 10 s, long after guarded start has ended, then flashes at 4 full cycles per second for 3 s. The countdown below says when flashing begins.</p>
+<p class="meta">Expected shield verdict: <strong>block</strong> during the flashing part. Colors #222222 and #777777. Run 13 s: 10 s calm, then 3 s flashing. <a href="../index.html">All fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<p id="countdown"></p>
+<canvas id="stage" class="stage" data-kind="canvas" data-hz="4" data-delay="10" data-seconds="13" width="320" height="180" aria-label="Test canvas"></canvas>
+<script src="../fixture.js"></script>
+</body>
+</html>

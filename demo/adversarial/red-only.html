@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+
+<title>Red-only strobe (threat T3) | Seizure Shield adversarial test</title>
+<link rel="stylesheet" href="../demo.css">
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic attack fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>Red-only strobe (threat T3)</h1>
+<p>One canvas alternates between saturated red #c80000 and gray #616161, 4 full cycles per second. Both colors have almost the same relative luminance (about 0.123 and 0.119, a change of 0.004), so a luminance-only detector sees nothing. The red share is 1.0 and the CIE 1976 UCS distance is about 0.26 (over 0.2), so it is a WCAG red flash.</p>
+<p class="meta">Expected shield verdict: <strong>block</strong>, reason red, with no general flash. Area 320 by 180 CSS px (57,600 px, over the 21,824 px threshold). Default run 3 s; add <code>?seconds=N</code> (1 to 10). <a href="../index.html">All fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+
+<canvas id="stage" class="stage" data-kind="canvas" data-hz="4" data-dark="#616161" data-light="#c80000" width="320" height="180" aria-label="Test canvas"></canvas>
+<script src="../fixture.js"></script>
+</body>
+</html>

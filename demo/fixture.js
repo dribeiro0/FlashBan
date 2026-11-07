@@ -13,9 +13,14 @@
   var status = document.getElementById("status");
   var kind = stage.dataset.kind;
   var hz = Number(stage.dataset.hz) || 0; // full on/off cycles per second
+  if (stage.dataset.dark) DARK = stage.dataset.dark; // per-page colors (canvas only)
+  if (stage.dataset.light) LIGHT = stage.dataset.light;
+  var delay = Math.max(0, Number(stage.dataset.delay) || 0); // calm seconds before the strobe starts (canvas only)
+  var countdown = document.getElementById("countdown");
 
   var params = new URLSearchParams(location.search);
-  var seconds = Math.min(10, Math.max(1, Number(params.get("seconds")) || Number(stage.dataset.seconds) || 3)); // bounded run, ?seconds=1..10 (data-seconds sets a page default)
+  // Bounded run, ?seconds=1..10 (data-seconds sets a page default); a calm lead-in doesn't count toward the 10 s cap.
+  var seconds = Math.min(10 + delay, Math.max(1, Number(params.get("seconds")) || Number(stage.dataset.seconds) || 3));
 
   var running = false;
   var raf = 0;
@@ -39,7 +44,9 @@
     function frame(now) {
       var elapsed = now - t0;
       if (elapsed >= seconds * 1000) { stop("Run finished after " + seconds + " s. Static again."); return; }
-      paint(isLight(elapsed));
+      var calm = delay * 1000 - elapsed;
+      if (countdown) countdown.textContent = calm > 0 ? "Flashing starts in " + Math.ceil(calm / 1000) + " s." : "Flashing now.";
+      paint(calm > 0 ? false : isLight(-calm));
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
@@ -123,6 +130,7 @@
     if (!running) return;
     cancelAnimationFrame(raf);
     clearTimeout(timer);
+    if (countdown) countdown.textContent = "";
     if (recorder && makeVideo.abort) makeVideo.abort();
     if (kind === "canvas") paintCanvas(false);
     if (kind === "dom") stage.classList.remove("on");
