@@ -19,6 +19,8 @@ Default to static screenshots, logs, and presenter narration. Live stimuli are o
 
 ## Six-slide outline
 
+Slides with plain-language speaker notes for the presenter (@unseentrader007) are in [PITCH.md](PITCH.md).
+
 1. **Problem:** web flashing as an accessibility and abuse problem; static visual only.
 2. **Approach:** discover content → analyze continuously → guard/cover → explicit reveal. Distinguish reactive detection from pre-render protection.
 3. **Evidence:** source, preset, expected verdict, actual verdict, measurement, commit tested. Empty evidence means “not tested.”
@@ -35,9 +37,9 @@ Before rehearsal, record the tested commit, Chrome version, platform, preset, vi
 | Extension loads unpacked | Not implemented on main | Installation and reload check | @DxubleBTW |
 | Video / canvas / CSS handling (must-have); JS additional | Not tested | Per-source run from acceptance matrix | Demo + detection/core owners |
 | Static overlay and explicit reveal | Not tested | Screenshot, keyboard and screen-reader notes | @DxubleBTW |
-| Unreadable media fails closed | Not tested | Guard state and reason; security fixture | Core + @unseentrader007 |
+| Unreadable media fails closed | Not tested | Guard state and reason; security fixture | Core + @sysoutprntlne (security) |
 | Local domain log | Not tested | Local record without paths or query strings | @DxubleBTW |
-| Reputation API / poisoning defense | Planned | End-to-end opt-in report, list fetch and stricter domain guarding; backend validation/rate limits; listing requires at least three distinct installs within seven days | @unseentrader007 + @DxubleBTW |
+| Reputation API / poisoning defense | Planned | End-to-end opt-in report, list fetch and stricter domain guarding; backend validation/rate limits; listing requires at least three distinct installs within seven days | @sysoutprntlne (backend) + @DxubleBTW |
 | GIF look-ahead | Stretch; not tested | Decoder and pre-playback evidence | Detection/core owners |
 
 ## Static fallback
