@@ -25,14 +25,26 @@ function colour([r, g, b]) {
 }
 const uvDist = (a, b) => Math.hypot(colour(a).u - colour(b).u, colour(a).v - colour(b).v);
 
-/** Paint pixels [0, n) with colour a or b alternating every halfMs; the rest black. */
+/**
+ * Paint colour a or b alternating every halfMs; the rest black. `n` is either
+ * a pixel count from index 0 or { w: frameWidth, rect: [x, y, rw, rh] }.
+ */
 function strobe(a, b, halfMs, n = W * H) {
+  const inside =
+    typeof n === "number"
+      ? (i) => i < n
+      : (i) => {
+          const x = i % n.w;
+          const y = Math.floor(i / n.w);
+          const [rx, ry, rw, rh] = n.rect;
+          return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+        };
   return (px, t) => {
     const c = Math.floor(t / halfMs) % 2 === 0 ? a : b;
     px.fill(0);
     for (let i = 0; i < px.length / 4; i++) {
       px[i * 4 + 3] = 255;
-      if (i < n) {
+      if (inside(i)) {
         px[i * 4] = c[0];
         px[i * 4 + 1] = c[1];
         px[i * 4 + 2] = c[2];
@@ -108,10 +120,11 @@ test("Re5: red <-> gray at 3 Hz passes", () => {
 });
 
 test("Re6: red area is judged on its own threshold (341 px passes, 342 fails)", () => {
-  const atThreshold = last(run(strobe(RED, G128, 125, 341), { realAreaScale: 8 }, 64, 36));
+  // Compact blocks so each fits one 341 x 256 field (43 x 32 sample px at scale 8).
+  const atThreshold = last(run(strobe(RED, G128, 125, { w: 64, rect: [0, 0, 31, 11] }), { realAreaScale: 8 }, 64, 36));
   assert.equal(atThreshold.violation, false);
   assert.equal(atThreshold.redAreaPx, 21824);
-  const over = last(run(strobe(RED, G128, 125, 342), { realAreaScale: 8 }, 64, 36));
+  const over = last(run(strobe(RED, G128, 125, { w: 64, rect: [0, 0, 38, 9] }), { realAreaScale: 8 }, 64, 36));
   assert.equal(over.violation, true);
   assert.equal(over.reason, "red");
 });

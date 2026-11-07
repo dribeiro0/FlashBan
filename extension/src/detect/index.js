@@ -17,6 +17,7 @@ import {
 import { lumaFrame } from "./luma.js";
 import { createTracker, RING } from "./tracker.js";
 import { createRedTracker } from "./red.js";
+import { maxInField, maxOverlap } from "./area.js";
 
 export { createAggregator } from "./aggregate.js";
 export { analyzeAnimation } from "./css.js";
@@ -136,6 +137,31 @@ export function createDetector(opts) {
   const red = createRedTracker(count);
   const histogram = new Uint32Array(MAX_COUNT + 1);
   const redHistogram = new Uint32Array(MAX_COUNT + 1);
+  // Area rule v2 scratch (area.js).
+  const overMask = new Uint8Array(count);
+  const redMask = new Uint8Array(count);
+  const sat = new Uint32Array((opts.sampleWidth + 1) * (opts.sampleHeight + 1));
+  const spanStarts = new Float64Array(count);
+  const spanEnds = new Float64Array(count);
+  const redStarts = new Float64Array(count);
+  const redEnds = new Float64Array(count);
+  const span = new Float64Array(2);
+
+  /**
+   * Concurrent flashing area in sample pixels: the smaller of the best
+   * 341 x 256 CSS px box and the best time-overlap group (area.js).
+   * @param {Uint8Array} mask @param {number} n @param {Float64Array} starts @param {Float64Array} ends
+   */
+  function concurrent(mask, n, starts, ends) {
+    if (n === 0) return 0;
+    // Cheap first: if even every flashing pixel together is under the limit,
+    // neither refinement can change the verdict, and n is the exact area shown.
+    if (n * pxArea <= preset.areaPx) return n;
+    const spatial = maxInField(mask, opts.sampleWidth, opts.sampleHeight, opts.realAreaScale, sat);
+    if (spatial * pxArea <= preset.areaPx) return spatial;
+    const temporal = maxOverlap(starts, ends, n);
+    return Math.min(spatial, temporal);
+  }
 
   /** @type {FlashReport} */
   let last = calmReport();
@@ -210,11 +236,28 @@ export function createDetector(opts) {
     let redOver = 0;
     let redPairs = 0; // pixels with at least one red flash pair (strict rule)
     for (let i = 0; i < count; i++) {
-      const n = tracker.countInWindow(i, now);
-      if (n >= minTransitions) over++;
+      const n = tracker.spanInWindow(i, now, span);
+      if (n >= minTransitions) {
+        // Half-cycle slack: half of this pixel's average transition interval.
+        const slack = (span[1] - span[0]) / (n - 1) / 2;
+        spanStarts[over] = span[0] - slack;
+        spanEnds[over] = span[1] + slack;
+        over++;
+        overMask[i] = 1;
+      } else {
+        overMask[i] = 0;
+      }
       histogram[Math.min(MAX_COUNT, Math.ceil(n / 2))]++;
-      const m = red.countInWindow(i, now);
-      if (m >= minTransitions) redOver++;
+      const m = red.spanInWindow(i, now, span);
+      if (m >= minTransitions) {
+        const slack = (span[1] - span[0]) / (m - 1) / 2;
+        redStarts[redOver] = span[0] - slack;
+        redEnds[redOver] = span[1] + slack;
+        redOver++;
+        redMask[i] = 1;
+      } else {
+        redMask[i] = 0;
+      }
       if (m >= 2) redPairs++;
       redHistogram[Math.min(MAX_COUNT, Math.ceil(m / 2))]++;
     }
@@ -222,9 +265,11 @@ export function createDetector(opts) {
     const report = calmReport(dt > 0 ? 1000 / dt : 0);
     report.flashesPerSecond = displayCount(histogram, displayFloor);
     report.redFlashesPerSecond = displayCount(redHistogram, displayFloor);
-    report.areaPx = over * pxArea;
+    // areaPx: concurrent flashing area in CSS px (the number the violation uses).
+    // areaPct: share of the sampled element that is flashing at all (display only).
+    report.areaPx = concurrent(overMask, over, spanStarts, spanEnds) * pxArea;
     report.areaPct = over / count;
-    report.redAreaPx = redOver * pxArea;
+    report.redAreaPx = concurrent(redMask, redOver, redStarts, redEnds) * pxArea;
     const undersampled = now < undersampledUntil;
     report.undersampled = undersampled;
 

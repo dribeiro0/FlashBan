@@ -186,50 +186,59 @@ test("A6: steady drift up to 1.0 is not a flash", () => {
 const AW = 64;
 const AH = 36;
 
-/** Pixels [from, to) follow levelAt; the rest stay DARK. */
+/**
+ * Each part is { rect: [x, y, w, h] } (sample px) or { from, to } (pixel
+ * indices) and follows levelAt; the rest stays DARK.
+ */
 function region(parts) {
+  const idx = parts.map((p) => {
+    if (!p.rect) return Array.from({ length: p.to - p.from }, (_, k) => p.from + k);
+    const [x, y, w, h] = p.rect;
+    const out = [];
+    for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) out.push(r * AW + c);
+    return out;
+  });
   return (px, t) => {
     fill(px, DARK);
-    for (const { from, to, levelAt } of parts) {
+    parts.forEach(({ levelAt }, k) => {
       const g = levelAt(t);
-      for (let i = from; i < to; i++) {
-        px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = g;
-      }
-    }
+      for (const i of idx[k]) px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = g;
+    });
   };
 }
+// At realAreaScale 8 the 341 x 256 CSS px field is 43 x 32 sample px (ceil).
 const area = (parts, opts = {}) =>
   last(runVector({ realAreaScale: 8, ...opts }, grid(60, 4000), region(parts), AW, AH));
 const hz4 = square(125);
 
-test("R1: whole frame violates, areaPx 147,456", () => {
+test("R1: whole frame violates; areaPx is the best 341 x 256 field (43 x 32 sample px)", () => {
   const r = area([{ from: 0, to: AW * AH, levelAt: hz4 }]);
   assertViolation(r);
-  assert.equal(r.areaPx, 147456);
+  assert.equal(r.areaPx, 43 * 32 * 64); // 88,064 CSS px; the whole 512 x 288 frame doesn't fit one field
 });
 
-test("R2: exactly the threshold (21,824 px) passes", () => {
-  const r = area([{ from: 0, to: 341, levelAt: hz4 }]);
+test("R2: exactly the threshold (31 x 11 = 341 px = 21,824 CSS px) passes", () => {
+  const r = area([{ rect: [0, 0, 31, 11], levelAt: hz4 }]);
   assertNone(r);
   assert.equal(r.areaPx, 21824);
 });
 
-test("R3: one sample pixel over the threshold violates", () => {
-  const r = area([{ from: 0, to: 342, levelAt: hz4 }]);
+test("R3: one sample pixel over the threshold violates (38 x 9 = 342 px)", () => {
+  const r = area([{ rect: [0, 0, 38, 9], levelAt: hz4 }]);
   assertViolation(r);
   assert.equal(r.areaPx, 21888);
 });
 
 test("R4: small region passes but still reports 4 flashes", () => {
-  const r = area([{ from: 0, to: 10, levelAt: hz4 }]);
+  const r = area([{ rect: [0, 0, 10, 1], levelAt: hz4 }]);
   assertNone(r);
   assert.equal(r.flashesPerSecond, 4);
 });
 
-test("R5: two out-of-phase regions add up and violate", () => {
+test("R5: two out-of-phase regions in one field add up and violate", () => {
   const r = area([
-    { from: 0, to: 200, levelAt: hz4 },
-    { from: 1000, to: 1200, levelAt: square(125, LIGHT, DARK) },
+    { rect: [0, 0, 20, 10], levelAt: hz4 },
+    { rect: [20, 10, 20, 10], levelAt: square(125, LIGHT, DARK) },
   ]);
   assertViolation(r);
   assert.equal(r.areaPx, 25600);
@@ -237,22 +246,67 @@ test("R5: two out-of-phase regions add up and violate", () => {
 
 test("R6: 2 Hz pixels do not add to the 4 Hz area", () => {
   const r = area([
-    { from: 0, to: 341, levelAt: hz4 },
-    { from: 1000, to: 1300, levelAt: square(250) },
+    { rect: [0, 0, 31, 11], levelAt: hz4 },
+    { rect: [0, 12, 30, 10], levelAt: square(250) },
   ]);
   assertNone(r);
   assert.equal(r.areaPx, 21824);
 });
 
 test("R7: areaPct is the share of the sampled area", () => {
-  const r = area([{ from: 0, to: 341, levelAt: hz4 }]);
+  const r = area([{ rect: [0, 0, 31, 11], levelAt: hz4 }]);
   assert.ok(Math.abs(r.areaPct - 341 / 2304) < 1e-9);
 });
 
 test("R8: realAreaScale is applied (scale 4: 5,456 px, passes)", () => {
-  const r = area([{ from: 0, to: 341, levelAt: hz4 }], { realAreaScale: 4 });
+  const r = area([{ rect: [0, 0, 31, 11], levelAt: hz4 }], { realAreaScale: 4 });
   assertNone(r);
   assert.equal(r.areaPx, 5456);
+});
+
+// ---- Area rule v2 (DESIGN.md s5): field box (b) and time overlap (c) ----
+
+test("R9 (b): two regions too far apart for one 341 x 256 field don't add up", () => {
+  // Each 200 sample px (12,800 CSS px); 40+ sample px apart horizontally (> 43 - 20).
+  const r = area([
+    { rect: [0, 0, 20, 10], levelAt: hz4 },
+    { rect: [44, 20, 20, 10], levelAt: hz4 },
+  ]);
+  assertNone(r);
+  assert.equal(r.areaPx, 12800);
+});
+
+test("R10 (c): a quarter-period phase-shifted checkerboard still adds up (half-cycle slack)", () => {
+  // Second region lags by 62 ms: never flips at the same instant as the first.
+  const lagged = (t) => hz4(t + 62);
+  const r = area([
+    { rect: [0, 0, 20, 10], levelAt: hz4 },
+    { rect: [20, 0, 20, 10], levelAt: lagged },
+  ]);
+  assertViolation(r);
+  assert.equal(r.areaPx, 25600);
+});
+
+test("R11 (c): a burst early and a different burst late in the window don't add up", () => {
+  // 10 Hz bursts, 8 transitions each: A at 25..375 ms, B at 625..975 ms.
+  const burst = (from) => (t) => {
+    const n = Math.max(0, Math.min(8, Math.floor((t - from) / 50) + 1));
+    return n % 2 === 0 ? DARK : LIGHT;
+  };
+  const d = createDetector({ ...BASE, realAreaScale: 8, sampleWidth: AW, sampleHeight: AH });
+  const paint = region([
+    { rect: [0, 0, 20, 10], levelAt: burst(25) },
+    { rect: [20, 0, 20, 10], levelAt: burst(625) },
+  ]);
+  const reps = drive(d, AW, AH, grid(60, 1000), paint);
+  assert.equal(reps.some(({ r }) => r.violation), false);
+  // Each burst alone is over the flash limit: the same two bursts at the same time violate.
+  const d2 = createDetector({ ...BASE, realAreaScale: 8, sampleWidth: AW, sampleHeight: AH });
+  const together = region([
+    { rect: [0, 0, 20, 10], levelAt: burst(25) },
+    { rect: [20, 0, 20, 10], levelAt: burst(25) },
+  ]);
+  assert.ok(drive(d2, AW, AH, grid(60, 1000), together).some(({ r }) => r.violation));
 });
 
 // ---- 5. Slow changes and smooth waveforms ----

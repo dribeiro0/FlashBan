@@ -64,6 +64,7 @@ export function createRedTracker(count) {
       }
     },
     countInWindow: ring.countInWindow,
+    spanInWindow: ring.spanInWindow,
     reset: clear,
   };
 }

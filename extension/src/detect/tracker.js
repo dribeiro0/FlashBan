@@ -37,6 +37,29 @@ export function createRing(count) {
       }
       return n;
     },
+    /**
+     * Earliest and latest transition of pixel i in (t - WINDOW_MS, t], written
+     * to out[0] and out[1]. Returns the count.
+     * @param {number} i @param {number} t @param {Float64Array} out
+     */
+    spanInWindow(i, t, out) {
+      const from = t - WINDOW_MS;
+      let n = 0;
+      let lo = Infinity;
+      let hi = -Infinity;
+      const base = i * RING;
+      for (let k = 0; k < RING; k++) {
+        const s = ring[base + k];
+        if (s > from && s <= t) {
+          n++;
+          if (s < lo) lo = s;
+          if (s > hi) hi = s;
+        }
+      }
+      out[0] = lo;
+      out[1] = hi;
+      return n;
+    },
     clear,
   };
 }
@@ -138,6 +161,7 @@ export function createTracker(count, { delta, darkLimit }) {
 
     /** Transitions of pixel i inside the half-open window (t - WINDOW_MS, t]. */
     countInWindow: ring.countInWindow,
+    spanInWindow: ring.spanInWindow,
 
     reset: clear,
   };
