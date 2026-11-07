@@ -37,7 +37,7 @@ Unit tests: `npm test` (Node built-in test runner, no dependencies).
 
 ## Security
 
-Using a seizure shield reveals a health condition, so FlashBan collects almost nothing: no accounts, no identifiers, no keys, and only the site's domain in a local log. Threats and mitigations are in the [threat model](security/THREAT_MODEL.md). Results from `node harness/run.mjs`, three runs in a row on the default build (16 of 16 pages each run):
+Using a seizure shield reveals a health condition, so FlashBan collects almost nothing: no accounts, no identifiers, no keys, and only the site's domain in a local log. Threats and mitigations are in the [threat model](security/THREAT_MODEL.md). Results from `node harness/run.mjs`, three runs in a row on the default build (16 of 16 pages each run, before the aliasing page was added):
 
 - Page that deletes FlashBan's cover on every frame (`demo/adversarial/overlay-killer.html`): locked down in 0.82 to 0.90 s.
 - Pages that undo the softening on every frame: covered or locked down every time, never left softened.
@@ -62,6 +62,9 @@ The overlay's shadow root is closed in the shipped build; the axe run used a tes
 - Websites can detect that FlashBan is installed by probing its extension files, which can reveal a health condition. The fix is bundling the content scripts; not done yet.
 - The first frames of a new flash can reach the screen before detection reacts (typically well under a second; times above).
 - Content outside the browser isn't covered.
+- Flashes split across iframes aren't added together: each frame is judged on its own (the cross-element area sum works within one frame).
+- Brightness is computed from sRGB pixel values. HDR, display colour profiles and screen brightness aren't modelled, and the area rule assumes WCAG's typical viewing distance (a 341 by 256 px field at 100% zoom).
+- Red flash uses WCAG's formula on linear-light values; tools that use gamma-encoded values can disagree at the edges.
 
 More in the threat model's [Known limits](security/THREAT_MODEL.md#known-limits).
 
