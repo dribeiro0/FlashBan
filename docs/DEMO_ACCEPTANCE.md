@@ -1,7 +1,7 @@
 # Demo fixture acceptance plan
 
 Owner: @sysoutprntlne. Draft branch now includes canvas, CSS, DOM, video and static fixtures in demo/. Unit and headless-browser lifecycle checks pass; detector integration, calibration, known encoded video frame durations and screen-reader validation remain outstanding. Specifications below include future work and are not claims of extension coverage.
-Scope: demo/ except demo/adversarial/. Security fixtures remain @unseentrader007's responsibility. Do not change docs/CONTRACTS.md or shared build files without the required owner approval.
+Scope: demo/. Adversarial (security) pages in demo/adversarial/ are planned separately in security/ADVERSARIAL_PLAN.md. Do not change docs/CONTRACTS.md or shared build files without the required owner approval.
 
 ## Fixture specification
 
