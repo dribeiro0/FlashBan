@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seizure Shield demo fixtures</title>
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: these pages contain flashing test content.</strong> All stimuli are synthetic and dim, and none move until you press Start. If you are sensitive to flashing light, do not run them. Never show them to anyone without warning first.</p>
+<h1>Seizure Shield demo fixtures</h1>
+<p>Each page declares its expected verdict in <code>&lt;meta name="shield-expected"&gt;</code>. "Block" means the shield should hide the content during a run; "allow" means it should not flag it.</p>
+<ul>
+<li><a href="canvas.html">Canvas strobe</a>: 4 cycles/s, expected <strong>block</strong></li>
+<li><a href="css.html">CSS keyframe strobe</a>: 4 cycles/s, expected <strong>block</strong></li>
+<li><a href="dom.html">JavaScript class toggle</a>: 4 cycles/s, expected <strong>block</strong></li>
+<li><a href="video.html">Video strobe</a>: 4 cycles/s, expected <strong>block</strong></li>
+<li><a href="slow-canvas.html">Slow canvas</a>: 1 cycle/s, expected <strong>allow</strong></li>
+<li><a href="static.html">Static control</a>: no motion, expected <strong>allow</strong></li>
+</ul>
+</body>
+</html>
