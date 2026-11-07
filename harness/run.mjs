@@ -271,6 +271,28 @@ async function main() {
           { expression: `getComputedStyle(document.documentElement, "::after").content.includes("FlashBan dimmed this page")`, returnByValue: true },
           sessionId,
         );
+        // Soften without a layer: a slowed CSS animation, or a DOM element the
+        // shield smooths with a 2 s transition. Visible only as page state.
+        const softState = await cdp.send(
+          "Runtime.evaluate",
+          {
+            expression: `(() => {
+              const s = document.getElementById("stage");
+              const slowed = document.getAnimations().some((a) => a.playbackRate > 0 && a.playbackRate < 0.999);
+              const smooth = !!s && /(^|[ ,])2s/.test(getComputedStyle(s).transitionDuration);
+              return { slowed, smooth };
+            })()`,
+            returnByValue: true,
+          },
+          sessionId,
+        );
+        const ss = softState.result.value || {};
+        if (ss.slowed) lastPanels.push("Animation softened by FlashBan (slowed)");
+        if (ss.smooth) lastPanels.push("Element softened by FlashBan (smoothed)");
+        if ((ss.slowed || ss.smooth) && !everSoftened) {
+          everSoftened = true;
+          if (firstCoverMs === null) firstCoverMs = Date.now() - startedAt;
+        }
         if (lock.result.value === true) {
           lastPanels.push("Page locked down by FlashBan");
           if (!everLocked) {
