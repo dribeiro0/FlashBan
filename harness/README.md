@@ -22,11 +22,11 @@ Scoring:
 | "Flashing content hidden" cover appeared | block |
 | Soften layer showed and stayed (output verified by its own detector) | soften (counts as block) |
 | Page lockdown banner (`html::after` "FlashBan dimmed this page"; media hidden by user-origin CSS) | lockdown (counts as block) |
-| Violation sent but nothing visible protected the user (e.g. the page deleted the cover) | detected (counts as allow: a FAIL on block pages) |
+| Violation sent but nothing visible protected the user (e.g. the page deleted the cover) | detected (always a FAIL: unprotected on a block page, a false positive on an allow page) |
 | Still dimmed at the end of the run | block (fail-closed dim) |
 | Only the short guarded-start "Checking for flashing…" dim | allow |
 | Nothing | allow |
 
 The exit code is 0 when every page matches. Add a page to `demo/` (or `demo/adversarial/`, `demo/benign/`) with the meta tag and the harness picks it up. Runs last 3 s unless the page sets `<meta name="harness-seconds" content="N">` (1 to 15), e.g. for patterns that repeat slowly.
 
-Known limits: headless timing is a little noisier than a real window, so a borderline page can occasionally end as "dim" instead of "block" (both count as block). The harness can only see what the extension shows in the page; it doesn't measure pixels on screen.
+Known limits: headless timing is noisier than a real window. In headless Chrome, reading canvas pixels back is slow and spiky, so the content script's CPU budget (`COST_LIMIT_MS`, 3 ms average) can occasionally mark a benign canvas unverifiable and dim it ("There is too much moving media to check all of it"). That shows up as a flaky FAIL on an allow page; `--json` records each page's end-of-run panel text (`endPanels`) so you can tell this apart from a real false positive. The harness polls the DOM every 400 ms, because faster polling stalls the page. It can only see what the extension shows in the page; it doesn't measure pixels on screen.

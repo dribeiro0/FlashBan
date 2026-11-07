@@ -125,13 +125,23 @@ async function pagesToRun() {
   return ONLY ? pages.filter((p) => ONLY.some((o) => p.rel.includes(o))) : pages;
 }
 
-/** Walk a DOM.getDocument(pierce) tree and collect shield panel labels. */
+/** All text under a node (for the panel's reason line). */
+function textOf(node) {
+  if (!node) return "";
+  if (node.nodeType === 3) return node.nodeValue || "";
+  return (node.children || []).map(textOf).join(" ").replace(/\s+/g, " ").trim();
+}
+
+/** Walk a DOM.getDocument(pierce) tree and collect shield panel labels (with their text). */
 function shieldPanels(node, out = []) {
   if (!node) return out;
   if (node.attributes) {
     const a = node.attributes;
     for (let i = 0; i < a.length; i += 2) {
-      if (a[i] === "aria-label" && /Flashing content hidden|dimmed by (Seizure Shield|FlashBan)|softened by FlashBan/i.test(a[i + 1])) out.push(a[i + 1]);
+      if (a[i] === "aria-label" && /Flashing content hidden|dimmed by (Seizure Shield|FlashBan)|softened by FlashBan/i.test(a[i + 1])) {
+        const text = textOf(node);
+        out.push(text ? `${a[i + 1]}: ${text}` : a[i + 1]);
+      }
     }
   }
   for (const c of node.children || []) shieldPanels(c, out);
@@ -251,7 +261,7 @@ async function main() {
         return file;
       };
       while (Date.now() < runEnd - 100) {
-        await sleep(150);
+        await sleep(400); // DOM.getDocument(pierce) is heavy: polling faster stalls the page and trips the gap rule
         const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true }, sessionId);
         lastPanels = shieldPanels(root);
         // Page lockdown (threat T6 fix): panels are gone on purpose, media is
@@ -301,10 +311,13 @@ async function main() {
         : covered ? "block" : dimmed ? "dim" : violations.length ? "detected" : "allow";
       // Protective outcomes: soften (output verified below the limit), cover,
       // page lockdown (media hidden by user-origin CSS), or fail-closed dim.
-      const verdict = ["dim", "soften", "lockdown"].includes(actual) ? "block" : actual === "detected" ? "allow" : actual;
+      // "detected" always fails: on a block page nothing protected the user; on
+      // an allow page it is a false positive (and it lands in the domain log).
+      const verdict = ["dim", "soften", "lockdown"].includes(actual) ? "block" : actual;
       results.push({
         page: page.rel,
         title: page.title,
+        endPanels: panels,
         expected: page.expected,
         actual,
         pass: verdict === page.expected,
