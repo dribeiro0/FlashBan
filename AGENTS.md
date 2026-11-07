@@ -46,7 +46,7 @@ Change logins and merge rows to match the team at kickoff.
 |---|---|---|
 | Detection engine (luminance, flash counting, red flash, CSS animation analysis, unit tests) | @dribeiro0 | `extension/src/detect/`, `extension/test/` |
 | Extension core + safe mode (manifest, content script, overlay, background worker, popup/options UI) | @DxubleBTW | `extension/manifest.json`, `extension/src/content/`, `extension/src/background/`, `extension/popup/`, `extension/options/` |
-| Demo, security + backend (synthetic test pages, HUD, threat model, hardening review, report API, reputation list, adversarial pages, README, Devpost, slides) | @sysoutprntlne | `demo/`, `api/`, `security/`, `docs/`, `README.md` |
+| Demo, security + backend (synthetic test pages, HUD, threat model, hardening review, report API, reputation list, adversarial pages, README, Devpost, slides) | @sysoutprntlne | `demo/`, `extension/hud/`, `api/`, `security/`, `docs/`, `README.md` |
 | Presenter (delivers the demo and pitch; no code) | @unseentrader007 | none |
 
 Shared files (`AGENTS.md`, `docs/CONTRACTS.md`, `package.json`): ask on the board, the lead approves.
