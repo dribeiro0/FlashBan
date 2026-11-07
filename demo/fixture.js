@@ -1,5 +1,5 @@
 // Shared controls for the synthetic demo fixtures (classic script, no modules, so pages also work from file://).
-// Stimulus only runs after an explicit Start, stops on Stop, Escape, blur or hidden tab, and never restarts on its own.
+// Stimulus only runs after an explicit Start, stops on Stop, Escape or hidden tab (not on blur, so opening the extension popup does not end a run), and never restarts on its own.
 // Timing uses real elapsed time (performance.now), never frame counts.
 (function () {
   "use strict";
@@ -138,7 +138,6 @@
   startBtn.addEventListener("click", start);
   stopBtn.addEventListener("click", function () { stop(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") stop(); });
-  window.addEventListener("blur", function () { stop("Stopped because the window lost focus."); });
   document.addEventListener("visibilitychange", function () { if (document.hidden) stop("Stopped because the tab was hidden."); });
 
   var reduce = matchMedia("(prefers-reduced-motion: reduce)");
