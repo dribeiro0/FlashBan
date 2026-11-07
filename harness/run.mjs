@@ -131,7 +131,7 @@ function shieldPanels(node, out = []) {
   if (node.attributes) {
     const a = node.attributes;
     for (let i = 0; i < a.length; i += 2) {
-      if (a[i] === "aria-label" && /Flashing content hidden|dimmed by Seizure Shield|softened by FlashBan/i.test(a[i + 1])) out.push(a[i + 1]);
+      if (a[i] === "aria-label" && /Flashing content hidden|dimmed by (Seizure Shield|FlashBan)|softened by FlashBan/i.test(a[i + 1])) out.push(a[i + 1]);
     }
   }
   for (const c of node.children || []) shieldPanels(c, out);
@@ -238,6 +238,7 @@ async function main() {
       // dim only counts if it is still there at the end of the run.
       let everCovered = false;
       let everSoftened = false;
+      let everLocked = false;
       let firstCoverMs = null;
       let lastPanels = [];
       let shot = null;
@@ -253,6 +254,20 @@ async function main() {
         await sleep(150);
         const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true }, sessionId);
         lastPanels = shieldPanels(root);
+        // Page lockdown (threat T6 fix): panels are gone on purpose, media is
+        // hidden by user-origin CSS, and a banner is drawn in html::after.
+        const lock = await cdp.send(
+          "Runtime.evaluate",
+          { expression: `getComputedStyle(document.documentElement, "::after").content.includes("FlashBan dimmed this page")`, returnByValue: true },
+          sessionId,
+        );
+        if (lock.result.value === true) {
+          lastPanels.push("Page locked down by FlashBan");
+          if (!everLocked) {
+            everLocked = true;
+            if (firstCoverMs === null) firstCoverMs = Date.now() - startedAt;
+          }
+        }
         if (lastPanels.some((p) => /softened/i.test(p))) everSoftened = true;
         const covered = lastPanels.some((p) => /hidden|softened/i.test(p));
         if (covered && !everCovered) {
@@ -279,11 +294,14 @@ async function main() {
       const fellBack = everSoftened && panels.some((p) => /hidden/i.test(p));
       // Only what the user would actually see counts. A violation message with
       // no cover on screen (e.g. the page deleted it) is "detected", not protected.
+      const lockedNow = panels.some((p) => /locked down/i.test(p));
       const actual = everSoftened && !fellBack && (stillSoftened || !panels.length)
         ? "soften"
+        : everLocked && (lockedNow || !violations.length || covered) ? "lockdown"
         : covered ? "block" : dimmed ? "dim" : violations.length ? "detected" : "allow";
-      // Protective outcomes: soften (output verified below the limit), cover, or fail-closed dim.
-      const verdict = actual === "dim" || actual === "soften" ? "block" : actual === "detected" ? "allow" : actual;
+      // Protective outcomes: soften (output verified below the limit), cover,
+      // page lockdown (media hidden by user-origin CSS), or fail-closed dim.
+      const verdict = ["dim", "soften", "lockdown"].includes(actual) ? "block" : actual === "detected" ? "allow" : actual;
       results.push({
         page: page.rel,
         title: page.title,
