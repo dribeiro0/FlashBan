@@ -77,7 +77,8 @@
         if (elapsed >= seconds * 1000) { recorder.stop(); return; }
         raf = requestAnimationFrame(frame);
       }
-      makeVideo.abort = function () { c.aborted = true; };
+      // Stop the recorder here: stop() cancels the frame loop, so the loop can't do it.
+      makeVideo.abort = function () { c.aborted = true; if (recorder) recorder.stop(); };
       recorder.start();
       raf = requestAnimationFrame(frame);
     });
