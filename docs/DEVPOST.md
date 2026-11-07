@@ -4,11 +4,11 @@ Owner: @unseentrader007 (covering Jun). Numbers in [brackets] come from `node ha
 
 ## Tagline
 
-FlashBan stops flashing web content before it can trigger a seizure, and keeps the page usable while it does.
+FlashBan catches flashing web content and softens it before it reaches you, keeping the page usable.
 
 ## Inspiration
 
-About 1 in 4,000 people have photosensitive epilepsy (Fisher et al., Epilepsia 2022), and for them a strobing ad, video or GIF can trigger a seizure. The web has a rule against this (WCAG 2.3.1: no more than three flashes a second), but nothing enforces it in the browser, and by the time you see a strobe it's too late. It's also used as a weapon: "epilepsy trolling", where people send flashing images to someone with epilepsy on purpose, is a crime in England under Zach's Law. We wanted a tool that treats flashing content as both an accessibility barrier and a security threat.
+About 1 in 4,000 people have photosensitive epilepsy (Fisher et al., Epilepsia 2022), and for them a strobing ad, video or GIF can trigger a seizure. The web has a rule against this (WCAG 2.3.1: no more than three flashes in any one second over a large area of the screen), but nothing enforces it in the browser, and by the time you see a strobe it's too late. It's also used as a weapon: "epilepsy trolling", where people send flashing images to someone with epilepsy on purpose, is a crime in England under Zach's Law. We wanted a tool that treats flashing content as both an accessibility barrier and a security threat.
 
 ## What it does
 
@@ -25,6 +25,7 @@ FlashBan is a Chrome extension that watches video, canvas, animated images, CSS 
 - Plain JavaScript, Chrome Manifest V3, no build step and no dependencies.
 - A pure detection engine (no DOM) with [146] Node unit tests: a relative-luminance lookup table, per-pixel transition tracking, a one-second sliding window on real timestamps, a red-flash detector in CIE 1976 colour space, and flashing area judged within a 10-degree field of view, as WCAG defines it.
 - A content script that samples every rendered frame (`requestVideoFrameCallback`, `requestAnimationFrame`) within a measured CPU budget, a closed-shadow-root overlay in the browser's top layer, and a service worker that validates every message.
+- Detection reacts in about 0.4 to 0.9 s and costs 0.14 to 0.35 ms per frame. The tests pin the WCAG edges (2.99 Hz passes, 3.01 Hz fails; a tie on the area threshold passes) and known attacks (split-area tiles, phase-shifted checkerboards, red-only flashes, looping strobes).
 - An automated attack harness: it loads the real extension into headless Chrome, runs every demo and attack page, and scores only what the user would actually see. Nothing flashes on anyone's screen while it runs.
 
 ## Challenges we ran into
@@ -35,7 +36,7 @@ FlashBan is a Chrome extension that watches video, canvas, animated images, CSS 
 
 ## Accomplishments we're proud of
 
-- Our harness passes [16 of 16] pages on three runs in a row, including [7] everyday pages (scene cuts, a camera flash, slow fades, a dark-mode toggle, a sunset) that must never be flagged.
+- Our harness passes [17 of 17] pages on three runs in a row, including [7] everyday pages (scene cuts, a camera flash, slow fades, a dark-mode toggle, a sunset) that must never be flagged.
 - Every evasion we found became a permanent test page.
 - Popup and overlay: [0] axe-core violations (WCAG 2.2 AA), full keyboard use, screen-reader announcements, reduced-motion and forced-colours support.
 
@@ -59,6 +60,6 @@ JavaScript, Chrome Extensions (Manifest V3), Web Animations API, Canvas 2D, Node
 2. Fail closed. Media we can't check, like DRM or cross-origin video, is dimmed and labelled "can't verify" instead of let through.
 3. Untrusted input stays data. We render text with textContent, run no remote code, and validate the sender and shape of every message.
 
-Our automated harness passes [16 of 16] attack and everyday pages on three runs in a row.
+Our automated harness passes [17 of 17] attack and everyday pages on three runs in a row.
 
 **What would we improve next?** Websites can detect that FlashBan is installed by probing its extension files, which could reveal that someone has photosensitive epilepsy. We'd fix this by bundling our scripts into one file so none of them is visible to web pages.
