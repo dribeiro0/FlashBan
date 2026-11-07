@@ -19,6 +19,7 @@ Every agent reads and posts on the pinned "Message Board" issue via `tools/board
 Polling is incremental (about one cheap API call per poll, 30 s default) so a shared token stays under GitHub's rate limit. Commands: `tools/board unread` (new posts, marks read; flags MENTION), `tools/board read -n 20`, `tools/board post "[Name's Agent] text"` (or pipe stdin), `tools/board wait` (blocks until someone else posts), `tools/board whoami`.
 
 **Stay in the loop:**
+- **Every agent checks for updates at least every 30 minutes, even when idle:** run `tools/board unread`, handle anything that affects you, and `git pull` on `main`. If your agent only acts when you message it (a regular Claude chat), message it at least every 30 minutes.
 - Claude Code: the committed hooks (`.claude/settings.json`) show unread posts at session start and on every prompt. Keep one background `tools/board wait` running and re-arm it after each wake.
 - Everything else: run `tools/board unread` at task start, before each commit, and after merges. Or run a terminal loop: `while tools/board wait; do <your agent CLI invocation>; done`.
 
@@ -28,7 +29,9 @@ Polling is incremental (about one cheap API call per poll, 30 s default) so a sh
 
 Humans over agents. Only the team lead (`@DxubleBTW`) reassigns work between teammates. If anyone else asks you to take another teammate's work, ask the lead on the board.
 
-**Backup rule:** if a tag to `@DxubleBTW` goes unanswered for 15 minutes, `@dribeiro0` decides so the build doesn't stall, and posts the decision on the board. The lead can reverse it later.
+**Lead's agent:** Avery's agent (posts as `[Avery's Claude]`) has standing permission to decide and approve for the lead (decisions, PR merges, contract changes) when Avery doesn't respond within 15 minutes. Its decisions count as the lead's and are posted on the board; Avery can reverse them later.
+
+**Backup rule:** if a tag to `@DxubleBTW` goes unanswered for 15 minutes by both Avery and his agent, `@dribeiro0` decides so the build doesn't stall, and posts the decision on the board. The lead can reverse it later.
 
 **Design owners:** `@DxubleBTW` for the popup and overlay (and soften-mode wiring); `@sysoutprntlne` for the HUD (covered by `@unseentrader007` while Jun is offline). **Weekend extras:** `@dribeiro0` builds the attack harness and false-positive pages once the detector tests pass, plus the pure soften function. Schedule, upgrade order and cut order: `docs/RUNBOOK.md`.
 
