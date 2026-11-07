@@ -8,6 +8,28 @@ import { validateContentMessage, validateHudSubscribe, applyViolation } from "./
 const HUD_MIN_GAP_MS = 100; // at most 10 relayed messages per second per source
 const HUD_PAGE_PREFIX = chrome.runtime.getURL("hud/");
 
+// Page lockdown (threat T6). Inserted with origin USER, so page scripts can't
+// see or remove it, and user !important beats every page style, inline
+// !important included. Hides media, stops animations, fixes the page
+// background, dims and greys everything else, and explains why.
+const LOCKDOWN_CSS = `
+canvas, video, img, picture, svg, iframe, embed, object { visibility: hidden !important; }
+*, *::before, *::after { animation-play-state: paused !important; transition: none !important; }
+html, body { background: #121212 !important; background-image: none !important; }
+body { filter: grayscale(1) brightness(0.25) !important; }
+html::after {
+  content: "FlashBan dimmed this page: it was flashing and kept trying to remove FlashBan's protection. To see it anyway, open FlashBan and turn off protection for this site." !important;
+  display: block !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important;
+  z-index: 2147483647 !important; margin: 0 !important; padding: 14px 18px !important;
+  background: #121212 !important; color: #ffffff !important; border-bottom: 3px solid #ffd84d !important;
+  font: 600 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
+  text-align: center !important; visibility: visible !important; opacity: 1 !important; filter: none !important;
+}
+`;
+
+/** @type {Set<string>} "tabId:frameId" with lockdown applied */
+const lockedFrames = new Set();
+
 /** @type {import("../shared/settings.js").Settings | null} */
 let settingsCache = null;
 
@@ -43,7 +65,7 @@ function recordViolation(/** @type {string} */ domain, /** @type {string} */ sou
       const stored = await chrome.storage.local.get("log");
       await chrome.storage.local.set({ log: applyViolation(stored.log, domain, source, report, at) });
     })
-    .catch((err) => console.warn("[Seizure Shield] could not update the log", err));
+    .catch((err) => console.warn("[FlashBan] could not update the log", err));
 }
 
 // ---------------------------------------------------------------- messages
@@ -69,9 +91,43 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     case "page":
       relayToHud(sender, msg);
       return false;
+    case "lockdown":
+      setLockdown(sender, msg.on);
+      return false;
     default:
       return false;
   }
+});
+
+// ---------------------------------------------------------------- page lockdown
+
+/** @param {chrome.runtime.MessageSender} sender @param {boolean} on */
+async function setLockdown(sender, on) {
+  const tabId = sender.tab?.id;
+  if (typeof tabId !== "number") return;
+  const frameId = sender.frameId ?? 0;
+  const key = `${tabId}:${frameId}`;
+  if (on === lockedFrames.has(key)) return;
+  const target = { tabId, frameIds: [frameId] };
+  try {
+    if (on) {
+      await chrome.scripting.insertCSS({ target, css: LOCKDOWN_CSS, origin: "USER" });
+      lockedFrames.add(key);
+    } else {
+      await chrome.scripting.removeCSS({ target, css: LOCKDOWN_CSS, origin: "USER" });
+      lockedFrames.delete(key);
+    }
+  } catch (err) {
+    console.warn("[FlashBan] lockdown failed", err);
+  }
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  for (const key of [...lockedFrames]) if (key.startsWith(`${tabId}:`)) lockedFrames.delete(key);
+});
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  // A navigation or reload drops inserted CSS; forget this tab's lockdowns.
+  if (info.status === "loading") for (const key of [...lockedFrames]) if (key.startsWith(`${tabId}:`)) lockedFrames.delete(key);
 });
 
 // ---------------------------------------------------------------- HUD relay (CONTRACTS 3a)

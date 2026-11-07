@@ -16,6 +16,8 @@ const FADE_MS = 600;
 const ANNOUNCE_GAP_MS = 5000;
 const COMPACT_W = 220;
 const COMPACT_H = 110;
+const TAMPER_LIMIT = 5; // overlay removed or restyled this many times...
+const TAMPER_WINDOW_MS = 2000; // ...within this window means the page is attacking it
 
 const TAG = `ss-shield-${Math.random().toString(36).slice(2, 10)}`;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -60,16 +62,26 @@ const SHADOW_CSS = `
     color: #ffffff;
   }
   .panel[hidden] { display: none; }
+  /* Both states are clearly a FlashBan cover, not a frozen page: near-opaque
+     or opaque, a yellow frame, and a label that is always visible. */
   .panel.dim {
-    background: rgba(0, 0, 0, 0.8);
-    -webkit-backdrop-filter: grayscale(1) brightness(0.5) blur(6px);
-    backdrop-filter: grayscale(1) brightness(0.5) blur(6px);
+    background: rgba(18, 18, 18, 0.94);
+    -webkit-backdrop-filter: grayscale(1) brightness(0.4) blur(8px);
+    backdrop-filter: grayscale(1) brightness(0.4) blur(8px);
+    box-shadow: inset 0 0 0 3px #ffd84d;
   }
-  .panel.cover { background: #121212; }
+  .panel.cover { background: #121212; box-shadow: inset 0 0 0 3px #ffd84d; }
+  .brand {
+    margin: 0; padding: 2px 8px; border-radius: 4px;
+    background: #ffd84d; color: #121212; font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+  }
   .panel.fading { opacity: 0; }
   .title { margin: 0; font-size: 16px; }
   .reason { margin: 0; font-weight: 400; font-size: 13px; color: #e8e8e8; max-width: 36em; }
-  .panel.compact .title, .panel.compact .reason { display: none; }
+  .panel.compact { gap: 4px; padding: 6px; }
+  .panel.compact .reason { display: none; }
+  .panel.compact .title { font-size: 13px; }
+  .panel.compact button { min-height: 32px; padding: 4px 10px; font-size: 13px; }
   button {
     font: inherit; font-size: 14px; min-height: 44px; min-width: 44px;
     padding: 8px 16px; border-radius: 6px; cursor: pointer;
@@ -105,6 +117,11 @@ const guards = new Map();
 const userShown = new WeakSet();
 /** @type {((el: Element) => void) | null} */
 let userShowHandler = null;
+/** @type {(() => void) | null} */
+let tamperHandler = null;
+/** @type {number[]} */
+let tamperTimes = [];
+let tamperLocked = false;
 
 /** @type {HTMLElement | null} */ let wrapper = null;
 /** @type {ShadowRoot | null} */ let root = null;
@@ -157,7 +174,7 @@ export function guard(el, mode, reason, opts = {}) {
   position(g);
   openLayer();
   if (mode === "cover" && opts.announce !== false && (isNew || escalated)) {
-    announce(`Seizure Shield hid flashing content on this page. ${reason}`);
+    announce(`FlashBan hid flashing content on this page. ${reason}`);
   }
   startLoop();
 }
@@ -198,6 +215,31 @@ export function wasShownByUser(el) {
 /** Called after the user chooses "Show anyway" for an element. */
 export function onUserShow(/** @type {(el: Element) => void} */ fn) {
   userShowHandler = fn;
+}
+
+/**
+ * Called once when the page keeps removing or restyling the overlay (threat T6).
+ * The caller then locks the page down with CSS the page can't touch.
+ */
+export function onTamper(/** @type {() => void} */ fn) {
+  tamperHandler = fn;
+}
+
+/** True once tampering was detected on this page. */
+export function isTamperLocked() {
+  return tamperLocked;
+}
+
+function noteTamper(/** @type {number} */ now) {
+  if (tamperLocked) return;
+  tamperTimes.push(now);
+  tamperTimes = tamperTimes.filter((t) => t > now - TAMPER_WINDOW_MS);
+  if (tamperTimes.length >= TAMPER_LIMIT) {
+    tamperLocked = true;
+    try {
+      tamperHandler?.();
+    } catch {}
+  }
 }
 
 export function counts() {
@@ -283,7 +325,12 @@ function render(g) {
   panel.className = `panel ${g.mode}`;
   panel.replaceChildren();
   panel.setAttribute("role", "group");
-  panel.setAttribute("aria-label", g.mode === "cover" ? "Flashing content hidden" : "Content dimmed by Seizure Shield");
+  panel.setAttribute("aria-label", g.mode === "cover" ? "Flashing content hidden by FlashBan" : "Content dimmed by FlashBan");
+
+  const brand = document.createElement("p");
+  brand.className = "brand";
+  brand.textContent = "FlashBan";
+  brand.setAttribute("aria-hidden", "true");
 
   const title = document.createElement("p");
   title.className = "title";
@@ -291,7 +338,7 @@ function render(g) {
   const reason = document.createElement("p");
   reason.className = "reason";
   reason.textContent = g.reason;
-  panel.append(title, reason);
+  panel.append(brand, title, reason);
 
   if (g.canShow) {
     const btn = document.createElement("button");
@@ -302,7 +349,7 @@ function render(g) {
       if (!e.isTrusted) return; // the page can't click this for the user
       userShown.add(g.el);
       removeGuard(g);
-      announce("Content shown. Seizure Shield will not hide it again on this page.");
+      announce("Content shown. FlashBan will not hide it again on this page.");
       try {
         userShowHandler?.(g.el);
       } catch {}
@@ -362,12 +409,21 @@ function tick(now) {
   if (guards.size === 0) return;
 
   // Tamper checks (threat T6): re-attach, restore styles, re-open the layer.
-  if (wrapper) {
-    if (!wrapper.isConnected) attachWrapper();
-    if ((wrapper.getAttribute("style") || "") !== wrapperStyleText) wrapper.setAttribute("style", wrapperStyleText);
+  // Repeated tampering hands off to the page lockdown (CSS the page can't
+  // remove); after that we stop re-inserting, which would only feed the
+  // attacker's MutationObserver.
+  if (wrapper && !tamperLocked) {
+    if (!wrapper.isConnected) {
+      noteTamper(now);
+      attachWrapper();
+    }
+    if ((wrapper.getAttribute("style") || "") !== wrapperStyleText) {
+      noteTamper(now);
+      wrapper.setAttribute("style", wrapperStyleText);
+    }
     for (const attr of [...wrapper.attributes]) if (attr.name !== "style") wrapper.removeAttribute(attr.name);
   }
-  openLayer();
+  if (!tamperLocked) openLayer();
   if (now - lastRaiseCheck > 500) {
     lastRaiseCheck = now;
     let otherTopLayer = !!document.fullscreenElement;

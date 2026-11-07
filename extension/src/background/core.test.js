@@ -113,3 +113,43 @@ test("applyViolation caps the log size", () => {
   assert.equal("d0.com" in log.domains, false, "oldest dropped");
   assert.ok(`d${MAX_LOG_DOMAINS + 4}.com` in log.domains);
 });
+
+// ---------------------------------------------------------------- DOM flicker colour maths
+import { parseComputedColor, composite, applyFilter, relativeLuminance } from "../content/domflicker.js";
+
+test("parseComputedColor reads computed rgb/rgba and rejects the rest", () => {
+  assert.deepEqual(parseComputedColor("rgb(34, 34, 34)"), [34, 34, 34, 1]);
+  assert.deepEqual(parseComputedColor("rgba(255, 0, 0, 0.5)"), [255, 0, 0, 0.5]);
+  assert.deepEqual(parseComputedColor("rgb(10 20 30 / 25%)"), [10, 20, 30, 0.25]);
+  assert.deepEqual(parseComputedColor("transparent"), [0, 0, 0, 0]);
+  assert.equal(parseComputedColor("color(display-p3 1 0 0)"), null);
+  assert.equal(parseComputedColor("oklch(0.7 0.1 30)"), null);
+  assert.equal(parseComputedColor(undefined), null);
+});
+
+test("composite blends in sRGB space", () => {
+  assert.deepEqual(composite([0, 0, 0], [255, 255, 255], 1), [255, 255, 255]);
+  assert.deepEqual(composite([0, 0, 0], [255, 255, 255], 0), [0, 0, 0]);
+  assert.deepEqual(composite([0, 0, 0], [200, 100, 50], 0.5), [100, 50, 25]);
+});
+
+test("applyFilter handles invert, brightness, contrast, grayscale and opacity", () => {
+  assert.deepEqual(applyFilter([0, 0, 0], "invert(1)").color, [255, 255, 255]);
+  assert.deepEqual(applyFilter([200, 200, 200], "brightness(0.5)").color, [100, 100, 100]);
+  assert.deepEqual(applyFilter([100, 100, 100], "none").color, [100, 100, 100]);
+  assert.deepEqual(applyFilter([255, 0, 0], "grayscale(1)").color, [54, 54, 54]);
+  assert.equal(applyFilter([10, 10, 10], "opacity(50%)").opacity, 0.5);
+  assert.deepEqual(applyFilter([10, 10, 10], "blur(4px)").color, [10, 10, 10], "blur doesn't change brightness");
+});
+
+test("relativeLuminance matches the demo page's documented levels", () => {
+  assert.ok(Math.abs(relativeLuminance([0x22, 0x22, 0x22]) - 0.016) < 0.001);
+  assert.ok(Math.abs(relativeLuminance([0x77, 0x77, 0x77]) - 0.184) < 0.001);
+  assert.equal(relativeLuminance([255, 255, 255]), 1);
+});
+
+test("validateContentMessage: lockdown", () => {
+  assert.deepEqual(validateContentMessage({ type: "lockdown", v: 1, on: true }), { type: "lockdown", v: 1, on: true });
+  assert.deepEqual(validateContentMessage({ type: "lockdown", v: 1, on: false, css: "body{}" }), { type: "lockdown", v: 1, on: false }, "no page-supplied CSS ever passes");
+  assert.equal(validateContentMessage({ type: "lockdown", v: 1, on: "yes" }), null);
+});
