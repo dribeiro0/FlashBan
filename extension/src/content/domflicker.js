@@ -22,12 +22,117 @@ export function parseComputedColor(value) {
   const s = value.trim().toLowerCase();
   if (s === "transparent") return [0, 0, 0, 0];
   const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+%?))?\s*\)$/.exec(s);
-  if (!m) return null;
+  if (!m) return parseModernColor(s);
   const rgb = [m[1], m[2], m[3]].map(Number);
   let a = 1;
   if (m[4] !== undefined) a = m[4].endsWith("%") ? Number(m[4].slice(0, -1)) / 100 : Number(m[4]);
   if (rgb.some((c) => !Number.isFinite(c)) || !Number.isFinite(a)) return null;
   return [clamp255(rgb[0]), clamp255(rgb[1]), clamp255(rgb[2]), Math.min(1, Math.max(0, a))];
+}
+
+/**
+ * CSS Color 4 computed values. Chrome keeps the authored colour space in the
+ * computed value for oklch()/oklab()/lab()/lch()/color(), and Tailwind v4
+ * sites author everything in oklch, so without this every element on such a
+ * site reads as "colour we can't read" and gets dimmed. Wide-gamut colours
+ * are clipped to sRGB, which is what a flash detector needs anyway.
+ * @param {string} s  lower-cased computed value
+ * @returns {RGBA | null}
+ */
+function parseModernColor(s) {
+  const m = /^(oklch|oklab|lab|lch|color)\((.*)\)$/.exec(s);
+  if (!m) return null;
+  let body = m[2].trim();
+  let alpha = 1;
+  const slash = body.indexOf("/");
+  if (slash >= 0) {
+    const a = body.slice(slash + 1).trim();
+    alpha = a.endsWith("%") ? Number(a.slice(0, -1)) / 100 : Number(a);
+    body = body.slice(0, slash).trim();
+  }
+  const parts = body.split(/\s+/);
+  const num = (/** @type {string} */ v, /** @type {number} */ pct) => {
+    if (v === "none") return 0;
+    if (v.endsWith("%")) return (Number(v.slice(0, -1)) / 100) * pct;
+    return Number(v);
+  };
+  /** @type {number[] | null} */
+  let lin = null; // linear sRGB
+  if (m[1] === "color") {
+    const space = parts.shift();
+    if (parts.length !== 3) return null;
+    const c = parts.map((v) => num(v, 1));
+    if (space === "srgb") lin = c.map(srgbToLinear);
+    else if (space === "srgb-linear") lin = c;
+    else if (space === "display-p3") lin = p3ToLinearSrgb(c.map(srgbToLinear));
+    else return null;
+  } else {
+    if (parts.length !== 3) return null;
+    const isOk = m[1].startsWith("ok");
+    let L = num(parts[0], isOk ? 1 : 100);
+    let a;
+    let b;
+    if (m[1] === "oklch" || m[1] === "lch") {
+      const C = num(parts[1], isOk ? 0.4 : 150);
+      const h = parts[2] === "none" ? 0 : (Number(parts[2].replace(/deg$/, "")) * Math.PI) / 180;
+      a = C * Math.cos(h);
+      b = C * Math.sin(h);
+    } else {
+      a = num(parts[1], isOk ? 0.4 : 125);
+      b = num(parts[2], isOk ? 0.4 : 125);
+    }
+    lin = isOk ? oklabToLinearSrgb(L, a, b) : labToLinearSrgb(L, a, b);
+  }
+  if (!lin || lin.some((v) => !Number.isFinite(v)) || !Number.isFinite(alpha)) return null;
+  const rgb = lin.map((v) => clamp255(Math.round(linearToSrgb(Math.min(1, Math.max(0, v))) * 255)));
+  return [rgb[0], rgb[1], rgb[2], Math.min(1, Math.max(0, alpha))];
+}
+
+/** @param {number} c  0..1 */
+function srgbToLinear(c) {
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+/** @param {number} c  0..1 */
+function linearToSrgb(c) {
+  return c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055;
+}
+/** @param {number} L @param {number} a @param {number} b */
+function oklabToLinearSrgb(L, a, b) {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.291485548 * b;
+  const l = l_ ** 3;
+  const m = m_ ** 3;
+  const s = s_ ** 3;
+  return [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ];
+}
+/** CIE Lab (D50) to linear sRGB (D65), Bradford-adapted matrix. @param {number} L @param {number} a @param {number} b */
+function labToLinearSrgb(L, a, b) {
+  const fy = (L + 16) / 116;
+  const fx = fy + a / 500;
+  const fz = fy - b / 200;
+  const inv = (/** @type {number} */ t) => (t > 6 / 29 ? t ** 3 : 3 * (6 / 29) ** 2 * (t - 4 / 29));
+  const X = 0.9642956 * inv(fx);
+  const Y = 1.0 * inv(fy);
+  const Z = 0.8251046 * inv(fz);
+  return [
+    3.1338561 * X - 1.6168667 * Y - 0.4906146 * Z,
+    -0.9787684 * X + 1.9161415 * Y + 0.033454 * Z,
+    0.0719453 * X - 0.2289914 * Y + 1.4052427 * Z,
+  ];
+}
+/** @param {number[]} p  linear display-p3 */
+function p3ToLinearSrgb(p) {
+  const [r, g, b] = p;
+  return [
+    1.2249401762 * r - 0.2249401762 * g,
+    -0.0420569547 * r + 1.0420569547 * g,
+    -0.0196375546 * r - 0.0786360455 * g + 1.0982736001 * b,
+  ];
 }
 
 /**

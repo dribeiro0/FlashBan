@@ -118,13 +118,32 @@ test("applyViolation caps the log size", () => {
 // ---------------------------------------------------------------- DOM flicker colour maths
 import { parseComputedColor, composite, applyFilter, relativeLuminance } from "../content/domflicker.js";
 
+test("parseComputedColor reads CSS Color 4 computed values (Chromium's own conversions)", () => {
+  const near = (got, want, tol = 2) => assert.ok(got && got.slice(0, 3).every((c, i) => Math.abs(c - want[i]) <= tol), `${JSON.stringify(got)} vs ${JSON.stringify(want)}`);
+  near(parseComputedColor("oklch(0.7 0.1 200)"), [64, 177, 183]);
+  near(parseComputedColor("oklch(0.55 0.2 300)"), [134, 74, 210]);
+  near(parseComputedColor("oklch(1 0 0)"), [255, 255, 255]);
+  near(parseComputedColor("oklch(0 0 0)"), [0, 0, 0]);
+  near(parseComputedColor("oklab(0.627955 0.224863 0.125846)"), [255, 0, 0]);
+  near(parseComputedColor("lab(53.2408 80.0925 67.2032)"), [250, 0, 7], 4);
+  near(parseComputedColor("lch(60 50 120)"), [118, 156, 62], 4);
+  near(parseComputedColor("color(srgb 0.2 0.4 0.6)"), [51, 102, 153]);
+  near(parseComputedColor("color(srgb-linear 1 1 1)"), [255, 255, 255]);
+  near(parseComputedColor("color(display-p3 1 0 0)"), [255, 0, 0]); // clipped to sRGB
+  near(parseComputedColor("color(display-p3 0.5 0.6 0.2)"), [121, 154, 20], 3);
+  assert.equal(parseComputedColor("oklch(0.7 0.1 200 / 0.5)")[3], 0.5);
+  assert.equal(parseComputedColor("color(srgb 0 0 0 / 25%)")[3], 0.25);
+  assert.equal(parseComputedColor("color(rec2020 1 0 0)"), null, "unknown spaces still fail closed");
+  assert.equal(parseComputedColor("oklch(0.7 0.1)"), null);
+});
+
 test("parseComputedColor reads computed rgb/rgba and rejects the rest", () => {
   assert.deepEqual(parseComputedColor("rgb(34, 34, 34)"), [34, 34, 34, 1]);
   assert.deepEqual(parseComputedColor("rgba(255, 0, 0, 0.5)"), [255, 0, 0, 0.5]);
   assert.deepEqual(parseComputedColor("rgb(10 20 30 / 25%)"), [10, 20, 30, 0.25]);
   assert.deepEqual(parseComputedColor("transparent"), [0, 0, 0, 0]);
-  assert.equal(parseComputedColor("color(display-p3 1 0 0)"), null);
-  assert.equal(parseComputedColor("oklch(0.7 0.1 30)"), null);
+  assert.equal(parseComputedColor("hsl(10 20% 30%)"), null, "never a computed value; stays unreadable");
+  assert.equal(parseComputedColor("currentcolor"), null);
   assert.equal(parseComputedColor(undefined), null);
 });
 
