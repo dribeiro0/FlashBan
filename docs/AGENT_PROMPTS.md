@@ -17,7 +17,7 @@ Paste the one for your role into your coding agent at kickoff (Claude Code, Code
 ## Demo, security + backend (Jun, sysoutprntlne)
 
 > You own demo, security and backend. Work in this priority order and post on the board when each item lands:
-> 1. **Demo pages** in demo/ (canvas strobe, CSS keyframe strobe, JS class toggle, generated GIF/MP4 at known rates, a mixed page, and a safe control page), each with `<meta name="shield-expected">`, a visible warning, and low brightness. Reuse the work from draft PR #3 if the organizers allow pre-kickoff code. Tag @all when they're ready so everyone can test against them.
+> 1. **Demo pages** in demo/ (canvas strobe, CSS keyframe strobe, JS class toggle, generated GIF/MP4 at known rates, a mixed page, and a safe control page), each with `<meta name="shield-expected">`, a visible warning, and low brightness. Build these fresh after kickoff from docs/DEMO_PLAN.md; do not copy code from PR #3. Tag @all when they're ready so everyone can test against them.
 > 2. **Security review** of the extension's manifest, CSP and message handling as soon as @DxubleBTW posts the message format; post findings tagging @DxubleBTW. Keep security/THREAT_MODEL.md current (update the Status column).
 > 3. **Backend** in api/ per docs/CONTRACTS.md section 5: POST /api/reports with strict schema validation, 2 KB limit and rate limiting, then GET /api/domains with the distinct-install threshold.
 > 4. **Adversarial pages** in demo/adversarial/ listed in the threat model.

@@ -53,6 +53,8 @@ Shared files (`AGENTS.md`, `docs/CONTRACTS.md`, `package.json`): ask on the boar
 
 ## 5. Project rules
 
+- **No product code before kickoff (Saturday Nov 7, 12:00).** Until then, planning docs only (designs, notes, test plans). After kickoff, write code fresh: do not copy code written before kickoff (for example from PR #3) into the project.
+
 - **Safety first.** Never download or embed real seizure-inducing media. Generate synthetic test stimuli only, keep test pages dim, and label them with a warning. Never show flashing test pages to anyone without warning.
 - **Accessibility is the product.** Every UI we ship works by keyboard alone, has visible focus, meets WCAG AA contrast, uses proper ARIA (the overlay announces with `aria-live`), and respects `prefers-reduced-motion`. Our own UI must never flash or animate quickly.
 - **Fail closed.** If something can't be analyzed (tainted canvas, DRM, detector error, CPU budget exceeded), dim and label it instead of letting it through.

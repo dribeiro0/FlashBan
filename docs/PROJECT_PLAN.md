@@ -15,13 +15,13 @@ Seizure Shield is a Chrome (Manifest V3) browser extension. It watches video, ca
 
 ## 3. What counts as "flashing" (the metrics we implement)
 
-These are summarized from WCAG 2.x. The team must read the exact definitions of "general flash threshold", "red flash threshold" and "flash" in the WCAG glossary and confirm our constants before the demo.
+Summarized from WCAG 2.2. The confirmed constants, definitions and sources are in `extension/src/detect/WCAG_NOTES.md` (David, PR #5); that file wins if anything here disagrees.
 
 - **Relative luminance** of a pixel: convert each 8-bit sRGB channel to linear (`c/255`; if `<= 0.04045` divide by 12.92, else `((c+0.055)/1.055)^2.4`), then `L = 0.2126 R + 0.7152 G + 0.0722 B`.
-- **General flash:** a pair of opposing changes in relative luminance (an increase followed by a decrease, or the reverse) where each change is at least 10% of the maximum relative luminance (so a delta of 0.10 on a 0 to 1 scale) and the darker state is below 0.80.
-- **Red flash:** a pair of opposing transitions involving saturated red. Implement as a separate detector using the definition in the spec (it is based on the red share of the pixel, `R/(R+G+B)`, and a change in a red-dominance value). Confirm the exact formula in the WCAG glossary before coding it.
-- **Frequency:** more than 3 flashes in any one-second window is a failure. A cycle light to dark to light counts as one flash, so a repeating on/off cycle with a period shorter than about 333 ms fails.
-- **Area:** only flashes covering a large enough region count. The commonly cited figure is a combined flash area of at least 25% of a 10-degree visual field, which is roughly 341 by 256 pixels at 1024 by 768 on a typical screen, so about 21,800 pixels. Our detector uses this pixel area as the threshold, scaled by `devicePixelRatio` and zoom. Confirm against the spec.
+- **General flash:** a pair of opposing changes in relative luminance (an increase followed by a decrease, or the reverse) where each change is at least 0.10 on the 0 to 1 relative luminance scale (a fixed absolute change, not 10% of the current value) and the darker state is below 0.80.
+- **Red flash (WCAG 2.2 rule):** a pair of opposing transitions where one of the states is saturated red (`R/(R+G+B) >= 0.8`) and the two states are more than 0.2 apart in the CIE 1976 UCS chromaticity diagram (`sqrt((u'1-u'2)^2 + (v'1-v'2)^2) > 0.2`). Do not use the older WCAG 2.0 formula.
+- **Frequency:** more than 3 flashes in any one-second window is a failure. A flash is two opposing transitions, and a window holding `n` transitions counts as `ceil(n/2)` flashes, so 7 transitions in one second is 4 flashes and fails. A repeating on/off cycle with a period shorter than about 333 ms fails.
+- **Area:** a failure needs the area flashing at the same time to be **greater than** 25% of a 10-degree visual field (a tie passes). WCAG estimates the field as 341 by 256 pixels at 1024 by 768, so the threshold is 21,824 pixels. We measure in **CSS pixels**, not device pixels (no `devicePixelRatio` scaling), and adjust the threshold for browser zoom. The area is measured against the screen, not one element: flashing areas across elements are added together (threat T2). `areaPct` is for display only.
 
 Everything above is the legal-style rule. Our product default is deliberately more cautious than the rule (see "Sensitivity presets").
 

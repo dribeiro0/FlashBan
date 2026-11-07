@@ -10,7 +10,7 @@ export type DetectorOptions = {
   preset: "strict" | "wcag" | "relaxed";
   sampleWidth: number;          // e.g. 128
   sampleHeight: number;         // e.g. 72
-  realAreaScale: number;        // real px per sample px (accounts for element size, DPR, zoom)
+  realAreaScale: number;        // CSS px per sample px (accounts for element size and zoom; NOT devicePixelRatio)
 };
 
 export type FrameSample = {
@@ -22,17 +22,32 @@ export type FlashReport = {
   v: 1;
   flashesPerSecond: number;     // general flashes in the last 1000 ms
   redFlashesPerSecond: number;
-  areaPx: number;               // largest flashing area in real pixels this window
-  areaPct: number;              // areaPx / element visible area
+  areaPx: number;               // CSS px of pixels over the preset's flash limit in this window (the violation uses this)
+  areaPct: number;              // areaPx / element visible area (display only)
   violation: boolean;           // true when the active preset is exceeded
   severity: "none" | "warn" | "block";
   reason?: "general" | "red" | "both";
+  // Additive fields, approved by the lead on 2026-11-06 (v stays 1):
+  windowMs?: number;            // window used, normally 1000
+  sampleRateHz?: number;        // measured input rate, for the HUD and aliasing checks
+  undersampled?: boolean;       // gaps > 100 ms seen; severity is at least "warn"
+  redAreaPx?: number;           // CSS px of red-flashing pixels
 };
 
 export function createDetector(opts: DetectorOptions): {
   push(sample: FrameSample): FlashReport;
+  peek(): FlashReport;          // last report without a new sample (HUD polling)
   reset(): void;
 };
+
+// Cross-element area (threat T2). Pure; called by the content script, which knows element rects.
+export function createAggregator(preset: DetectorOptions["preset"]): {
+  update(r: { id: string; t: number; areaPx: number; redAreaPx?: number; rect?: DOMRectReadOnly }): void;
+  result(t: number): { violation: boolean; totalAreaPx: number; ids: string[] }; // ids = sources to guard
+};
+
+// HUD reads only: flashesPerSecond, redFlashesPerSecond, areaPx, areaPct, severity, reason,
+// sampleRateHz, undersampled. Label them "detector estimates", not display measurements.
 
 // CSS path, no pixels needed
 export function analyzeAnimation(a: Animation): {
