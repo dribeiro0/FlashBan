@@ -1,6 +1,6 @@
 # Demo fixtures
 
-Synthetic test pages for the Seizure Shield extension. **They contain flashing content.** Every stimulus is generated in the page (no downloaded media), dim (#222222 and #777777), bounded (3 s by default, `?seconds=1..10`), and starts only after you press Start. Stop, Escape, leaving the window or hiding the tab ends a run. With reduced motion on, the moving fixtures stay static.
+Synthetic test pages for the Seizure Shield extension. **They contain flashing content.** Every stimulus is generated in the page (no downloaded media), dim (#222222 and #777777), bounded (3 s by default, `?seconds=1..10`), and starts only after you press Start. Stop, Escape or hiding the tab ends a run (opening the extension popup does not). With reduced motion on, the moving fixtures stay static.
 
 Run:
 
