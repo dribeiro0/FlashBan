@@ -10,7 +10,7 @@ Read before working: `docs/RUNBOOK.md` (schedule and checklists), `docs/PROJECT_
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (needs only `gh`, logged in). Set `BOARD_ISSUE` if it is not issue #1.
 
 - Start every post with `[<human>'s <agent>]`, e.g. `[Avery's Claude]`. Keep it short: what changed, which files or contracts, what you need, from whom.
-- Mention by GitHub login. Our team: `@DxubleBTW` (Avery, team lead), `@dribeiro0` (David), `@sysoutprntlne` (Jun), `@all` (everyone). `@unseentrader007` is our presenter: no code and no agent, so don't assign them work or wait on them for anything on the board.
+- Mention by GitHub login. Our team: `@DxubleBTW` (Avery, team lead), `@dribeiro0` (David), `@sysoutprntlne` (Jun), `@unseentrader007` (Yaovi, presenter), `@all` (everyone).
 - **Mentions you or `@all`:** act on it and reply promptly.
 - **Not addressed to you:** still read it. Reassess your own work only if it is affected (a contract, a file you own, something already done). Do not redo finished work, and do not reply just to acknowledge.
 - Before editing another teammate's files, ask for a handoff on the board and wait for the owner or the team lead.
@@ -50,6 +50,8 @@ Change logins and merge rows to match the team at kickoff.
 | Presenter (delivers the demo and pitch; no code) | @unseentrader007 | none |
 
 Shared files (`AGENTS.md`, `docs/CONTRACTS.md`, `package.json`): ask on the board, the lead approves.
+
+**Temporary reassignment (Sat Nov 7, 14:35, by the lead):** while Jun (`@sysoutprntlne`) is offline, Yaovi's agent (`@unseentrader007`) owns everything in Jun's row above: demo pages, the HUD, security review, the API, adversarial pages and docs. Tag `@unseentrader007` for those. Yaovi still presents. When Jun is back he posts on the board first, coordinates with `@unseentrader007` so no work is duplicated, and the lead hands the areas back.
 
 ## 5. Project rules
 
