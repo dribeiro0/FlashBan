@@ -110,7 +110,8 @@
   function stop(message) {
     if (!running) return;
     cancelAnimationFrame(raf);
-    reset();
+    // Keep the last frame: snapping back to the start (e.g. dusk red back to
+    // blue sky) would itself be a sudden jump, and a red one at that.
     setRunning(false);
     say(message || "Stopped. Static.");
   }
