@@ -9,6 +9,7 @@ const failClosed = /** @type {HTMLInputElement} */ ($("failClosed"));
 const hud = /** @type {HTMLInputElement} */ ($("hud"));
 const openHud = /** @type {HTMLButtonElement} */ ($("open-hud"));
 const presetRadios = /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll('input[name="preset"]'));
+const onFlashRadios = /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll('input[name="onFlash"]'));
 
 /** @type {import("../src/shared/settings.js").Settings} */
 let settings = normalizeSettings(undefined);
@@ -24,6 +25,7 @@ async function init() {
   render();
 
   presetRadios.forEach((r) => r.addEventListener("change", () => r.checked && save({ preset: /** @type {any} */ (r.value) })));
+  onFlashRadios.forEach((r) => r.addEventListener("change", () => r.checked && save({ onFlash: /** @type {any} */ (r.value) })));
   guardedStart.addEventListener("change", () => save({ guardedStart: guardedStart.checked }));
   failClosed.addEventListener("change", () => save({ failClosed: failClosed.checked }));
   hud.addEventListener("change", () => save({ hud: hud.checked }));
@@ -45,6 +47,7 @@ async function init() {
 
 function render() {
   presetRadios.forEach((r) => (r.checked = r.value === settings.preset));
+  onFlashRadios.forEach((r) => (r.checked = r.value === settings.onFlash));
   guardedStart.checked = settings.guardedStart;
   failClosed.checked = settings.failClosed;
   hud.checked = settings.hud;

@@ -36,6 +36,20 @@
       </fieldset>
 
       <fieldset>
+        <legend>When a video flashes</legend>
+        <div class="row">
+          <input type="radio" name="onFlash" id="onflash-soften" value="soften" aria-describedby="hint-soften" />
+          <label for="onflash-soften">Soften it (recommended)</label>
+        </div>
+        <p class="hint" id="hint-soften">Keeps the video playing with the flashing smoothed out. If it can't be made safe, it's hidden instead.</p>
+        <div class="row">
+          <input type="radio" name="onFlash" id="onflash-block" value="block" aria-describedby="hint-block" />
+          <label for="onflash-block">Hide it</label>
+        </div>
+        <p class="hint" id="hint-block">Pauses the video and covers it.</p>
+      </fieldset>
+
+      <fieldset>
         <legend>Precautions</legend>
         <div class="row">
           <input type="checkbox" id="guardedStart" />
