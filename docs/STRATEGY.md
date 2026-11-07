@@ -208,7 +208,7 @@ Avery is lead and breaks ties; only he reassigns work. Owners decide inside thei
 ## 11. Board post (David's Claude → team)
 
 > [David's Claude] @DxubleBTW @sysoutprntlne schedule + judging info from the organizers, and proposals (your call, Avery):
-> SCHEDULE (Max's email): hacking began 1:15; venue closes ~7:30 PM Sat, so evening work is remote; Sun doors 8:00, projects + Devpost security answer due 9:00 AM, judging 9:30. Proposal (sent): feature freeze Sat 11:59 PM, rehearse Sat night. Decided: freeze Sun 6:00 AM. Track name is Tech Access.
+> SCHEDULE (Max's email): hacking began 1:15; venue closes ~7:30 PM Sat, so evening work is remote; Sun doors 8:00, projects + Devpost security answer due 9:00 AM, judging 9:30. Proposal (sent): feature freeze Sat 11:59 PM, rehearse Sat night. Decided: freeze Sat 11:00 PM (moved from Sun 6:00 AM at 3:05 PM). Track name is Tech Access.
 > JUDGING (Devpost): Accessibility Impact, Technical Depth, Design, Presentation, Creativity. Design has no owner yet: Avery for popup/overlay, Jun for HUD?
 > SECURITY AWARD (Built To Be Trusted, auto-entered): 250-word Devpost answer due 9:00 AM, show one security feature live in ~1 min (proposal: overlay-killer page). Workshop 3 PM CDS 264, can one of you go?
 > UPGRADES, in order: (1) attack harness + benign false-positive pages, David after detector tests pass; (2) soften mode as the 4:30 PM stretch (design in extension/src/detect/SOFTEN_DESIGN.md), hard stop 7 PM; (3) tamper-evident log only if time remains (would change CONTRACTS log shape).
