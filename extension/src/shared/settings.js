@@ -11,7 +11,11 @@
  * @property {boolean} failClosed     dim media we can't analyse (tainted, DRM, errors)
  * @property {string[]} allowlist     registrable domains where the shield is off
  * @property {boolean} hud            relay detector reports to the Demo HUD page
+ * @property {OnFlash} onFlash        what to do with flashing video: soften it (default) or cover it
  */
+
+/** @typedef {"soften" | "block"} OnFlash */
+export const ON_FLASH = /** @type {const} */ (["soften", "block"]);
 
 export const PRESETS = /** @type {const} */ (["strict", "wcag", "relaxed"]);
 
@@ -23,6 +27,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   failClosed: true,
   allowlist: [],
   hud: false,
+  onFlash: "soften",
 });
 
 const DOMAIN_RE = /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$/;
@@ -45,6 +50,7 @@ export function normalizeSettings(raw) {
   if (typeof r.guardedStart === "boolean") out.guardedStart = r.guardedStart;
   if (typeof r.failClosed === "boolean") out.failClosed = r.failClosed;
   if (typeof r.hud === "boolean") out.hud = r.hud;
+  if (ON_FLASH.includes(/** @type {any} */ (r.onFlash))) out.onFlash = /** @type {OnFlash} */ (r.onFlash);
   if (Array.isArray(r.allowlist)) {
     out.allowlist = [
       ...new Set(

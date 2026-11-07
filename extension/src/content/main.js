@@ -8,6 +8,7 @@
 import * as safemode from "./safemode.js";
 import { loadDetector } from "./detector.js";
 import { backdropOf, effectiveColor, visibleArea, relativeLuminance } from "./domflicker.js";
+import { startSoften } from "./soften.js";
 import { normalizeSettings, registrableDomain } from "../shared/settings.js";
 
 // ---------------------------------------------------------------- tuning
@@ -340,6 +341,8 @@ class Source {
     this.resizeChurn = 0;
     this.vfcHandle = 0;
     this.lastT = 0;
+    /** @type {{ stop(): void } | null} */ this.soft = null; // soften layer while active
+    this.softFailed = false; // soften fell back to block once: don't retry on this element
     if (kind === "video") this.attachVideoListeners();
   }
 
@@ -531,6 +534,9 @@ class Source {
     if (aggregator) this.updateAggregate(report, t);
 
     if (safemode.wasShownByUser(el)) return;
+    // While softening, the raw video keeps flashing underneath by design; the
+    // soften layer's own verify detector decides (and falls back to block).
+    if (this.soft) return;
     if (report.violation || report.severity === "block") {
       this.block(report, t);
       return;
@@ -546,9 +552,48 @@ class Source {
     }
   }
 
+  /**
+   * Soften mode (default): keep a flagged video playing through the softening
+   * filter instead of covering it. Returns false when soften can't be used
+   * (setting is "block", not a video, unreadable, PiP/fullscreen, or soften
+   * already failed on this element): the caller then covers it as before.
+   * @param {any} report @param {number} t
+   */
+  trySoften(report, t) {
+    const v = this.el;
+    if (settings.onFlash !== "soften" || this.softFailed || !(v instanceof HTMLVideoElement)) return false;
+    let soft = null;
+    try {
+      soft = startSoften(v, {
+        detect,
+        preset: settings.preset,
+        onFail: (failReport) => {
+          this.soft = null;
+          this.softFailed = true;
+          this.block(failReport || report, performance.now());
+        },
+      });
+    } catch {
+      soft = null;
+    }
+    if (!soft) {
+      this.softFailed = true;
+      return false;
+    }
+    this.soft = soft;
+    if (safemode.guardMode(v) === "dim") safemode.release(v, { immediate: true });
+    if (t - this.lastViolationMsg >= VIOLATION_MSG_INTERVAL_MS || !this.lastViolationMsg) {
+      this.lastViolationMsg = t;
+      sendViolation(this.kind, report); // still logged: the site served flashing video
+    }
+    return true;
+  }
+
   /** @param {any} report @param {number} t */
   block(report, t) {
     const el = this.el;
+    if (this.soft) return; // softening; its verify detector falls back to block itself
+    if (this.trySoften(report, t)) return;
     const reason = REASONS[/** @type {keyof typeof REASONS} */ (report.reason)] || REASONS.unknown;
     safemode.guard(el, "cover", reason, { canShow: true });
     if (el instanceof HTMLVideoElement && !el.paused) el.pause();
@@ -601,6 +646,8 @@ class Source {
 
   dispose() {
     this.stopped = true;
+    this.soft?.stop();
+    this.soft = null;
     const v = this.el;
     if (v instanceof HTMLVideoElement) {
       if (this.vfcHandle) v.cancelVideoFrameCallback?.(this.vfcHandle);
