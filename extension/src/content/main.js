@@ -7,6 +7,7 @@
 
 import * as safemode from "./safemode.js";
 import { loadDetector } from "./detector.js";
+import { backdropOf, effectiveColor, visibleArea, relativeLuminance } from "./domflicker.js";
 import { normalizeSettings, registrableDomain } from "../shared/settings.js";
 
 // ---------------------------------------------------------------- tuning
@@ -25,6 +26,15 @@ const STATIC_IMAGE_MS = 3000; // stop sampling images that never change
 const RESIZE_MIN_GAP_MS = 2000; // rebuild the detector at most this often
 const RESIZE_CHURN_LIMIT = 10; // more skipped resizes than this: fail closed
 const ANIM_EXT = /\.(gif|webp|apng)(\?|#|$)/i;
+// Script-driven DOM flicker (class / style / hidden toggles)
+const DOM_HOT_MUTATIONS = 2; // mutations within 1 s before we start sampling an element
+const DOM_HOT_MS = 1500; // keep sampling this long after the last mutation
+const DOM_FORGET_MS = 10_000; // drop a quiet element's sampler after this
+const DOM_MIN_AREA = 32 * 32; // CSS px; smaller boxes can't reach the area threshold alone
+const MAX_DOM_SOURCES = 24; // CPU guard (threat T5)
+const DOM_CHILD_SHARE = 0.25; // also watch direct children covering at least this share
+const DOM_MAX_CHILDREN = 6;
+const BACKDROP_CACHE_MS = 250;
 
 const REASONS = {
   general: "It was flashing faster than is safe.",
@@ -39,6 +49,7 @@ const REASONS = {
   error: "It couldn't be checked for flashing.",
   detectorError: "The flash detector failed to load, so media is dimmed to be safe.",
   css: "A rapidly flashing animation was paused.",
+  unknownStyle: "It changes too fast to check, so it's dimmed to be safe.",
 };
 
 // ---------------------------------------------------------------- state
@@ -55,6 +66,12 @@ let enabled = false;
 /** @type {WeakSet<Animation>} */ const seenAnims = new WeakSet();
 /** @type {Map<Element, Animation[]>} */ const pausedAnims = new Map();
 let canvasLoop = 0;
+/** @type {Map<Element, DomSource>} */ const domSources = new Map();
+/** @type {Map<Element, { times: number[], sources: DomSource[] | null }>} */ const domDrivers = new Map();
+/** @type {MutationObserver | null} */ let amo = null;
+let domLoop = 0;
+let lastDriverPrune = 0;
+let lockedDown = false; // page lockdown CSS applied (see onTamper)
 let animTimer = 0;
 let nextId = 1;
 let lastPageHud = 0;
@@ -65,7 +82,7 @@ const siteDomain = topSiteDomain();
 
 // ---------------------------------------------------------------- startup
 
-init().catch((err) => console.warn("[Seizure Shield] init failed", err));
+init().catch((err) => console.warn("[FlashBan] init failed", err));
 
 async function init() {
   const stored = await chrome.storage.local.get("settings");
@@ -73,6 +90,7 @@ async function init() {
   chrome.storage.onChanged.addListener(onStorageChanged);
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
   safemode.onUserShow(onUserShow);
+  safemode.onTamper(onTamper);
 
   const loaded = await loadDetector();
   detect = loaded.module;
@@ -108,7 +126,10 @@ function onStorageChanged(changes, area) {
   const prevPreset = settings.preset;
   settings = normalizeSettings(changes.settings.newValue);
   if (enabled && settings.preset !== prevPreset) {
-    for (const s of sources.values()) s.resetDetector();
+    for (const s of allSources()) {
+      s.detector = null; // rebuilt with the new preset on the next sample
+      s.resetDetector();
+    }
     if (typeof detect?.createAggregator === "function") {
       try {
         aggregator = detect.createAggregator(settings.preset);
@@ -130,9 +151,10 @@ function onRuntimeMessage(msg, sender, sendResponse) {
     domain: siteDomain,
     enabled,
     detector: detectorStatus,
-    sources: sources.size,
+    sources: sources.size + domSources.size,
     dimmed: c.dim,
     covered: c.cover,
+    lockdown: lockedDown,
   });
   return false;
 }
@@ -140,6 +162,7 @@ function onRuntimeMessage(msg, sender, sendResponse) {
 function start() {
   io = new IntersectionObserver(onIntersect, { threshold: [0, 0.01] });
   mo = new MutationObserver(onMutations);
+  amo = new MutationObserver(onAttrMutations);
   observeRoot(document);
   scan(document);
   if (document.readyState === "loading") {
@@ -154,8 +177,15 @@ function start() {
 function stop() {
   io?.disconnect();
   mo?.disconnect();
+  amo?.disconnect();
   io = null;
   mo = null;
+  amo = null;
+  for (const s of domSources.values()) s.dispose();
+  domSources.clear();
+  domDrivers.clear();
+  cancelAnimationFrame(domLoop);
+  domLoop = 0;
   for (const s of sources.values()) s.dispose();
   sources.clear();
   cancelAnimationFrame(canvasLoop);
@@ -167,6 +197,10 @@ function stop() {
   for (const anims of pausedAnims.values()) for (const a of anims) safePlay(a);
   pausedAnims.clear();
   safemode.releaseAll();
+  if (lockedDown) {
+    lockedDown = false;
+    send({ type: "lockdown", v: 1, on: false });
+  }
 }
 
 // ---------------------------------------------------------------- discovery
@@ -178,7 +212,9 @@ function observeRoot(root) {
     if (observedRoots.has(root)) return;
     observedRoots.add(root);
   }
-  mo.observe(root instanceof Document ? root.documentElement || root : root, { childList: true, subtree: true });
+  const target = root instanceof Document ? root.documentElement || root : root;
+  mo.observe(target, { childList: true, subtree: true });
+  amo?.observe(target, { attributes: true, subtree: true, attributeFilter: ["class", "style", "hidden"] });
 }
 
 /** @param {ParentNode} root */
@@ -269,7 +305,7 @@ function onIntersect(entries) {
 
 function onVisibility() {
   // Hidden tabs stop rendering; restart the windows cleanly when we come back.
-  for (const s of sources.values()) s.resetDetector();
+  for (const s of allSources()) s.resetDetector();
 }
 
 // ---------------------------------------------------------------- sources
@@ -546,7 +582,7 @@ class Source {
     }
     if (!res.violation || !Array.isArray(res.ids)) return;
     // Threat T2: many small flashing elements together. Cover every contributor.
-    for (const s of sources.values()) {
+    for (const s of allSources()) {
       if (res.ids.includes(s.id) && !safemode.wasShownByUser(s.el)) s.block({ ...report, violation: true, severity: "block" }, t);
     }
   }
@@ -580,6 +616,94 @@ class Source {
   }
 }
 
+/** A page element whose class/style keeps changing. Its estimated colour is a 1x1 frame. */
+class DomSource extends Source {
+  /** @param {Element} el */
+  constructor(el) {
+    super(el, /** @type {any} */ ("dom"));
+    this.visible = true;
+    this.pixel = new Uint8ClampedArray([0, 0, 0, 255]);
+    this.lastTouch = 0;
+    this.hot = false;
+    this.onScreen = false;
+    /** @type {ReturnType<typeof backdropOf> | null} */ this.backdrop = null;
+    this.backdropAt = -Infinity;
+    this.area = 0;
+  }
+
+  /** @param {number} now */
+  touch(now) {
+    this.lastTouch = now;
+    this.hot = true;
+  }
+
+  cool() {
+    this.hot = false;
+    this.resetDetector();
+  }
+
+  /** @param {number} t @param {number} area */
+  ensureDomDetector(t, area) {
+    const resized = !this.detector || Math.abs(area - this.area) > this.area * 0.5;
+    if (!resized) return true;
+    if (this.detector && t - this.lastRebuild < RESIZE_MIN_GAP_MS) {
+      if (++this.resizeChurn > RESIZE_CHURN_LIMIT) {
+        this.markUnverifiable(REASONS.error);
+        return false;
+      }
+      return true;
+    }
+    this.lastRebuild = t;
+    this.area = area;
+    try {
+      this.detector = detect.createDetector({ preset: settings.preset, sampleWidth: 1, sampleHeight: 1, realAreaScale: Math.sqrt(area) });
+    } catch {
+      this.markUnverifiable(REASONS.error);
+      return false;
+    }
+    return true;
+  }
+
+  /** @param {number} t */
+  sample(t) {
+    if (this.stopped || !enabled || !this.el.isConnected || t <= this.lastT) return;
+    const { area } = visibleArea(this.el);
+    if (area < DOM_MIN_AREA) {
+      // Off screen or tiny: nothing to protect right now; restart cleanly later.
+      if (this.onScreen) {
+        this.onScreen = false;
+        this.resetDetector();
+      }
+      return;
+    }
+    this.onScreen = true;
+    this.lastT = t;
+    if (!this.ensureDomDetector(t, area)) return;
+    if (!this.backdrop || t - this.backdropAt > BACKDROP_CACHE_MS) {
+      this.backdrop = backdropOf(this.el);
+      this.backdropAt = t;
+    }
+    let eff;
+    try {
+      eff = effectiveColor(this.el, this.backdrop);
+    } catch {
+      eff = { color: this.backdrop.color, ok: false };
+    }
+    if (!eff.ok) return this.markUnverifiable(REASONS.unknownStyle); // colours we can't read: fail closed
+    this.pixel[0] = eff.color[0];
+    this.pixel[1] = eff.color[1];
+    this.pixel[2] = eff.color[2];
+    let report;
+    try {
+      report = this.detector.push({ t, pixels: this.pixel });
+    } catch {
+      report = null;
+    }
+    if (!report) return this.markUnverifiable(REASONS.error);
+    this.handleReport(report, t);
+  }
+}
+
 /** Cheap change detector for guarded start (not a security check). @param {Uint8ClampedArray} d */
 function quickHash(d) {
   let h = 0;
@@ -609,6 +733,117 @@ function canvasTick(/** @type {number} */ now) {
   if (active) canvasLoop = requestAnimationFrame(canvasTick);
 }
 
+// ---------------------------------------------------------------- DOM flicker
+
+function* allSources() {
+  yield* sources.values();
+  yield* domSources.values();
+}
+
+/** @param {Element} el */
+function isMediaElement(el) {
+  return el instanceof HTMLVideoElement || el instanceof HTMLCanvasElement || el instanceof HTMLImageElement;
+}
+
+/** Class/style/hidden changes. Rapidly changing elements get a per-frame sampler. @param {MutationRecord[]} records */
+function onAttrMutations(records) {
+  if (!enabled) return;
+  const now = performance.now();
+  for (const r of records) {
+    const el = r.target;
+    if (!(el instanceof Element) || isMediaElement(el) || el.localName.startsWith("ss-shield-")) continue;
+    let d = domDrivers.get(el);
+    if (!d) {
+      d = { times: [], sources: null };
+      domDrivers.set(el, d);
+    }
+    d.times.push(now);
+    while (d.times.length && d.times[0] < now - 1000) d.times.shift();
+    if (!d.sources && d.times.length >= DOM_HOT_MUTATIONS) d.sources = makeDomSources(el);
+    if (d.sources) for (const s of d.sources) s.touch(now);
+  }
+  if (now - lastDriverPrune > 5000) {
+    lastDriverPrune = now;
+    for (const [el, d] of domDrivers) {
+      const last = d.times[d.times.length - 1] ?? 0;
+      if (!el.isConnected || now - last > DOM_FORGET_MS) domDrivers.delete(el);
+    }
+  }
+  if (domSources.size) startDomLoop();
+}
+
+/** The changing element plus its large direct children (a parent class can recolour them). @param {Element} el */
+function makeDomSources(el) {
+  const { area } = visibleArea(el);
+  const candidates = [el];
+  for (const child of el.children) {
+    if (candidates.length > DOM_MAX_CHILDREN) break;
+    if (isMediaElement(child)) continue;
+    if (visibleArea(child).area >= Math.max(DOM_MIN_AREA, area * DOM_CHILD_SHARE)) candidates.push(child);
+  }
+  /** @type {DomSource[]} */
+  const out = [];
+  for (const c of candidates) {
+    let s = domSources.get(c);
+    if (!s) {
+      if (domSources.size >= MAX_DOM_SOURCES) {
+        // Too many flickering elements to check (threat T5): fail closed on this one.
+        if (settings.failClosed && visibleArea(c).area >= DOM_MIN_AREA) safemode.guard(c, "dim", REASONS.tooMany, { canShow: true });
+        continue;
+      }
+      s = new DomSource(c);
+      domSources.set(c, s);
+    }
+    out.push(s);
+  }
+  return out;
+}
+
+function startDomLoop() {
+  if (!domLoop) domLoop = requestAnimationFrame(domTick);
+}
+
+/** @param {number} now */
+function domTick(now) {
+  domLoop = 0;
+  if (!enabled) return;
+  let hot = 0;
+  for (const [el, s] of domSources) {
+    if (!el.isConnected) {
+      s.dispose();
+      domSources.delete(el);
+      continue;
+    }
+    if (s.stopped) continue;
+    if (now - s.lastTouch > DOM_HOT_MS) {
+      if (s.hot) s.cool();
+      if (now - s.lastTouch > DOM_FORGET_MS) domSources.delete(el);
+      continue;
+    }
+    hot++;
+    s.sample(now);
+  }
+  if (hot) domLoop = requestAnimationFrame(domTick);
+}
+
+/**
+ * CSS-animation context for the detector: preset and backdrop brightness.
+ * No per-element area on purpose: an area check per element would let many
+ * small boxes blinking together through (threat T2).
+ * @param {Animation} a
+ */
+function animationContext(a) {
+  /** @type {{ preset: string, backdropLuminance?: number }} */
+  const ctx = { preset: settings.preset };
+  const target = /** @type {KeyframeEffect | null} */ (a.effect)?.target;
+  if (target instanceof Element) {
+    try {
+      ctx.backdropLuminance = relativeLuminance(backdropOf(target).color);
+    } catch {}
+  }
+  return ctx;
+}
+
 // ---------------------------------------------------------------- CSS animations
 
 let animScanQueued = false;
@@ -634,7 +869,7 @@ function scanAnimations() {
     seenAnims.add(a);
     let res;
     try {
-      res = detect.analyzeAnimation(a);
+      res = detect.analyzeAnimation(a, animationContext(a));
     } catch {
       res = { violation: true }; // can't read it: fail closed
     }
@@ -670,9 +905,20 @@ function safePlay(a) {
 
 // ---------------------------------------------------------------- user + messaging
 
+/**
+ * The page keeps removing or restyling our overlay (threat T6). Ask the
+ * background to apply page-lockdown CSS with user origin: page scripts can't
+ * see or remove it, and it outranks every page style, inline !important included.
+ */
+function onTamper() {
+  if (lockedDown || !enabled) return;
+  lockedDown = true;
+  send({ type: "lockdown", v: 1, on: true });
+}
+
 /** The user pressed "Show anyway". @param {Element} el */
 function onUserShow(el) {
-  const s = sources.get(el);
+  const s = sources.get(el) || domSources.get(el);
   if (s) s.stopped = true; // don't sample or re-guard it again on this page
   const anims = pausedAnims.get(el);
   if (anims) {

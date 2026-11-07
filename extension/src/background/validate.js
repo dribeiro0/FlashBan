@@ -70,6 +70,9 @@ export function validateContentMessage(raw) {
   switch (m.type) {
     case "getSettings":
       return { type: "getSettings", v: 1 };
+    case "lockdown":
+      if (typeof m.on !== "boolean") return null;
+      return { type: "lockdown", v: 1, on: m.on };
     case "violation": {
       const report = validateFlashReport(m.report);
       if (!report || !SOURCES.includes(/** @type {any} */ (m.source)) || !num(m.at, 0, 1e15)) return null;

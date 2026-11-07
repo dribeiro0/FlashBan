@@ -81,7 +81,11 @@ type Msg =
   | { type: "settings"; v: 1; preset: DetectorOptions["preset"]; guardedStart: boolean; failClosed: boolean; allowlist: string[]; hud: boolean };
 ```
 
-Settings live in `chrome.storage.local` under `settings` and are normalized by `extension/src/shared/settings.js` (`normalizeSettings`); content scripts read them directly and follow `storage.onChanged`. The popup asks the top frame for status with `{ type: "getStatus", v: 1 }` and gets `{ type: "status", v: 1, domain, enabled, detector: "loaded" | "stub" | "error", sources, dimmed, covered }`.
+Settings live in `chrome.storage.local` under `settings` and are normalized by `extension/src/shared/settings.js` (`normalizeSettings`); content scripts read them directly and follow `storage.onChanged`. The popup asks the top frame for status with `{ type: "getStatus", v: 1 }` and gets `{ type: "status", v: 1, domain, enabled, detector: "loaded" | "error", sources, dimmed, covered, lockdown }`.
+
+**Page lockdown (threat T6):** when a page keeps removing or restyling the overlay (5 times in 2 s), the content script sends `{ type: "lockdown", v: 1, on: true }` and the background applies a fixed stylesheet with `chrome.scripting.insertCSS({ origin: "USER" })` to that frame: media hidden, animations paused, page dimmed and grey, plus a banner. Pages can't see or remove it. `{ ..., on: false }` removes it when the user turns protection off for the site. The message never carries CSS.
+
+**DOM flicker:** elements whose class/style/hidden attributes keep changing are sampled as `source: "dom"`: a 1x1 frame of their estimated on-screen colour, with `realAreaScale = sqrt(visible area)`.
 
 `domain` is the registrable domain only (for example `example.com`), never a full URL.
 

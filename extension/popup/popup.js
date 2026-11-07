@@ -69,7 +69,7 @@ async function onSiteToggle() {
 
 async function refreshStatus() {
   if (tabId === null) {
-    statusEl.textContent = "Seizure Shield can't run on this page.";
+    statusEl.textContent = "FlashBan can't run on this page.";
     return;
   }
   /** @type {any} */
@@ -80,7 +80,7 @@ async function refreshStatus() {
     status = null;
   }
   if (!status || status.type !== "status") {
-    statusEl.textContent = "Seizure Shield can't run on this page (browser pages and the web store are off limits). Reload the page if you just installed it.";
+    statusEl.textContent = "FlashBan can't run on this page (browser pages and the web store are off limits). Reload the page if you just installed it.";
     siteBox.disabled = true;
     return;
   }
@@ -91,6 +91,10 @@ async function refreshStatus() {
 
   if (!status.enabled) {
     statusEl.textContent = `Off for ${domain}.`;
+    return;
+  }
+  if (status.lockdown) {
+    statusEl.textContent = "This page kept flashing and tried to remove FlashBan's protection, so the whole page is dimmed. To see it anyway, turn off protection for this site below.";
     return;
   }
   const parts = [];

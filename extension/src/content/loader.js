@@ -5,7 +5,7 @@
 (() => {
   const url = chrome.runtime.getURL("src/content/main.js");
   import(url).catch((err) => {
-    console.warn("[Seizure Shield] could not start; dimming media on this page.", err);
+    console.warn("[FlashBan] could not start; dimming media on this page.", err);
     dimAllMedia();
   });
 

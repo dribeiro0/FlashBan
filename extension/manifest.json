@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Seizure Shield",
+  "name": "FlashBan",
   "version": "0.1.0",
-  "description": "Detects flashing content (WCAG 2.3.1) and hides it before it can trigger photosensitive seizures.",
+  "description": "FlashBan finds flashing content (WCAG 2.3.1) and hides it before it can trigger photosensitive seizures.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage"],
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background/sw.js",
     "type": "module"
@@ -25,7 +26,7 @@
     }
   ],
   "action": {
-    "default_title": "Seizure Shield",
+    "default_title": "FlashBan",
     "default_popup": "popup/popup.html"
   },
   "content_security_policy": {

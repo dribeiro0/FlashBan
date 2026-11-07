@@ -14,7 +14,7 @@ export async function loadDetector() {
     if (typeof mod.createDetector !== "function") throw new Error("createDetector is missing");
     return { module: mod, status: "loaded" };
   } catch (err) {
-    console.warn("[Seizure Shield] detector failed to load; failing closed.", err);
+    console.warn("[FlashBan] detector failed to load; failing closed.", err);
     return { module: failClosedModule(), status: "error", error: String(err) };
   }
 }
