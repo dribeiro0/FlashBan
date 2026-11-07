@@ -461,6 +461,12 @@ function position(g) {
   s.transform = `translate(${Math.round(r.left)}px, ${Math.round(r.top)}px)`;
   s.width = `${Math.ceil(r.width)}px`;
   s.height = `${Math.ceil(r.height)}px`;
+  // An element that starts above or left of the viewport (a scaled backdrop
+  // canvas, a tall container) would put the label off screen: pad it in.
+  const padTop = r.top < 0 ? Math.min(-r.top, Math.max(0, r.height - 60)) : 0;
+  const padLeft = r.left < 0 ? Math.min(-r.left, Math.max(0, r.width - 160)) : 0;
+  s.paddingTop = padTop ? `${Math.round(padTop + 8)}px` : "";
+  s.paddingLeft = padLeft ? `${Math.round(padLeft + 8)}px` : "";
   g.panel.classList.toggle("compact", r.width < COMPACT_W || r.height < COMPACT_H);
 }
 

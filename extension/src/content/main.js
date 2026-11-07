@@ -19,9 +19,15 @@ const MIN_MEDIA_CSS_PX = 16; // ignore media smaller than this on either side
 const GUARD_START_MIN_AREA = 64 * 64; // smaller media skip guarded start
 const VIDEO_CHECK_MS = 2000; // a video that starts gets a light, see-through dim for this long
 const VIDEO_CHECK_MAX_MS = 3500; // ...and never longer than this, whatever the detector is unsure about
-const MIN_SAMPLE_MS = 80; // sample media at most ~12 times a second (a 3 Hz flash needs ~6; the detector allows 100 ms gaps); a 720p readback costs ~5 ms
-const GAP_WINDOW_MS = 4000; // video: judge missed frames over this long...
-const GAP_MAX_SHARE = 0.5; // ...and if more than this share of samples missed frames, we can't keep up (fail closed, T5)
+// Media is sampled on every presented frame, capped at ~30 Hz: sparser
+// sampling aliases (a 7.5 Hz strobe sampled every 117 ms showed up as 1-2
+// flashes a second and slipped through in testing). The cost meter (T5) steps
+// the sample size down and then fails closed if the readbacks get too slow.
+const MIN_SAMPLE_MS = 25;
+const GAP_WINDOW_MS = 4000; // video: judge sampling gaps over this long...
+const GAP_MAX_SHARE = 0.5; // ...and if more than this share of samples came after a long gap, we can't keep up (fail closed, T5)
+const LONG_GAP_MS = 250; // a sample this long after the previous one means we were blind in between
+const GAP_MIN_SAMPLES = 12; // ...judged once the window holds at least this many samples
 const DOM_TICK_MS = 50; // DOM flicker sampling runs at most 20 times a second...
 const DOM_TICK_BUDGET_MS = 3; // ...and stops early when a tick has used this much time (threat T5)
 const PAGE_CHECK_MS = 1200; // the one page-wide "checking" dim, once per page
@@ -483,9 +489,8 @@ class Source {
         const t = meta.expectedDisplayTime || now;
         const presented = typeof meta.presentedFrames === "number" ? meta.presentedFrames : -1;
         this.callbacksSinceSample++;
-        // Reading a frame back costs milliseconds at 1080p, so sample at most
-        // every MIN_SAMPLE_MS (still ~12 Hz, plenty for a 3 Hz flash), not on
-        // every presented frame of a 60 fps video.
+        // Every presented frame, except that a 60 fps video is sampled every
+        // other frame (MIN_SAMPLE_MS): sparser sampling aliases strobes away.
         if (t - this.lastT >= MIN_SAMPLE_MS || this.lastT === 0) {
           // "Complete": every presented frame since the last sample came with a
           // callback (none were skipped by a blocked main thread). Then a long
@@ -503,6 +508,30 @@ class Source {
     } else {
       startCanvasLoop(); // fall back to sampling on animation frames
     }
+  }
+
+  /**
+   * Effective opacity (the element's own times its ancestors') and the colour
+   * behind it, cached for BACKDROP_CACHE_MS. Used to composite samples the way
+   * the viewer sees them, and by the soften layer to look like the element.
+   * @param {number} now  performance.now()
+   * @returns {{ opacity: number, backdrop: [number, number, number] }}
+   */
+  appearance(now) {
+    if (this.look && now - this.lookAt < BACKDROP_CACHE_MS) return this.look;
+    this.lookAt = now;
+    let opacity = 1;
+    /** @type {[number, number, number]} */ let backdrop = [0, 0, 0];
+    try {
+      const cs = getComputedStyle(this.el);
+      opacity = Number(cs.opacity);
+      if (!Number.isFinite(opacity)) opacity = 1;
+      const bd = backdropOf(this.el);
+      opacity *= bd.opacity;
+      backdrop = /** @type {[number, number, number]} */ (bd.color);
+    } catch {}
+    this.look = { opacity: Math.min(1, Math.max(0, opacity)), backdrop };
+    return this.look;
   }
 
   /** Create or resize the detector for the element's current CSS size. */
@@ -593,6 +622,21 @@ class Source {
     }
 
     const readMs = performance.now() - t0;
+    // What the viewer sees is the element composited at its effective opacity
+    // over what's behind it (a 30%-opacity "ambient light" canvas flashes a
+    // third as much as its raw pixels), so blend the sample the same way
+    // before the detector sees it. Invisible elements are skipped.
+    const look = this.appearance(performance.now());
+    if (look.opacity < 0.02) return;
+    if (look.opacity < 0.98) {
+      const op = look.opacity;
+      const [br, bg, bb] = look.backdrop;
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = br + (data[i] - br) * op;
+        data[i + 1] = bg + (data[i + 1] - bg) * op;
+        data[i + 2] = bb + (data[i + 2] - bb) * op;
+      }
+    }
     let changed = true; // every video frame from requestVideoFrameCallback is new
 
     // Guarded start for canvases and images: dim as soon as the content moves.
@@ -736,12 +780,16 @@ class Source {
     // keep the short "checking" dim on, and if most samples in GAP_WINDOW_MS
     // missed frames we can't keep up, so the video is dimmed as unverifiable (T5).
     if (this.kind === "video") {
+      // Our own sampling rate is what matters, not whether every presented
+      // frame got a callback (a busy page misses callbacks all the time; we
+      // only sample ~12 Hz anyway). A long gap between SAMPLES is blindness.
       const nowMs = performance.now();
+      const prev = this.sampleTimes[this.sampleTimes.length - 1];
       this.sampleTimes.push(nowMs);
-      if (!this.completeFrames) this.missTimes.push(nowMs);
+      if (prev !== undefined && nowMs - prev > LONG_GAP_MS) this.missTimes.push(nowMs);
       while (this.sampleTimes.length && this.sampleTimes[0] < nowMs - GAP_WINDOW_MS) this.sampleTimes.shift();
       while (this.missTimes.length && this.missTimes[0] < nowMs - GAP_WINDOW_MS) this.missTimes.shift();
-      const full = this.sampleTimes.length >= (GAP_WINDOW_MS / MIN_SAMPLE_MS) * 0.25; // at least ~1 s worth of samples
+      const full = this.sampleTimes.length >= GAP_MIN_SAMPLES;
       if (full && this.missTimes.length > this.sampleTimes.length * GAP_MAX_SHARE) return this.markUnverifiable(REASONS.tooCostly);
     }
     if (this.kind === "video" && report.undersampled && !report.reason) {
@@ -828,6 +876,7 @@ class Source {
     try {
       soft = startSoften(/** @type {any} */ (v), {
         onTamper: () => safemode.reportTamper(),
+        appearance: () => this.appearance(performance.now()),
         detect,
         preset: effectivePreset(), // strict on repeat-offender sites, like everything else
         onFail: (failReport) => {

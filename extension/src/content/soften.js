@@ -34,9 +34,24 @@ import { DEFAULT_TAU } from "../detect/soften.js";
 
 const MAX_SIDE = 256; // detector limit per side
 const VERIFY_PX = 160 * 90; // the verifier's readback size
-const VERIFY_HZ = 15; // readbacks per second (a 3 Hz flash needs about 6 samples per second)
+const VERIFY_HZ = 30; // readbacks per second: every frame of a 30 fps video (sparser verification aliases strobes away)
+const SHADOW_MAX_FAILS = 3; // give up the shadow limiter trial after this many failures (it costs a raw readback per frame)
 const MAX_DISPLAY_PX = 2560 * 1440; // output canvas cap (device pixels)
 const MAX_STEP = 0.25; // largest share of the way to a new frame any one update may move
+// Stage "limit": the current frame, full detail, with its overall brightness
+// scaled to follow a slow running level, so a full-field flash is flattened
+// without the averaging filter's ghosting. It is never shown untested: the
+// averaging filter ("ema") is shown first, the limiter runs silently on the
+// same frames with its own detector, and only after its would-be output has
+// stayed clean for LIMIT_TRIAL_MS does the display switch to it. Flashing
+// through the live limiter switches straight back to averaging.
+const LIMIT_TAU = 0.3; // seconds: how slowly the running brightness level follows the picture
+const LIMIT_MIN_GAIN = 0.2; // never darken a frame below this share...
+const LIMIT_MAX_GAIN = 2.5; // ...or brighten it above this
+const LIMIT_TRIAL_MS = 2000; // the shadow limiter must stay clean this long before it is shown
+const LIMIT_RETRY_MS = 20000; // after the live limiter let flashing through, wait this long before trying again
+const LUMA_W = 24; // tiny readback used to measure a frame's mean brightness
+const LUMA_H = 14;
 const RESIZE_PCT = 0.1; // rebuild the output canvas when the media grows or shrinks this much
 const FADE_MS = 300;
 const TAG = `ss-soft-${Math.random().toString(36).slice(2, 10)}`;
@@ -68,11 +83,13 @@ export function softenable(el) {
  * Start softening a video, canvas or image. Returns null if it can't (the
  * caller then blocks or dims as before).
  * @param {HTMLVideoElement | HTMLCanvasElement | HTMLImageElement} el
- * @param {{ detect: any, preset: string, onFail: (report?: any) => void, checking?: boolean, onTamper?: () => void }} opts
+ * @param {{ detect: any, preset: string, onFail: (report?: any) => void, checking?: boolean, onTamper?: () => void, appearance?: () => { opacity: number, backdrop: number[] } }} opts
  *   onTamper: called whenever the page removed or restyled the soften layer (threat T6)
+ *   appearance: the element's effective opacity and the colour behind it; the layer
+ *   composites frames the same way, so a see-through element stays see-through
  * @returns {{ stop(): void, release(): void, promote(): void, readonly checking: boolean } | null}
  */
-export function startSoften(el, { detect, preset, onFail, checking = false, onTamper }) {
+export function startSoften(el, { detect, preset, onFail, checking = false, onTamper, appearance }) {
   if (!detect || typeof detect.createDetector !== "function" || !softenable(el)) return null;
   const isVideo = el instanceof HTMLVideoElement;
   if (isVideo && /** @type {HTMLVideoElement} */ (el).mediaKeys) return null; // DRM: frames can't be read
@@ -149,9 +166,19 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
         const cs = getComputedStyle(el);
         if (cs.position !== "static" && /^-?\d+$/.test(cs.zIndex)) z = cs.zIndex;
       } catch {}
+      // Same transform as the element (a scaled "ambient light" canvas, a
+      // translated slide), so the layer sits exactly on its painted box.
+      let transform = "none";
+      let origin = "50% 50% 0";
+      try {
+        const cs = getComputedStyle(el);
+        transform = cs.transform || "none";
+        origin = cs.transformOrigin || origin;
+      } catch {}
       for (const [p, v] of [
         ["position", "absolute"], ["left", `${he.offsetLeft}px`], ["top", `${he.offsetTop}px`],
         ["width", `${he.offsetWidth}px`], ["height", `${he.offsetHeight}px`], ["z-index", z],
+        ["transform", transform], ["transform-origin", origin],
       ]) host.style.setProperty(p, v, "important");
     }
     hostStyle = host.getAttribute("style") || "";
@@ -180,11 +207,45 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   const dctx = canvas.getContext("2d", { alpha: false });
   if (!dctx) return null;
   // Stage 1 of the filter lives in its own canvas; the visible canvas is stage 2.
+  // In "limit" stage, stage1 holds the raw current frame.
   let stage1 = new OffscreenCanvas(ow, oh);
   let s1ctx = stage1.getContext("2d", { alpha: false });
   if (!s1ctx) return null;
+  let lastLook = -Infinity;
+  let look = { opacity: 1, backdrop: [0, 0, 0] };
   let lastT = NaN; // first frame: a = 1, so the output equals the current frame (no jump: T13)
   let lastVerify = -Infinity;
+  /** @type {"limit" | "ema"} */
+  let stage = "ema";
+  let level = NaN; // running mean brightness (0..1) the limiter follows
+  // Shadow limiter (while "ema" is shown): its own level and detector, fed the
+  // raw frames scaled the way the limiter would show them.
+  let shadowLevel = NaN;
+  let shadowCleanSince = -Infinity;
+  let limitRetryAt = 0;
+  let shadowFails = 0;
+  /** @type {any} */ let shadowVerify = null;
+  try {
+    shadowVerify = detect.createDetector({ preset, sampleWidth: w, sampleHeight: h, realAreaScale: 1 / scale });
+  } catch {
+    shadowVerify = null;
+  }
+  const raw = new OffscreenCanvas(w, h);
+  const rctx = raw.getContext("2d", { willReadFrequently: true, alpha: false });
+  if (!rctx) return null;
+  /** Mean brightness (0..1) of a small RGBA buffer. @param {Uint8ClampedArray} d */
+  function meanLuma(d) {
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    return sum / (d.length / 4) / 255;
+  }
+  /** The limiter's gain for a frame of mean brightness m against level L. */
+  function limitGain(m, L) {
+    return m > 0.002 ? Math.min(LIMIT_MAX_GAIN, Math.max(LIMIT_MIN_GAIN, L / m)) : 1;
+  }
+  const luma = new OffscreenCanvas(LUMA_W, LUMA_H);
+  const lctx = luma.getContext("2d", { willReadFrequently: true, alpha: false });
+  if (!lctx) return null;
 
   let isChecking = checking;
   const what = isVideo ? "Video" : "Animation";
@@ -256,8 +317,13 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
       const he = /** @type {HTMLElement} */ (el);
       const now = performance.now();
       const wantLeft = `${he.offsetLeft}px`;
+      let tf = "none";
+      try {
+        tf = getComputedStyle(el).transform || "none";
+      } catch {}
       if (host.style.getPropertyValue("left") !== wantLeft || host.style.getPropertyValue("top") !== `${he.offsetTop}px` ||
-          host.style.getPropertyValue("width") !== `${he.offsetWidth}px` || host.style.getPropertyValue("height") !== `${he.offsetHeight}px`) {
+          host.style.getPropertyValue("width") !== `${he.offsetWidth}px` || host.style.getPropertyValue("height") !== `${he.offsetHeight}px` ||
+          host.style.getPropertyValue("transform") !== tf) {
         styleHost();
         lastAlign = -Infinity;
       }
@@ -283,6 +349,24 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
       if (!s1ctx) return fail();
       lastT = NaN;
     }
+    // Look like the element: its opacity, blur or other filter, rounded
+    // corners and blend mode carry over, so a see-through "ambient light"
+    // canvas stays see-through and the page behind it stays readable. With
+    // the layer at opacity p over the raw element at p, the raw flashing that
+    // leaks through is p(1-p) <= 0.25 of its swing, under WCAG's 0.10
+    // relative-luminance threshold even for a white/black strobe.
+    const nowL = performance.now();
+    if (nowL - lastLook > 400) {
+      lastLook = nowL;
+      try {
+        if (appearance) look = appearance();
+        canvas.style.opacity = look.opacity < 0.98 ? String(look.opacity) : "";
+        const cs = getComputedStyle(el);
+        canvas.style.filter = cs.filter && cs.filter !== "none" ? cs.filter : "";
+        canvas.style.borderRadius = cs.borderRadius && cs.borderRadius !== "0px" ? cs.borderRadius : "";
+        canvas.style.mixBlendMode = cs.mixBlendMode && cs.mixBlendMode !== "normal" ? cs.mixBlendMode : "";
+      } catch {}
+    }
     const left = mode === "fixed" ? b.left : 0;
     const top = mode === "fixed" ? b.top : 0;
     canvas.style.left = `${left}px`;
@@ -301,14 +385,14 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   }
 
   /**
-   * One filter update. Timing uses the wall clock, not the frame's own
-   * timestamp: after a blocked main thread, queued video-frame callbacks
-   * replay in a burst with timestamps 33 ms apart but the same frame on
-   * screen, and the exact filter would then step the same way several times.
+   * One filter update, timed by the frame's own display timestamp (the
+   * interval between presented frames), so the filter integrates the picture
+   * the viewer actually saw even when our callback ran late; a wall-clock
+   * step would alias a strobe into a slow drift on a busy page.
+   * @param {number} t
    */
-  function onFrame() {
+  function onFrame(t) {
     if (stopped) return;
-    const t = performance.now();
     if (el instanceof HTMLImageElement && (!el.complete || el.naturalWidth === 0)) return;
     if (el instanceof HTMLCanvasElement && (el.width === 0 || el.height === 0)) return;
     // Filter update on the GPU: s1 += a (x - s1), s2 += a (s1 - s2).
@@ -316,19 +400,40 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     // most of the way to the new frame in one step; MAX_STEP keeps every
     // update a gentle fraction instead. The first frame is a = 1 on purpose.
     const dt = Number.isFinite(lastT) ? Math.max(0, t - lastT) : Infinity;
-    const a = dt === Infinity ? 1 : Math.min(MAX_STEP, 1 - Math.exp(-dt / 1000 / DEFAULT_TAU));
     lastT = t;
     try {
-      s1ctx.globalAlpha = a;
-      s1ctx.drawImage(el, 0, 0, ow, oh);
-      dctx.globalAlpha = a;
-      dctx.drawImage(stage1, 0, 0, ow, oh);
+      if (stage === "limit") {
+        // Raw frame to stage1, measure its mean brightness from a tiny copy,
+        // then show it scaled so the brightness follows the running level.
+        s1ctx.globalAlpha = 1;
+        s1ctx.drawImage(el, 0, 0, ow, oh);
+        lctx.drawImage(stage1, 0, 0, LUMA_W, LUMA_H);
+        const d = lctx.getImageData(0, 0, LUMA_W, LUMA_H).data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4) sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+        const mean = sum / (d.length / 4) / 255;
+        if (!Number.isFinite(level)) level = mean;
+        const k = dt === Infinity ? 1 : 1 - Math.exp(-dt / 1000 / LIMIT_TAU);
+        const target = level; // the level the frame is held to...
+        level += k * (mean - level); // ...which itself drifts slowly toward the picture
+        const gain = mean > 0.002 ? Math.min(LIMIT_MAX_GAIN, Math.max(LIMIT_MIN_GAIN, target / mean)) : 1;
+        dctx.globalAlpha = 1;
+        dctx.filter = Math.abs(gain - 1) < 0.01 ? "none" : `brightness(${gain.toFixed(3)})`;
+        dctx.drawImage(stage1, 0, 0, ow, oh);
+        dctx.filter = "none";
+      } else {
+        const a = dt === Infinity ? 1 : Math.min(MAX_STEP, 1 - Math.exp(-dt / 1000 / DEFAULT_TAU));
+        s1ctx.globalAlpha = a;
+        s1ctx.drawImage(el, 0, 0, ow, oh);
+        dctx.globalAlpha = a;
+        dctx.drawImage(stage1, 0, 0, ow, oh);
+      }
     } catch {
       return fail();
     }
     // Verify what is on screen: read the OUTPUT back at a small size and run
-    // the second detector on it. Not every frame: a readback costs about a
-    // millisecond, and the detector needs about 6 samples a second for 3 Hz.
+    // the second detector on it, on every frame of a 30 fps video (a readback
+    // of our own canvas costs well under a millisecond).
     if (t - lastVerify < 1000 / VERIFY_HZ) return;
     lastVerify = t;
     let data;
@@ -339,11 +444,62 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
       return fail();
     }
     const rep = verify.push({ t, pixels: data });
-    // Flashing that got through the filter: fall back to the cover. A "block"
-    // with no reason is the detector's sampling-gap rule (a busy page delayed
-    // our frames); the output is low-passed by construction, so that alone
-    // doesn't fail it.
-    if ((rep.violation || rep.severity === "block") && rep.reason) return fail(rep);
+    // Flashing that got through: the live limiter hands back to the averaging
+    // filter (ghosting, but a 3 Hz full-field flash shrinks to under 0.07
+    // luminance); if averaging lets flashing through, fall back to the cover.
+    // A "block" with no reason is the detector's sampling-gap rule (a busy
+    // page delayed our frames) and doesn't fail anything on its own.
+    if ((rep.violation || rep.severity === "block") && rep.reason) {
+      if (stage === "limit") {
+        stage = "ema";
+        lastT = NaN; // restart the filter from the current frame (no jump)
+        limitRetryAt = t + LIMIT_RETRY_MS;
+        shadowCleanSince = -Infinity;
+        if (++shadowFails >= SHADOW_MAX_FAILS) shadowVerify = null;
+        try {
+          verify.reset();
+          shadowVerify?.reset();
+        } catch {}
+        return;
+      }
+      return fail(rep);
+    }
+    // Shadow trial of the limiter while averaging is shown.
+    if (stage === "ema" && shadowVerify && t >= limitRetryAt) {
+      let rd;
+      try {
+        rctx.drawImage(el, 0, 0, w, h);
+        rd = rctx.getImageData(0, 0, w, h).data;
+      } catch {
+        return;
+      }
+      const m = meanLuma(rd);
+      if (!Number.isFinite(shadowLevel)) shadowLevel = m;
+      const g = limitGain(m, shadowLevel);
+      shadowLevel += (1 - Math.exp(-(1 / VERIFY_HZ) / LIMIT_TAU)) * (m - shadowLevel);
+      if (Math.abs(g - 1) > 0.01) for (let i = 0; i < rd.length; i += 4) {
+        rd[i] *= g;
+        rd[i + 1] *= g;
+        rd[i + 2] *= g;
+      }
+      const srep = shadowVerify.push({ t, pixels: rd });
+      if ((srep.violation || srep.severity === "block") && srep.reason) {
+        shadowCleanSince = -Infinity;
+        if (++shadowFails >= SHADOW_MAX_FAILS) shadowVerify = null; // a real strobe: averaging it is
+        else limitRetryAt = t + LIMIT_RETRY_MS;
+      } else {
+        if (shadowCleanSince === -Infinity) shadowCleanSince = t;
+        if (t - shadowCleanSince >= LIMIT_TRIAL_MS) {
+          // Proven on this content: show the sharp limiter from the current
+          // level (no filter restart, so the first limited frame isn't raw).
+          stage = "limit";
+          level = shadowLevel;
+          try {
+            verify.reset();
+          } catch {}
+        }
+      }
+    }
   }
 
   // Video: one softened frame per decoded video frame. Canvas and images:
@@ -351,15 +507,16 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   const useVfc = isVideo && typeof (/** @type {HTMLVideoElement} */ (el).requestVideoFrameCallback) === "function";
   function scheduleVideo() {
     if (stopped) return;
-    vfc = /** @type {HTMLVideoElement} */ (el).requestVideoFrameCallback(() => {
+    vfc = /** @type {HTMLVideoElement} */ (el).requestVideoFrameCallback((now, meta) => {
       vfc = 0;
-      onFrame();
+      onFrame(meta.expectedDisplayTime || now);
       scheduleVideo();
     });
   }
-  function frameTick() {
+  /** @param {number} now */
+  function frameTick(now) {
     if (stopped) return;
-    onFrame();
+    onFrame(now);
     frameRaf = requestAnimationFrame(frameTick);
   }
 
@@ -428,7 +585,7 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     if (Math.abs(hb.left - r.left) + Math.abs(hb.top - r.top) + Math.abs(hb.width - r.width) + Math.abs(hb.height - r.height) > 2) goFixed();
     place();
   }
-  onFrame();
+  onFrame(performance.now());
   if (stopped) return null;
   if (useVfc) scheduleVideo();
   else frameRaf = requestAnimationFrame(frameTick);
