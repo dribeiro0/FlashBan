@@ -1,0 +1,22 @@
+# Demo fixtures
+
+Synthetic test pages for the Seizure Shield extension. **They contain flashing content.** Every stimulus is generated in the page (no downloaded media), dim (#222222 and #777777), bounded (3 s by default, `?seconds=1..10`), and starts only after you press Start. Stop, Escape, leaving the window or hiding the tab ends a run. With reduced motion on, the moving fixtures stay static.
+
+Run:
+
+```bash
+node demo/serve.mjs
+```
+
+Then open http://localhost:8080/ with the unpacked extension loaded. (Opening the files directly also works if "Allow access to file URLs" is on for the extension.)
+
+| Page | Source | Rate | `shield-expected` |
+|---|---|---|---|
+| canvas.html | 2D canvas, requestAnimationFrame | 4 cycles/s | block |
+| css.html | `@keyframes` background-color | 4 cycles/s | block |
+| dom.html | JS class toggle | 4 cycles/s | block |
+| video.html | same-origin blob: video recorded from a hidden canvas | 4 cycles/s | block |
+| slow-canvas.html | 2D canvas | 1 cycle/s | allow |
+| static.html | no motion | none | allow |
+
+Stimulus area is 320 by 180 CSS px (57,600 px), above the 21,824 px WCAG area threshold at 100% zoom. Each light/dark change is about 0.17 in relative luminance (over 0.10), with the dark state below 0.80. The meta tag is the intended verdict, not a measurement: record the detector's actual output when testing.
