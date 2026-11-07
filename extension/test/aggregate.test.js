@@ -73,7 +73,56 @@ test("strict preset uses the strict area (10,912 px)", () => {
   assert.equal(agg.result(1000).violation, true);
 });
 
+// ---- Area rule v2 with rects: the best 341 x 256 field ----
+
+/** 16 tiles of 80 x 60 CSS px (4,800 px each) laid out from (x0, y0) with a gap. */
+function tiles(agg, x0, y0, gap, t = 1000) {
+  for (let i = 0; i < 16; i++) {
+    const col = i % 4;
+    const row = Math.floor(i / 4);
+    const rect = { left: x0 + col * (80 + gap), top: y0 + row * (60 + gap), width: 80, height: 60 };
+    agg.update({ id: `tile${i}`, t, areaPx: 4800, rect });
+  }
+}
+
+test("T2 split-area tiles: 16 contiguous 80x60 tiles (320 x 240) still violate", () => {
+  const agg = createAggregator("wcag");
+  tiles(agg, 100, 100, 0);
+  const r = agg.result(1000);
+  assert.equal(r.violation, true);
+  assert.equal(r.totalAreaPx, 76800);
+  assert.equal(r.ids.length, 16);
+});
+
+test("G8: the same tiles spread far apart across the screen don't share one field", () => {
+  const agg = createAggregator("wcag");
+  tiles(agg, 0, 0, 400); // 480 px between tile origins: one tile per field
+  const r = agg.result(1000);
+  assert.equal(r.violation, false);
+  assert.equal(r.totalAreaPx, 4800);
+});
+
+test("G9: a tile only partly inside the field counts only that part", () => {
+  const agg = createAggregator("wcag");
+  // Two 300 x 100 elements (30,000 px each), side by side: one field holds at most 341 px of width.
+  agg.update({ id: "a", t: 1000, areaPx: 30000, rect: { left: 0, top: 0, width: 300, height: 100 } });
+  agg.update({ id: "b", t: 1000, areaPx: 30000, rect: { left: 300, top: 0, width: 300, height: 100 } });
+  const r = agg.result(1000);
+  assert.equal(r.violation, true);
+  assert.equal(r.totalAreaPx, 34100); // 341 x 100 of flashing inside the best field
+});
+
+test("G10: reports without a rect count in every field (conservative)", () => {
+  const agg = createAggregator("wcag");
+  agg.update({ id: "far", t: 1000, areaPx: 12000, rect: { left: 5000, top: 5000, width: 200, height: 60 } });
+  agg.update({ id: "norect", t: 1000, areaPx: 12000 });
+  assert.equal(agg.result(1000).violation, true);
+});
+
 test("fail closed: malformed areas count as infinite, bad t blocks, no throw", () => {
+  const withRect = createAggregator("wcag");
+  withRect.update({ id: "bad", t: 1000, areaPx: NaN, rect: { left: 0, top: 0, width: 10, height: 10 } });
+  assert.equal(withRect.result(1000).violation, true, "a rect doesn't clamp a malformed area");
   const agg = createAggregator("wcag");
   agg.update({ id: "bad", t: 1000, areaPx: NaN });
   const r = agg.result(1000);

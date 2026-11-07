@@ -47,18 +47,21 @@ No real media and nothing that is shown on a screen. Every vector is generated a
 
 ## 3. Area
 
-All area vectors run 4 Hz (violating rate) on a `64 x 36` frame, `realAreaScale = 8`. Area threshold for `wcag` is 21,824 px. Pixels outside the flashing region stay constant at DARK.
+All area vectors run 4 Hz (violating rate) on a `64 x 36` frame, `realAreaScale = 8`. Area threshold for `wcag` is 21,824 px. Pixels outside the flashing region stay constant at DARK. Since area rule v2 (DESIGN s5), `areaPx` is the concurrent area inside the best 341 x 256 CSS px field, which is **43 x 32 sample px** at scale 8. So regions are now compact rectangles `[x, y, w, h]` (they used to be index strips wrapping across the whole 64-px-wide frame, which no longer fit one field).
 
 | ID | Flashing region | Expected |
 |---|---|---|
-| R1 | Whole frame (2,304 sample px, 147,456 px) | **violation**, `areaPx` 147,456 |
-| R2 | 341 sample px (`areaPx` 21,824, exactly the threshold) | none (a tie passes), `areaPx` 21,824 |
-| R3 | 342 sample px (`areaPx` 21,888) | **violation** |
-| R4 | 10 sample px (640 px) | none; `flashesPerSecond` still reports 4 (above the 1% display floor) |
-| R5 | Two disjoint 200-px regions flashing **out of phase** with each other at 4 Hz (400 sample px, 25,600 px) | **violation** (concurrent area is the union, phase does not matter) |
-| R6 | 341 sample px flashing at 4 Hz and a second region of 300 px flashing at 2 Hz | violation decided on the 4 Hz pixels only: none (2 Hz pixels do not exceed the flash limit and do not add to the area) |
+| R1 | Whole frame (2,304 sample px) | **violation**, `areaPx` 88,064 (one 43 x 32 field; was 147,456 under v1) |
+| R2 | 31 x 11 = 341 sample px (`areaPx` 21,824, exactly the threshold) | none (a tie passes), `areaPx` 21,824 |
+| R3 | 38 x 9 = 342 sample px (`areaPx` 21,888) | **violation** |
+| R4 | 10 x 1 sample px (640 px) | none; `flashesPerSecond` still reports 4 (above the 1% display floor) |
+| R5 | Two 20 x 10 blocks in one field, flashing **out of phase** at 4 Hz (400 sample px, 25,600 px) | **violation**. They flip at the same instants (one up, one down), so they are concurrent under any overlap rule |
+| R6 | 31 x 11 at 4 Hz plus 30 x 10 at 2 Hz | none, `areaPx` 21,824 (2 Hz pixels don't exceed the flash limit and don't add) |
 | R7 | `areaPct` check: 341 px region on a 2,304 px frame | `areaPct` is 341/2304 of the visible area; asserts the HUD number, not the verdict |
-| R8 | `realAreaScale` 4 instead of 8, 341 sample px | `areaPx` 5,456, none. Same pixels, different scale, proves the scale is applied |
+| R8 | `realAreaScale` 4 instead of 8, 31 x 11 | `areaPx` 5,456, none. Proves the scale is applied |
+| R9 | (b) Two 20 x 10 blocks 44 sample px apart (too far for one field) | none, `areaPx` 12,800 |
+| R10 | (c) Two 20 x 10 blocks at 4 Hz, the second lagging 62 ms (quarter period, never flipping at the same instant) | **violation**, `areaPx` 25,600. The half-cycle slack keeps phase-shifted strobes together (anti-evasion) |
+| R11 | (c) Two 20 x 10 blocks, each one 10 Hz burst of 8 transitions: one at 25–375 ms, the other at 625–975 ms | none (their flashing doesn't overlap in time). The same two bursts at the same time: **violation** |
 
 ## 4. Aggregation across elements (threat T2)
 
@@ -73,6 +76,10 @@ Tested on `createAggregator(preset)` (`update(r)` and `result(t)`) with syntheti
 | G5 | Same id reports twice in one window | counted once, latest report only |
 | G6 | Sum exactly 21,824 | none; 21,825 or more is a violation |
 | G7 | Red areas from several ids exceeding the threshold while general area does not | violation, reason `red` |
+| T2 tiles | 16 contiguous 80 x 60 CSS px tiles with rects (320 x 240, 4,800 px each) | **violation**, `totalAreaPx` 76,800, all 16 ids |
+| G8 | The same 16 tiles spread 480 px apart (one tile per field) | none, `totalAreaPx` 4,800 |
+| G9 | Two 300 x 100 elements side by side, 30,000 px each | **violation**, `totalAreaPx` 34,100 (only 341 px of width fits one field) |
+| G10 | One element far away with a rect plus one reported without a rect | the rect-less one counts in every field: **violation** |
 
 ## 5. Slow changes and smooth waveforms
 
@@ -127,7 +134,8 @@ Gray `G128` is about L = 0.216, close to pure red's L = 0.2126, so a swing betwe
 | B5 | Detector internals forced to throw (inject a bad state in a test hook) | `push` returns block, does not propagate |
 | B6 | All-black frames for 5 s | none (valid input) |
 | B7 | All-transparent frames (alpha 0) for 5 s | none (valid input; luminance uses RGB) |
-| B8 | `analyzeAnimation` with a keyframe it cannot read (non-colour property value) | `violation: true` |
+| B8 | `analyzeAnimation` with a keyframe it cannot read (var(), currentColor, color-mix, box-shadow) on a **fast** animation (0.2 s blink) | `violation: true` (unreadable values take the worst case, a full swing) |
+| B8b | The same unreadable values on a **slow** animation (1 s loading pulse) | none, in wcag and strict: it can't exceed the flash limit whatever its colours (changed Nov 7; it used to block outright) |
 
 ## 9. CSS animation path (`analyzeAnimation`, no pixels)
 

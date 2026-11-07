@@ -70,13 +70,19 @@ Per detector (one element): `areaPx` = (number of pixels with more than `F` flas
 
 Violation for one element: `areaPx > AREA_PX[preset]` and `flashes > F` (the pixel count already enforces the second part).
 
+**Area rule v2 (Nov 7, `area.js`).** WCAG (Understanding 2.3.1) judges the combined area of flashes occurring *concurrently* within any 10-degree field, i.e. a 341 x 256 CSS px rectangle. So `areaPx` is now the smaller of two upper bounds, which never under-counts the true joint maximum:
+- **Spatial (b):** the most over-limit pixels inside any 341 x 256 CSS px box, in either orientation (summed-area table, O(P)). An element smaller than the box counts in full.
+- **Temporal (c):** pixels count together only if their flashing overlaps in time. Each over-limit pixel's span (first to last transition in the window) is widened by **half of its own average transition interval** (a half-cycle slack), and we take the largest number of spans open at one instant (1 ms buckets, linear time). With that slack, two regions strobing at a similar rate always overlap whatever their phase, so a phase-shifted checkerboard can't slip through (R10). But a burst early in the window and a different burst late in it don't add up (R11). We chose the wide slack over a narrow "within 50 ms" rule on purpose: a narrow rule would let an attacker offset regions by a few frames.
+- Both refinements only run when the plain count is already over the limit, so the common case costs nothing extra. Worst case (full-frame strobe at 128 x 72) is about 0.35 ms per push.
+- `areaPct` stays the share of the element flashing at all (display only).
+
 T2 says an attacker splits one big flash into many small elements, each under the threshold. WCAG also measures concurrent area on the screen, not per element, so the fix is spec-aligned:
 
 - `createAggregator()` is a pure helper owned by detection, **called by the content script**, because only the content script knows element rectangles.
 - Each element detector reports `{ id, t, areaPx, redAreaPx, rect }` (rect in viewport CSS px, optional) after every sample.
 - Aggregator keeps the latest report per id. A report older than `WINDOW_MS` is dropped (the element stopped being sampled or left the viewport).
-- v1 rule (shipping): **sum** `areaPx` over all current ids. If the sum `> AREA_PX[preset]`, the page violates, even though no element does. This over-counts when far-apart elements flash (the spec only sums within one 10 degree field), which errs towards flagging. Documented as a known conservative choice.
-- v2 rule (stretch, only if time): bin by `rect` and sum within any 341 x 256 CSS px box, using a sliding box over the rect centres.
+- v1 rule (shipped first): **sum** `areaPx` over all current ids. If the sum `> AREA_PX[preset]`, the page violates, even though no element does. This over-counts when far-apart elements flash.
+- **v2 rule (shipping since Nov 7):** the best 341 x 256 CSS px field over the element rects, in either orientation. Candidate fields are anchored at every rect's edges. An element contributes `min(its areaPx, its rect's overlap with the field)`, an upper bound that never under-counts. Elements reported **without** a rect, or with a malformed area, count in full in every field (fail closed); with no rects at all this is exactly v1. The 16 contiguous 80 x 60 tiles of T2 (320 x 240) still violate; the same tiles spread far apart don't (G8).
 - The aggregator returns which ids contributed, so the content script can guard all of them, not just the biggest.
 
 An attacker can still use hundreds of tiny iframes to exhaust CPU: that is T5 and is handled by the budget below.

@@ -86,11 +86,24 @@ test("C9: playbackRate 2 on 250 ms uses the effective rate (8 cycles/s)", () => 
   assert.equal(analyzeAnimation(anim(frames, { duration: 250 })).cyclesPerSecond, 4);
 });
 
-test("B8: an unreadable colour value fails closed", () => {
+test("B8: an unreadable value fails closed when the animation is fast", () => {
   for (const v of ["currentColor", "var(--x)", "color-mix(in srgb, red, blue)", 42]) {
-    const r = analyzeAnimation(anim([{ backgroundColor: "#000" }, { backgroundColor: v }], { duration: 1000 }));
-    assert.equal(r.violation, true, String(v));
+    // 0.2 s blink: worst case is a full swing 10 times a second.
+    const fast = analyzeAnimation(anim([{ backgroundColor: "#000" }, { backgroundColor: v }], { duration: 200 }));
+    assert.equal(fast.violation, true, `fast ${String(v)}`);
   }
+  // Every value unreadable still alternates worst-case, so a fast blink is caught.
+  const allUnknown = anim([{ backgroundColor: "var(--a)" }, { backgroundColor: "var(--b)" }], { duration: 200 });
+  assert.equal(analyzeAnimation(allUnknown).violation, true);
+});
+
+test("B8b: a slow animation with unreadable values passes (1 s loading pulse with var())", () => {
+  const pulse = anim([{ backgroundColor: "var(--brand)" }, { backgroundColor: "var(--brand-light)" }], {
+    duration: 1000,
+    direction: "alternate",
+  });
+  assert.equal(analyzeAnimation(pulse).violation, false);
+  assert.equal(analyzeAnimation(pulse, { preset: "strict" }).violation, false);
 });
 
 test("fail closed: missing effect, bad timing, or a throwing object", () => {
@@ -99,7 +112,9 @@ test("fail closed: missing effect, bad timing, or a throwing object", () => {
   assert.equal(analyzeAnimation(anim([{ opacity: 0 }, { opacity: 1 }], { duration: NaN })).violation, true);
   const evil = { effect: { getKeyframes() { throw new Error("x"); }, getComputedTiming: () => ({ duration: 1 }) } };
   assert.equal(analyzeAnimation(evil).violation, true);
-  assert.equal(analyzeAnimation(anim([{ boxShadow: "0 0 4px red" }, { boxShadow: "none" }], { duration: 1000 })).violation, true);
+  // Unmodelled properties (box-shadow, gradients) are worst case: fast fails, slow passes.
+  assert.equal(analyzeAnimation(anim([{ boxShadow: "0 0 4px red" }, { boxShadow: "none" }], { duration: 150 })).violation, true);
+  assert.equal(analyzeAnimation(anim([{ boxShadow: "0 0 4px red" }, { boxShadow: "none" }], { duration: 1500, direction: "alternate" })).violation, false);
 });
 
 test("geometry-only animations (spinners, slides) pass", () => {

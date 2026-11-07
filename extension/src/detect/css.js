@@ -323,36 +323,36 @@ export function analyzeAnimation(a, opts = {}) {
     let steadyPerSecond = 0;
 
     for (const p of props) {
-      if (UNMODELLED.has(p)) return { ...BLOCK };
-      if (!COLOUR_PROPS.has(p) && p !== "opacity" && p !== "visibility" && p !== "filter") continue; // geometry
+      const unmodelled = UNMODELLED.has(p);
+      if (!unmodelled && !COLOUR_PROPS.has(p) && p !== "opacity" && p !== "visibility" && p !== "filter") continue; // geometry
+      // Values we can't read (var(), currentColor, box-shadow, gradients...)
+      // are NOT an automatic block any more: they take the worst case (a full
+      // swing at that keyframe), and the timing decides. A fast animation with
+      // unreadable values still violates (fail closed); a slow one, such as a
+      // 1 s loading pulse, can't exceed the flash limit whatever its colours.
       /** @type {(number | null)[]} */
       const lows = [];
       /** @type {(number | null)[]} */
       const highs = [];
       for (const f of frames) {
-        if (!(p in f)) {
-          lows.push(null);
-          highs.push(null);
-          continue;
-        }
-        const b = luminanceOf(p, f[p], backdrop);
-        if (!b) return { ...BLOCK };
-        lows.push(b[0]);
-        highs.push(b[1]);
+        const b = !unmodelled && p in f ? luminanceOf(p, f[p], backdrop) : null;
+        lows.push(b ? b[0] : null);
+        highs.push(b ? b[1] : null);
       }
-      // Worst-case single value per keyframe: alternate between the bounds so
-      // neighbouring keyframes are as far apart as the bounds allow; a missing
-      // value takes the extreme opposite of its neighbours.
+      // Worst-case single value per keyframe, filled in order so neighbouring
+      // keyframes are as far apart as the bounds allow; an unknown value takes
+      // the extreme opposite of the previous one (so all-unknown alternates 0/1).
       const known = lows.map((l, k) => (l === null ? null : (l + /** @type {number} */ (highs[k])) / 2));
+      let prev = known.find((v) => v !== null) ?? 1;
       const values = known.map((v, k) => {
+        let out;
         if (v !== null) {
-          const prev = known[k - 1] ?? known[k + 1] ?? 0;
-          const lo = /** @type {number} */ (lows[k]);
-          const hi = /** @type {number} */ (highs[k]);
-          return prev >= v ? lo : hi;
+          out = prev >= v ? /** @type {number} */ (lows[k]) : /** @type {number} */ (highs[k]);
+        } else {
+          out = prev >= 0.5 ? 0 : 1;
         }
-        const neighbour = known[k - 1] ?? known[k + 1] ?? 0.5;
-        return neighbour >= 0.5 ? 0 : 1;
+        prev = out;
+        return out;
       });
       const vmin = Math.min(...values);
       const vmax = Math.max(...values);
