@@ -120,15 +120,32 @@ export function createDetector(opts) {
 
   /** @type {FlashReport} */
   let last = calmReport();
+  // Time handling. The caller's clock (`t`) can jump backwards (seek, loop).
+  // Internally we keep a continuous clock `now = t + offset`, because the
+  // viewer sees continuous flashing even when mediaTime loops: a looping
+  // strobe must keep its history, never reset its way to a clean report.
   /** @type {number | null} */
-  let lastT = null;
-  /** After a reset caused by time going backwards, hold "warn" until this time. */
+  let lastRaw = null;
+  /** @type {number | null} */
+  let lastNow = null;
+  let offset = 0;
+  let lastStep = 1000 / 60; // last normal sample interval
+  /** Hold "warn" (and undersampled) until this internal time. */
   let warnUntil = -Infinity;
+  let undersampledUntil = -Infinity;
+  /** Internal time when an unbroken run of gaps began, or null. */
+  /** @type {number | null} */
+  let gapRunStart = null;
 
   function clearState() {
     tracker.reset();
-    lastT = null;
+    lastRaw = null;
+    lastNow = null;
+    offset = 0;
+    lastStep = 1000 / 60;
     warnUntil = -Infinity;
+    undersampledUntil = -Infinity;
+    gapRunStart = null;
   }
 
   /** @param {FrameSample} sample @returns {FlashReport} */
@@ -137,26 +154,39 @@ export function createDetector(opts) {
     if (typeof t !== "number" || !Number.isFinite(t)) return blockReport();
     if (!(pixels instanceof Uint8ClampedArray) || pixels.length !== expectedLength) return blockReport();
 
-    if (lastT !== null && t <= lastT) {
+    if (lastRaw !== null && lastNow !== null && t <= lastRaw) {
       // Equal or slightly earlier timestamp: ignore, no double counting.
-      if (lastT - t <= BACKWARDS_RESET_MS) return last;
-      // Seek or loop: start over, but hold "warn" for one window so a looping
-      // strobe cannot reset its way to a clean report.
-      tracker.reset();
-      lastT = null;
-      warnUntil = t + WINDOW_MS;
+      if (lastRaw - t <= BACKWARDS_RESET_MS) return last;
+      // Seek or loop: continue the internal clock one normal step later and
+      // hold "warn" for one window.
+      offset = lastNow + lastStep - t;
+      warnUntil = t + offset + WINDOW_MS;
     }
 
-    const dt = lastT === null ? 0 : t - lastT;
-    lastT = t;
+    const now = t + offset;
+    const dt = lastNow === null ? 0 : now - lastNow;
+    lastRaw = t;
+    lastNow = now;
+
+    // Gap rule: a gap over GAP_MS may hide flashes. Mark undersampled and warn
+    // for one window; gaps that persist for a whole window block (fail closed).
+    let gapBlock = false;
+    if (dt > GAP_MS) {
+      if (gapRunStart === null) gapRunStart = now - dt;
+      undersampledUntil = now + WINDOW_MS;
+      if (now - gapRunStart >= WINDOW_MS) gapBlock = true;
+    } else {
+      if (dt > 0) lastStep = dt;
+      gapRunStart = null;
+    }
 
     lumaFrame(pixels, luma);
-    tracker.update(luma, t);
+    tracker.update(luma, now);
 
     histogram.fill(0);
     let over = 0;
     for (let i = 0; i < count; i++) {
-      const n = tracker.countInWindow(i, t);
+      const n = tracker.countInWindow(i, now);
       if (n >= minTransitions) over++;
       histogram[Math.min(MAX_COUNT, Math.ceil(n / 2))]++;
     }
@@ -175,14 +205,19 @@ export function createDetector(opts) {
     report.flashesPerSecond = flashes;
     report.areaPx = over * pxArea;
     report.areaPct = over / count;
+    const undersampled = now < undersampledUntil;
+    report.undersampled = undersampled;
     if (report.areaPx > preset.areaPx) {
       report.violation = true;
       report.severity = "block";
       report.reason = "general";
-    } else if (dt > GAP_MS || t < warnUntil) {
+    } else if (gapBlock) {
+      // Can't verify: sampled too slowly for a whole window.
+      report.violation = true;
+      report.severity = "block";
+    } else if (undersampled || now < warnUntil) {
       report.severity = "warn";
     }
-    if (dt > GAP_MS) report.undersampled = true;
     return report;
   }
 

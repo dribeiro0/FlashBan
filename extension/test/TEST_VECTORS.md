@@ -109,11 +109,11 @@ Gray `G128` is about L = 0.216, close to pure red's L = 0.2126, so a swing betwe
 | T3 | 4 Hz square wave with seeded jittered intervals between 8 and 40 ms | **violation**. Intervals stay under the 100 ms gap limit, so no `undersampled` |
 | T4 | 4 Hz wave, then a 150 ms gap with no samples, then it resumes | `undersampled` true and `severity` at least `warn` for the report after the gap; back to normal after a window |
 | T5 | 4 Hz square wave sampled **at 4 Hz on phase** (aliasing: every sample sees the same level), 3 s | `undersampled` true, severity at least `warn` (and `block` after a full window of such gaps). Never a clean `none` |
-| T6 | Video-style timestamps: samples at `mediaTime * 1000`, then a backwards jump of 1,000 ms (seek) | detector resets and holds `warn` for one window; no throw |
-| T7 | Looping strobe: 800 ms of 4 Hz, jump back to 0, repeat | still reaches a violation within a few loops (the reset does not clear the `warn` hold early) |
+| T6 | Video-style timestamps: samples at `mediaTime * 1000`, then a backwards jump of 1,000 ms (seek) | holds `warn` for one window; no throw. Implementation note: instead of a hard reset, the detector keeps a continuous internal clock (one normal step after the last sample), so history survives the jump |
+| T7 | Looping strobe: 800 ms of 4 Hz, jump back to 0, repeat | still reaches a violation within a few loops (the continuous clock keeps transitions across the loop point; a hard reset would never see 7) |
 | T8 | Two samples with identical `t` | second one ignored, no double counting, no throw |
 | T9 | Long safe intro: constant for 30 s, then 4 Hz begins at `t0` (threat T8) | violation by `t0 + 1000` ms at the latest |
-| T10 | Time-to-detect: 4 Hz begins at `t0`, 60 fps | violation within about 900 ms (the 7th transition lands 750 to 875 ms after onset); record the actual number, edit this row |
+| T10 | Time-to-detect: 4 Hz begins at `t0`, 60 fps | violation within about 900 ms (the 7th transition lands 750 to 875 ms after onset). **Measured: 750 ms** (Nov 7, step 2 detector) |
 
 ## 8. Bad input, fail closed
 
