@@ -2,8 +2,8 @@
 // Pure module: no DOM, no chrome.*, no Node built-ins. Time is always the `t`
 // the caller passes in. Never throws: unreadable input fails closed.
 //
-// Status: general flash (luminance) with area, wcag/strict/relaxed limits.
-// Red flash and the full timing rules land in later steps (BUILD_ORDER).
+// Status: general flash and red flash with area, timing rules, presets.
+// createAggregator and analyzeAnimation land in later steps (BUILD_ORDER).
 
 import {
   WINDOW_MS,
@@ -16,6 +16,20 @@ import {
 } from "./presets.js";
 import { lumaFrame } from "./luma.js";
 import { createTracker, RING } from "./tracker.js";
+import { createRedTracker } from "./red.js";
+
+/**
+ * Highest flash count f such that at least `floor` pixels have f or more.
+ * @param {Uint32Array} hist @param {number} floor
+ */
+function displayCount(hist, floor) {
+  let atLeast = 0;
+  for (let f = hist.length - 1; f >= 1; f--) {
+    atLeast += hist[f];
+    if (atLeast >= floor) return f;
+  }
+  return 0;
+}
 
 /** Most flashes a pixel can show in one window (ring size / 2). */
 const MAX_COUNT = RING / 2;
@@ -116,7 +130,9 @@ export function createDetector(opts) {
 
   const luma = new Float32Array(count);
   const tracker = createTracker(count, { delta: LUMA_DELTA, darkLimit: DARKER_STATE_LIMIT });
+  const red = createRedTracker(count);
   const histogram = new Uint32Array(MAX_COUNT + 1);
+  const redHistogram = new Uint32Array(MAX_COUNT + 1);
 
   /** @type {FlashReport} */
   let last = calmReport();
@@ -139,6 +155,7 @@ export function createDetector(opts) {
 
   function clearState() {
     tracker.reset();
+    red.reset();
     lastRaw = null;
     lastNow = null;
     offset = 0;
@@ -182,35 +199,40 @@ export function createDetector(opts) {
 
     lumaFrame(pixels, luma);
     tracker.update(luma, now);
+    red.update(pixels, now);
 
     histogram.fill(0);
+    redHistogram.fill(0);
     let over = 0;
+    let redOver = 0;
+    let redPairs = 0; // pixels with at least one red flash pair (strict rule)
     for (let i = 0; i < count; i++) {
       const n = tracker.countInWindow(i, now);
       if (n >= minTransitions) over++;
       histogram[Math.min(MAX_COUNT, Math.ceil(n / 2))]++;
-    }
-    // Highest flash count f such that at least displayFloor pixels have f or more.
-    let flashes = 0;
-    let atLeast = 0;
-    for (let f = MAX_COUNT; f >= 1; f--) {
-      atLeast += histogram[f];
-      if (atLeast >= displayFloor) {
-        flashes = f;
-        break;
-      }
+      const m = red.countInWindow(i, now);
+      if (m >= minTransitions) redOver++;
+      if (m >= 2) redPairs++;
+      redHistogram[Math.min(MAX_COUNT, Math.ceil(m / 2))]++;
     }
 
     const report = calmReport(dt > 0 ? 1000 / dt : 0);
-    report.flashesPerSecond = flashes;
+    report.flashesPerSecond = displayCount(histogram, displayFloor);
+    report.redFlashesPerSecond = displayCount(redHistogram, displayFloor);
     report.areaPx = over * pxArea;
     report.areaPct = over / count;
+    report.redAreaPx = redOver * pxArea;
     const undersampled = now < undersampledUntil;
     report.undersampled = undersampled;
-    if (report.areaPx > preset.areaPx) {
+
+    const general = report.areaPx > preset.areaPx;
+    // Strict: any red flash pair is a violation, area ignored except the
+    // display floor (1% of the area threshold) so one stray pixel can't trip it.
+    const redHit = report.redAreaPx > preset.areaPx || (preset.anyRedFlash && redPairs >= displayFloor);
+    if (general || redHit) {
       report.violation = true;
       report.severity = "block";
-      report.reason = "general";
+      report.reason = general && redHit ? "both" : general ? "general" : "red";
     } else if (gapBlock) {
       // Can't verify: sampled too slowly for a whole window.
       report.violation = true;

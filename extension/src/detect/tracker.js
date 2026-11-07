@@ -8,6 +8,40 @@ import { WINDOW_MS } from "./presets.js";
 export const RING = 8;
 
 /**
+ * Per-pixel ring of transition times and the half-open window count.
+ * @param {number} count
+ */
+export function createRing(count) {
+  const ring = new Float64Array(count * RING);
+  const head = new Uint8Array(count);
+  function clear() {
+    ring.fill(-Infinity);
+    head.fill(0);
+  }
+  clear();
+  return {
+    /** @param {number} i @param {number} t */
+    register(i, t) {
+      const h = (head[i] + 1) & (RING - 1);
+      head[i] = h;
+      ring[i * RING + h] = t;
+    },
+    /** Transitions of pixel i in (t - WINDOW_MS, t]. @param {number} i @param {number} t */
+    countInWindow(i, t) {
+      const from = t - WINDOW_MS;
+      let n = 0;
+      const base = i * RING;
+      for (let k = 0; k < RING; k++) {
+        const s = ring[base + k];
+        if (s > from && s <= t) n++;
+      }
+      return n;
+    },
+    clear,
+  };
+}
+
+/**
  * @param {number} count  number of pixels
  * @param {{ delta: number, darkLimit: number }} rule
  *   delta: minimum swing between extrema; darkLimit: a transition counts only
@@ -23,25 +57,17 @@ export function createTracker(count, { delta, darkLimit }) {
   // Falling swing confirmed while still at or above darkLimit: register the
   // transition once (if) the fall goes below the limit.
   const pending = new Uint8Array(count);
-  const ring = new Float64Array(count * RING);
-  const head = new Uint8Array(count);
+  const ring = createRing(count);
+  const register = ring.register;
   let started = false;
 
   function clear() {
     dir.fill(0);
     pending.fill(0);
-    ring.fill(-Infinity);
-    head.fill(0);
+    ring.clear();
     started = false;
   }
   clear();
-
-  /** @param {number} i @param {number} t */
-  function register(i, t) {
-    const h = (head[i] + 1) & (RING - 1);
-    head[i] = h;
-    ring[i * RING + h] = t;
-  }
 
   return {
     count,
@@ -110,20 +136,8 @@ export function createTracker(count, { delta, darkLimit }) {
       }
     },
 
-    /**
-     * Transitions of pixel i inside the half-open window (t - WINDOW_MS, t].
-     * @param {number} i @param {number} t
-     */
-    countInWindow(i, t) {
-      const from = t - WINDOW_MS;
-      let n = 0;
-      const base = i * RING;
-      for (let k = 0; k < RING; k++) {
-        const s = ring[base + k];
-        if (s > from && s <= t) n++;
-      }
-      return n;
-    },
+    /** Transitions of pixel i inside the half-open window (t - WINDOW_MS, t]. */
+    countInWindow: ring.countInWindow,
 
     reset: clear,
   };
