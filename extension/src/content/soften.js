@@ -21,9 +21,14 @@
 // caller calls release() and the layer fades away; if it flashes, promote()
 // switches the label to "Flashing softened" and it stays.
 //
-// The canvas lives in its own closed shadow root inside a top-layer popover,
-// like the safe-mode overlay, so page CSS can't hide or restyle it. It takes
-// no pointer events, so the page's own controls stay usable.
+// Placement: the canvas lives in its own closed shadow root and takes no
+// pointer events, so the page's controls keep working. By default ("inline")
+// the host sits right after the media in the DOM, absolutely positioned over
+// it at the media's own stacking level, so a player's controls, captions and
+// menus (later siblings, higher z-index) stay VISIBLE above the softened
+// picture. If the layout doesn't line up (transforms, unusual containing
+// blocks) it falls back to "fixed": a top-layer popover over the media's
+// viewport rect, like the safe-mode overlay, which covers the controls too.
 
 import { DEFAULT_TAU } from "../detect/soften.js";
 
@@ -40,6 +45,7 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const CSS = `
   .layer { position: fixed; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0;
            background: transparent; overflow: hidden; pointer-events: none; }
+  .layer:not([popover]) { position: absolute; overflow: visible; }
   .layer::backdrop { display: none; }
   canvas { position: absolute; left: 0; top: 0; display: block; pointer-events: none; image-rendering: auto;
            opacity: 1; transition: opacity ${FADE_MS}ms linear; }
@@ -122,18 +128,39 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
 
   // Display layer.
   const host = document.createElement(TAG);
-  for (const [p, v] of [
-    ["display", "block"], ["position", "fixed"], ["top", "0"], ["left", "0"], ["width", "0"], ["height", "0"],
-    ["margin", "0"], ["padding", "0"], ["border", "0"], ["overflow", "visible"], ["visibility", "visible"],
-    ["opacity", "1"], ["filter", "none"], ["transform", "none"], ["pointer-events", "none"], ["z-index", "2147483646"],
-  ]) host.style.setProperty(p, v, "important");
-  const hostStyle = host.getAttribute("style") || "";
+  /** @type {"inline" | "fixed"} */
+  let mode = el.parentNode ? "inline" : "fixed";
+  let hostStyle = "";
+  const COMMON_STYLE = [
+    ["display", "block"], ["margin", "0"], ["padding", "0"], ["border", "0"], ["overflow", "visible"],
+    ["visibility", "visible"], ["opacity", "1"], ["filter", "none"], ["transform", "none"], ["pointer-events", "none"],
+    ["box-sizing", "border-box"], ["max-width", "none"], ["max-height", "none"], ["inset", "auto"],
+  ];
+  /** Write the host's style for the current mode; the tamper check compares against it. */
+  function styleHost() {
+    host.removeAttribute("style");
+    for (const [p, v] of COMMON_STYLE) host.style.setProperty(p, v, "important");
+    if (mode === "fixed") {
+      for (const [p, v] of [["position", "fixed"], ["top", "0"], ["left", "0"], ["width", "0"], ["height", "0"], ["z-index", "2147483646"]]) host.style.setProperty(p, v, "important");
+    } else {
+      const he = /** @type {HTMLElement} */ (el);
+      let z = "auto";
+      try {
+        const cs = getComputedStyle(el);
+        if (cs.position !== "static" && /^-?\d+$/.test(cs.zIndex)) z = cs.zIndex;
+      } catch {}
+      for (const [p, v] of [
+        ["position", "absolute"], ["left", `${he.offsetLeft}px`], ["top", `${he.offsetTop}px`],
+        ["width", `${he.offsetWidth}px`], ["height", `${he.offsetHeight}px`], ["z-index", z],
+      ]) host.style.setProperty(p, v, "important");
+    }
+    hostStyle = host.getAttribute("style") || "";
+  }
   const root = host.attachShadow({ mode: "closed" });
   const style = document.createElement("style");
   style.textContent = CSS;
   const layer = document.createElement("div");
   layer.className = "layer";
-  layer.setAttribute("popover", "manual");
   const canvas = document.createElement("canvas");
   let [ow, oh] = outputSize(r);
   let sizedW = r.width;
@@ -182,24 +209,67 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     // After the first attach, a missing or restyled host means the page is
     // attacking the layer (like overlay-killer does to the cover). Report it so
     // repeated attacks reach the page lockdown, which the page can't undo.
-    if (!host.isConnected) {
+    // (A player re-rendering its DOM once also lands here; the lockdown needs
+    // several hits within two seconds, so a one-off doesn't trigger it.)
+    if (!host.isConnected || (mode === "inline" && host.previousSibling !== el)) {
       if (attachedOnce) onTamper?.();
-      document.documentElement.append(host);
+      if (mode === "inline" && el.parentNode) el.parentNode.insertBefore(host, el.nextSibling);
+      else {
+        mode = "fixed";
+        styleHost();
+        document.documentElement.append(host);
+      }
     }
     if ((host.getAttribute("style") || "") !== hostStyle) {
       if (attachedOnce) onTamper?.();
       host.setAttribute("style", hostStyle);
     }
     attachedOnce = true;
-    if (!layer.matches(":popover-open")) {
+    if (mode === "fixed" && !layer.matches(":popover-open")) {
       try {
         layer.showPopover();
       } catch {}
     }
   }
 
+  /** Switch to the top-layer placement (covers the player's controls too). */
+  function goFixed() {
+    if (mode === "fixed") return;
+    mode = "fixed";
+    try {
+      layer.hidePopover();
+    } catch {}
+    layer.setAttribute("popover", "manual");
+    host.remove();
+    styleHost();
+    attach();
+  }
+
+  let lastAlign = -Infinity;
+  let misaligned = 0;
   function place() {
     const b = el.getBoundingClientRect();
+    if (mode === "inline") {
+      // Keep the host on the media's box (offsets change on resize or theatre
+      // mode) and check now and then that it really lines up; if it doesn't,
+      // the containing block or a transform defeated us: fall back to fixed.
+      const he = /** @type {HTMLElement} */ (el);
+      const now = performance.now();
+      const wantLeft = `${he.offsetLeft}px`;
+      if (host.style.getPropertyValue("left") !== wantLeft || host.style.getPropertyValue("top") !== `${he.offsetTop}px` ||
+          host.style.getPropertyValue("width") !== `${he.offsetWidth}px` || host.style.getPropertyValue("height") !== `${he.offsetHeight}px`) {
+        styleHost();
+        lastAlign = -Infinity;
+      }
+      if (now - lastAlign > 500) {
+        lastAlign = now;
+        const hb = host.getBoundingClientRect();
+        const off = Math.abs(hb.left - b.left) + Math.abs(hb.top - b.top) + Math.abs(hb.width - b.width) + Math.abs(hb.height - b.height);
+        if (off > 2) {
+          if (++misaligned >= 2) goFixed();
+        } else misaligned = 0;
+      }
+    }
     if (Math.abs(b.width - sizedW) > sizedW * RESIZE_PCT || Math.abs(b.height - sizedH) > sizedH * RESIZE_PCT) {
       // The media changed size (theatre mode, a resized window): new output
       // canvases at the new size, restarted from the next frame.
@@ -213,12 +283,14 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
       if (!s1ctx) return fail();
       lastT = NaN;
     }
-    canvas.style.left = `${b.left}px`;
-    canvas.style.top = `${b.top}px`;
+    const left = mode === "fixed" ? b.left : 0;
+    const top = mode === "fixed" ? b.top : 0;
+    canvas.style.left = `${left}px`;
+    canvas.style.top = `${top}px`;
     canvas.style.width = `${b.width}px`;
     canvas.style.height = `${b.height}px`;
-    badge.style.left = `${b.left}px`;
-    badge.style.top = `${b.top}px`;
+    badge.style.left = `${left}px`;
+    badge.style.top = `${top}px`;
   }
 
   /** @param {any} [report] */
@@ -300,7 +372,12 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   }
 
   const onLeave = () => {
-    if (document.pictureInPictureElement === el || (document.fullscreenElement && document.fullscreenElement.contains(el))) fail();
+    if (document.pictureInPictureElement === el) return fail();
+    const fs = document.fullscreenElement;
+    // A player container going fullscreen with our inline host inside it is
+    // fine (the host comes along); the media itself, or a container we're
+    // outside of, is not.
+    if (fs && fs.contains(el) && !(mode === "inline" && fs !== el && fs.contains(host))) fail();
   };
   el.addEventListener("enterpictureinpicture", onLeave);
   document.addEventListener("fullscreenchange", onLeave, true);
@@ -341,8 +418,16 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
 
   // Show the first softened frame immediately (it equals the current frame,
   // so there is no sudden jump: threat T13), then keep filtering.
+  if (mode === "fixed") layer.setAttribute("popover", "manual");
+  styleHost();
   attach();
   place();
+  if (mode === "inline") {
+    // First alignment check right away, before anything is shown.
+    const hb = host.getBoundingClientRect();
+    if (Math.abs(hb.left - r.left) + Math.abs(hb.top - r.top) + Math.abs(hb.width - r.width) + Math.abs(hb.height - r.height) > 2) goFixed();
+    place();
+  }
   onFrame();
   if (stopped) return null;
   if (useVfc) scheduleVideo();
