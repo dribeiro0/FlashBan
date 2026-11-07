@@ -1,0 +1,4 @@
+/* Benign fixtures: reuse ../demo.css; only the theme panel needs extra styles. */
+.theme-panel { display: block; width: 320px; height: 180px; padding: 16px; box-sizing: border-box; background: #1e1e1e; color: #d0d0d0; border: 1px solid #444; }
+.theme-panel.light { background: #bbbbbb; color: #1e1e1e; }
+.theme-panel p { margin: 0 0 8px; }
