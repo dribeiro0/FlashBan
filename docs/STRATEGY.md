@@ -99,7 +99,7 @@ Using a seizure shield **reveals a health condition**, and the local log shows w
 ### 6.2 Two or three things we built (only claim what ships and is tested)
 
 1. **Overlay that page scripts can't remove** (closed shadow root, top layer, a MutationObserver that re-applies it, state kept in the isolated content-script world). Proven by `overlay-killer.html`.
-2. **Fail-closed analysis.** Unreadable media is dimmed and labeled "can't verify". Proven by `tainted.html` and `cpu-flood.html`.
+2. **Fail-closed analysis.** Media we can't check is dimmed and labeled "can't verify" while it plays or animates. To be proven by `tainted.html` and `cpu-flood.html` (not built yet).
 3. **Hardened messaging and minimal permissions.** Background only trusts our own extension's messages, validates every message's shape, and the HUD port only accepts our own HUD page (review check G6). No eval, no remote code, strict CSP.
 4. **Attack harness** (if built): every threat in the model has an automated test, with a pass/fail table.
 
@@ -121,11 +121,11 @@ Websites can tell that FlashBan is installed by probing its web-accessible exten
 
 **What we protect.** Using a seizure shield reveals a health condition, and its log shows where someone browses. So FlashBan collects as little as possible: there are no accounts and no identifiers, the log of flashing sites stays on the user's own computer and stores only the site's domain, and reporting to the shared warning list is off by default and sends only the domain and the detector's numbers. With no login and no server secrets, there are no credentials or keys to leak.
 
-**What we built.** (1) A safe-mode cover that page scripts can't remove: it lives in a closed shadow root and comes back within a frame if deleted. Our attack page tries [N] removals a second and the content stays covered. (2) Fail-closed analysis: anything we can't read, like cross-origin or DRM video, is dimmed and labeled "can't verify" instead of let through. (3) Hardened messaging: the extension only trusts its own messages, validates every one, and uses minimal permissions with no remote code. Our attack suite passes [X] of [7] evasion tests.
+**What we built.** (1) Protection a page can't switch off: our cover lives in a closed shadow root, and if a page keeps deleting it, FlashBan locks the page down with browser-level styles the page can't see or remove. Our attack page is locked down within [330 ms] and the flashing stays hidden. (2) Fail-closed analysis: media we can't check, like cross-origin or DRM video, is dimmed and labeled "can't verify" while it plays, even on a first visit. (3) Hardened messaging: the extension only trusts its own messages, validates every one, and uses no remote code. Our automated attack harness passes [12] of [12] pages, including [5] everyday pages that must not be blocked.
 
 **What's next.** A website can detect that FlashBan is installed by probing its extension files, which could reveal that the user has photosensitive epilepsy. We'd fix it by bundling our scripts into one file so none of them is visible to web pages.
 
-Status check before submitting (Sat 15:15): the overlay currently FAILS `overlay-killer.html` in the harness (the page removes the cover faster than it comes back; reported to Avery). Keep claim (1) and section 6.4 only if the fix lands and the harness passes; otherwise swap (1) for the attack harness itself.
+Status (Sat 15:45): claim (1) is proven: `overlay-killer.html` passes the harness since PR #33 + #35 (lockdown ~330 ms). Claim (2) depends on Avery's auto-dim PR; re-check after it merges. Re-run `node harness/run.mjs` on the frozen build and replace every bracket with its numbers. "What we protect" still mentions reporting to a shared list: drop that clause unless the report API ships and is tested.
 
 ## 7. Upgrades, ranked by what judges reward
 
