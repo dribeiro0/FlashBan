@@ -17,7 +17,12 @@ const SAMPLE_BUDGET_PX = 128 * 72; // pixels per sampled frame (aspect kept)
 const DEGRADED_BUDGET_PX = 64 * 36;
 const MIN_MEDIA_CSS_PX = 16; // ignore media smaller than this on either side
 const GUARD_START_MIN_AREA = 64 * 64; // smaller media skip guarded start
-const WARMUP_MS = 500; // guarded-start dim at least this long (content stays visible, darkened)
+const VIDEO_CHECK_MS = 2000; // a video that starts gets a light, see-through dim for this long
+const PAGE_CHECK_MS = 1200; // the one page-wide "checking" dim, once per page
+// Media we can't analyse (lead decision, Sat 4:10 PM: option B): "always" dims
+// it whether it plays or not; "while-active" is option A (dim only while it
+// plays or animates; uses the background image probe).
+const UNVERIFIABLE_POLICY = "always";
 const WARN_HOLD_MS = 500; // keep a "warn" dim this long after the last warn
 const GAP_WARNS_TO_DIM = 2; // video: ignore one isolated sampling gap; dim when gaps repeat within 1 s
 const HUD_INTERVAL_MS = 100; // max 10 reports per second per source
@@ -74,6 +79,7 @@ let domLoop = 0;
 let lastDriverPrune = 0;
 let lockedDown = false; // page lockdown CSS applied (see onTamper)
 let repeatOffender = false; // this site (or frame) has a past violation in the local log
+let pageCheckDone = false; // the page-wide "checking" dim has been shown on this page
 /** @type {Set<Source>} */ const unverifiables = new Set();
 let unverifiableTimer = 0;
 let animTimer = 0;
@@ -337,6 +343,8 @@ class Source {
     this.cssH = 0;
     /** @type {OffscreenCanvas | null} */ this.canvas = null;
     /** @type {OffscreenCanvasRenderingContext2D | null} */ this.ctx = null;
+    // Dim timers run on performance.now(), never on frame timestamps: video
+    // frame times (rVFC expectedDisplayTime) can be on a different footing.
     this.warmupUntil = 0;
     this.warnUntil = 0;
     this.guardedStartDone = false;
@@ -548,7 +556,7 @@ class Source {
       const hash = quickHash(data);
       changed = this.prevHash === -1 || hash !== this.prevHash;
       if (this.prevHash === -1 || hash !== this.prevHash) {
-        if (this.prevHash !== -1 && !this.guardedStartDone) this.beginGuardedStart(t);
+        if (this.prevHash !== -1 && !this.guardedStartDone) this.beginGuardedStart(performance.now());
         this.lastChange = t;
       } else if (this.kind === "gif" && t - this.lastChange > STATIC_IMAGE_MS) {
         this.stopped = true; // a still image: nothing to watch
@@ -556,7 +564,7 @@ class Source {
       this.prevHash = hash;
     }
     if (this.kind === "video" && !this.guardedStartDone) {
-      this.beginGuardedStart(t);
+      this.beginGuardedStart(performance.now());
     }
 
     let report;
@@ -572,18 +580,29 @@ class Source {
     this.trackCost(readMs, detectMs, changed);
   }
 
-  /** @param {number} t */
-  beginGuardedStart(t) {
+  /**
+   * Guarded start (lead decision, Sat 4:10 PM): one light page-wide dim the
+   * first time media appears, instead of a dim on every element, and a light
+   * see-through dim for a few seconds on a video that starts. The detector
+   * still covers or softens anything that flashes, usually within 0.3-1 s.
+   * @param {number} now  performance.now()
+   */
+  beginGuardedStart(now) {
     this.guardedStartDone = true;
+    if (!(settings.guardedStart || repeatOffender)) return;
+    if (this.kind !== "video") {
+      pageCheckOnce();
+      return;
+    }
     let area = this.cssW * this.cssH;
     if (!area) {
       const r = this.el.getBoundingClientRect(); // before the first sample (e.g. on "play")
       area = r.width * r.height;
     }
-    if (!(settings.guardedStart || repeatOffender) || area < GUARD_START_MIN_AREA) return;
+    if (area < GUARD_START_MIN_AREA) return;
     if (safemode.isGuarded(this.el) || safemode.wasShownByUser(this.el)) return;
-    this.warmupUntil = t + WARMUP_MS;
-    safemode.guard(this.el, "dim", REASONS.checking, { canShow: false });
+    this.warmupUntil = now + VIDEO_CHECK_MS;
+    safemode.guard(this.el, "dim", REASONS.checking, { canShow: false, light: true });
   }
 
   /** @param {number} readMs @param {number} detectMs @param {boolean} changed */
@@ -634,12 +653,17 @@ class Source {
       return;
     }
     if (report.severity === "warn") {
-      this.warnUntil = t + WARN_HOLD_MS;
-      if (!safemode.isGuarded(el)) safemode.guard(el, "dim", REASONS.checking, { canShow: false });
+      // Only videos get a (light) dim for a warn; other elements keep being
+      // checked without a dim on every piece. A real violation still covers.
+      if (this.kind === "video") {
+        this.warnUntil = performance.now() + WARN_HOLD_MS;
+        if (!safemode.isGuarded(el)) safemode.guard(el, "dim", REASONS.checking, { canShow: false, light: true });
+      }
       return;
     }
     // Clean report: lift a temporary dim once warm-up and any warn hold are over.
-    if (safemode.guardMode(el) === "dim" && !this.persistentDim && t >= this.warmupUntil && t >= this.warnUntil) {
+    const nowMs = performance.now();
+    if (safemode.guardMode(el) === "dim" && !this.persistentDim && nowMs >= this.warmupUntil && nowMs >= this.warnUntil) {
       safemode.release(el);
     }
   }
@@ -736,7 +760,7 @@ class Source {
     this.unverifiable = reason;
     this.persistentDim = true;
     unverifiables.add(this);
-    if (this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
+    if (UNVERIFIABLE_POLICY === "while-active" && this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
     this.applyUnverifiableDim();
     startUnverifiableTimer();
   }
@@ -752,7 +776,7 @@ class Source {
   applyUnverifiableDim() {
     const el = this.el;
     if (!this.unverifiable || safemode.wasShownByUser(el)) return;
-    const dim = enabled && settings.failClosed && (repeatOffender || this.isActive());
+    const dim = enabled && settings.failClosed && (UNVERIFIABLE_POLICY === "always" || repeatOffender || this.isActive());
     const mode = safemode.guardMode(el);
     if (dim) {
       if (mode !== "cover") safemode.guard(el, "dim", this.unverifiable, { canShow: true, announce: false });
@@ -1043,6 +1067,13 @@ function animationContext(a) {
 }
 
 // ---------------------------------------------------------------- repeat offenders and auto-dim
+
+/** The single page-wide check: shown the first time media appears on this page. */
+function pageCheckOnce() {
+  if (pageCheckDone || !enabled) return;
+  pageCheckDone = true;
+  safemode.checkPage("Checking this page for flashing…", PAGE_CHECK_MS);
+}
 
 /** Sites with a past violation get the strict preset (STRATEGY 7.6). */
 function effectivePreset() {
