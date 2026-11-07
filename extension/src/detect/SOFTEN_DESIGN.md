@@ -81,6 +81,13 @@ Note: the browser-side canvas does not have to call this function per pixel. A c
 | SO7 | Irregular timestamps (jitter +/-8 ms, one 120 ms gap) | still none; `dt` from timestamps |
 | SO8 | Bad input (wrong length, NaN `t`) | no throw, fail-closed flag set |
 
+### Results (Nov 7, `extension/src/detect/soften.js`, Node tests in `extension/test/soften.test.js`)
+
+- SO1–SO8 pass. Every input strobe that the detector flags comes out with no violation at tau 200 ms.
+- SO2b: across 3.01–3.5 Hz at 24 fps (10 strobes), tau 150 ms lets **2 of 10** through and tau 200 ms lets **0** through. This matches the planning simulation and is why we use 200 ms.
+- SO6: a dark-to-light cut reaches 90% after **767 ms** (the simulation said ~780 ms).
+- Speed of the JS reference (`push`, Node, this laptop): 320x180 is 0.9 ms median (2.3 ms p95); 640x360 is 5.2 ms (7.5 ms p95); 1280x720 is 22 ms (29 ms p95). That's too slow for full-resolution video at 60 fps, so **the browser should use the canvas `globalAlpha` path** (section 4 note), or run this function at 640x360 or below and scale up. Either way, the verify detector decides.
+
 ## 7. Split and timing
 
 | Who | What | Estimate |
