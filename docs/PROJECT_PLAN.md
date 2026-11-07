@@ -137,8 +137,8 @@ Important: we never use real seizure-inducing videos from the internet and we do
 | Sat 12:00 kickoff | Confirm track, finalize the owner table, agree the contracts in `docs/CONTRACTS.md`. |
 | Sat 12:30 to 18:00 | Detector core with unit tests. Content script finds video/canvas and runs the detector. CSS animation inspection. Safe mode overlay v1. API skeleton. Attend the BUCyS workshop. |
 | Sat 18:00 to 23:00 | End-to-end flow working on synthetic pages. Domain log and report endpoint. Guarded start. Threat model draft. Sleep in shifts. |
-| Sun morning | Evasion tests, hardening, GIF look-ahead if time allows. Feature freeze at about 10:00. |
-| Sun until demo | Polish, accessibility audit of our own UI, demo rehearsal at least twice, Devpost/submission text. Demo on a machine that is already set up and tested. |
+| Sat night (remote) | Integration, harness, false-positive check, polish; rehearse twice at 11:00 PM. The venue closes about 7:30 PM. |
+| Sun 6:00 AM | Feature freeze. Then the security answer, final README/slides and setup only. Devpost due 9:00 AM, judging 9:30 AM. Current schedule: `docs/RUNBOOK.md`. |
 
 ## 9. Scope control
 

@@ -6,8 +6,8 @@ Repo: https://github.com/dribeiro0/FlashBan · Board: [issue #1](https://github.
 |---|---|---|
 | Avery (lead) | @DxubleBTW | Extension core + safe mode |
 | David | @dribeiro0 | Detection engine |
-| Jun | @sysoutprntlne | Demo, security + backend |
-| | @unseentrader007 | Presenter (no code) |
+| Jun | @sysoutprntlne | Demo, security + backend (covered by Yaovi's agent while Jun is offline) |
+| Yaovi | @unseentrader007 | Presenter; slide polish, problem stats and Q&A prep; temporarily covering Jun's areas |
 
 ---
 
@@ -56,57 +56,48 @@ If an agent doesn't wake up: check that `tools/board whoami` prints the exact lo
 
 ## Saturday, Nov 7: build day
 
-Kickoff 12:00 at CDS 1750. Lunch and dinner are provided. Workshops run throughout the day, so go to the BUCyS cybersecurity one.
+Real schedule from the organizers (details, judging criteria and the security-award plan: `docs/STRATEGY.md`, PR #10). Hacking began 1:15 PM. Workshops at 3:00 PM (**Built To Be Trusted**, the security award, CDS 264; one of us goes) and 5:00 PM. Dinner 7:00 PM. **The venue closes about 7:30 PM, so evening work is remote.** We're entering the **Tech Access** track (tracks are chosen on Sunday) plus the Built To Be Trusted award.
 
-### 12:00-12:30 Kickoff
-- [ ] Listen for the track details and judging criteria. Note anything that changes our plan and post it on the board: `[Avery] @all judges care about X`.
-- [ ] Confirm we're entering Technology & Interface plus the BUCyS cybersecurity subtrack.
-- [ ] Ask an organizer about pre-written code if it's still unclear.
-
-### 12:30-13:00 Lock the plan
-- [ ] Walk through `docs/CONTRACTS.md` together and agree on every shape. Avery pushes any changes. After this, contract changes **only** go through the board.
-- [ ] Confirm the owner table in `AGENTS.md`.
-- [ ] Each person opens their agent in the repo and pastes the shared opening plus their role's prompt from `docs/AGENT_PROMPTS.md`.
-- [ ] Each agent posts its intro on the board.
-
-### 13:00-18:00 Build block 1
-| Who | Target by 18:00 |
+| Time | Goal |
 |---|---|
-| David | Luminance + general-flash detector passing Node unit tests; post and tag @DxubleBTW |
-| Avery | Extension loads unpacked; content script finds video/canvas; safe-mode overlay works with a stub detector |
-| sysoutprntlne | 3+ synthetic demo pages (canvas, CSS, JS toggle) with warnings and `shield-expected` meta tags (tag @all), then a security review of the manifest and messages, then the API skeleton with validated `POST /api/reports` |
-| unseentrader007 | Go to the workshops, take notes on what judges care about, and start a pitch outline with Jun |
+| 3:00 PM | Extension core (PR #8) reviewed and merged. One person at the Built To Be Trusted workshop. |
+| 3:45 PM | David: real general-flash verdicts. Then area and timing 4:30, red 5:15, presets 5:45, aggregator 6:15, CSS animations 6:45 (one PR each, tag Avery). |
+| 4:30 PM | **Checkpoint:** if detector + overlay work end to end, start soften mode (David: pure soften function + tests; Avery: canvas wiring, fade, second detector). Otherwise core work only. |
+| 5:00-7:00 PM | Yaovi's agent (covering Jun): demo pages, HUD, adversarial pages. David: attack harness and false-positive pages once the detector tests pass. |
+| 7:00 PM | Dinner check-in: what works, what's cut. **Soften mode hard stop.** Agree on the remote spot (Discord call, dorm or library). |
+| 7:30 PM | Venue closes. Move to the remote spot; everyone stays on the board. |
+| 8:00-11:00 PM | Integration, harness run, false-positive check, design polish, screen-reader pass, threat-model Status updates, performance numbers. |
+| 11:00 PM | Rehearse the 3-minute pitch twice (Yaovi presents) and record screenshot backups. |
+| Overnight | Fixes and polish until the freeze. Sleep in shifts so someone always answers tags; anyone away for long closes their agent or sets `BOARD_WAIT=off`. A human checks the board before merging anything big. |
 
-- [ ] Humans check the board at least every 30 min: `tools/board read -n 20`.
+- [ ] Humans check the board at least every 30 minutes: `tools/board read -n 20`.
 - [ ] Merge small PRs often. `main` must always load as an extension.
 
-### 18:00 Check-in at dinner (15 min)
-- [ ] Each person says what works, what's blocked, and what's next. Cut anything that's off track.
-- [ ] Avery posts the new priorities on the board, tagging @all.
+### Upgrades and cut order (accepted Sat 2:46 PM; details in `docs/STRATEGY.md` section 7)
+Core detector, overlay and demo come first; upgrades are earned, not planned around. Then, in order:
+1. **Attack harness** (David): opens every `demo/adversarial/` page with the extension loaded and compares the shield's verdict with the page's `shield-expected` tag (fail-closed dim counts as block).
+2. **False-positive check** (David): benign pages that must *not* trigger (fast cuts, one camera flash, slow fade, dark-mode transitions, gradient timelapse).
+3. **Soften mode** (stretch, only if the core works end to end by 4:30 PM; hard stop 7:00 PM) **or** the GIF pre-render scan, not both.
+4. **Tamper-evident log** only if time remains. It changes the log contract, so post it on the board first.
+5. Small ones: repeat-offender rule (strict preset + guarded start for domains with past violations), a check-before-you-send page, a caregiver lock.
 
-### 18:30-23:00 Build block 2
-- [ ] **Avery + David:** wire in the real detector; detect end-to-end on all demo pages; guarded start.
-- [ ] **David:** red-flash detector and `analyzeAnimation` for CSS.
-- [ ] **sysoutprntlne:** `GET /api/domains` with the distinct-install threshold and rate limiting, the first adversarial pages, a HUD showing detector numbers, and a README draft. Post on the board if this is too much and Avery will cut or reassign.
+**When behind, cut in this order:** tamper-evident log, then GIF scan or soften, then the reputation backend, then the repeat-offender rule, then the harness. **Never cut** the fail-closed paths, the general-flash tests, or rehearsal time.
 
-### Overnight
-- [ ] Sleep in shifts so someone is always awake to answer tags. Agents can keep working, but a human checks the board before merging anything big.
-- [ ] Anyone stepping away for long sets `BOARD_WAIT=off` or closes their agent, so it doesn't act alone on tags.
+**Security-award demo:** the overlay-killer page (the page keeps deleting and restyling our overlay; it stays up).
 
 ---
 
-## Sunday, Nov 8: demo day
+## Sunday, Nov 8: freeze, submit, judging
 
-Breakfast is provided. Find out the exact demo and judging time at kickoff and write it here: ______
-
-- [ ] **Morning:** adversarial tests (sysoutprntlne runs every page in `demo/adversarial/` and updates the Status column in the threat model). Bug fixes. GIF look-ahead only if everything else works.
-- [ ] **About 10:00: FEATURE FREEZE.** Avery posts `[Avery] @all feature freeze`. After that, only bug fixes and polish.
-- [ ] **Accessibility check on our own UI:** keyboard only, a screen reader (NVDA on Windows, VoiceOver on Mac), contrast, reduced motion.
-- [ ] **sysoutprntlne:** final README, slides with speaker notes, and Devpost/submission text, including the "not a medical device" note and the known limits.
-- [ ] **unseentrader007 (presenter):** run the pitch with the slides and speaker notes; the coding teammates drive the live demo laptop.
-- [ ] **Rehearse the 3-minute demo at least twice** (script in `docs/PROJECT_PLAN.md` section 7), on the laptop you'll present with. Keep test-page brightness low and warn the room before any flashing.
-- [ ] Tag a release: `git tag demo && git push --tags`. If something breaks during the demo, check out that tag.
-- [ ] Submit before the deadline. Be there at least 15 min before judging.
+| Time | What |
+|---|---|
+| **6:00 AM** | **FEATURE FREEZE.** Avery posts `[Avery] @all feature freeze`. After this, bug fixes only. Tag the demo release: `git tag demo && git push --tags`. If something breaks in the demo, check out that tag. |
+| 6:00-8:00 AM | Fill in the Devpost security answer with real, tested results (draft in `docs/STRATEGY.md` section 6.6; remove anything that didn't ship). Final README and slides with speaker notes (product name **FlashBan**). Accessibility check of our own UI: keyboard only, a screen reader, contrast, reduced motion. |
+| 8:00 AM | Space opens. Set up the demo laptop: extension loaded from the `demo` tag, test pages dim, warning ready for the room. |
+| 8:00-9:00 AM | Submit on Devpost: the project plus the 250-word security answer, and choose **Tech Access**. One final run-through. |
+| **9:00 AM** | **Devpost deadline.** |
+| 9:30 AM | Judging. Yaovi presents; a coding teammate drives the demo laptop. |
+| ~11:15 AM | Prizes. The event closes at 12:00. |
 
 ## Rules that apply all weekend
 - Never use real seizure-trigger videos. Only synthetic test pages, kept dim and labeled.

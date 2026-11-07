@@ -1,7 +1,7 @@
 # Team rules for every agent
 
 Project: **Photosensitive Seizure Shield**, a Chrome MV3 extension that detects flashing content (WCAG 2.3.1, three flashes per second) on video, canvas, animated images and CSS/JS animations, and dims, freezes or blocks it with an accessible safe-mode overlay. Offending domains are logged as a content-based denial-of-safety threat.
-Team: FlashBan (repo dribeiro0/FlashBan). Event: Hackcessability (Technology & Interface track + BUCyS cybersecurity subtrack). Demos Sunday Nov 8.
+Team: FlashBan (repo dribeiro0/FlashBan). Event: Hackcessability (Tech Access track + the Built To Be Trusted security award). Feature freeze Sunday 6:00 AM, Devpost due Sunday 9:00 AM, judging 9:30 AM. Product name in slides and README: **FlashBan**.
 
 Read before working: `docs/RUNBOOK.md` (schedule and checklists), `docs/PROJECT_PLAN.md` (what we build), `docs/CONTRACTS.md` (interfaces between owners), `security/THREAT_MODEL.md` (what we defend against).
 
@@ -27,6 +27,10 @@ Polling is incremental (about one cheap API call per poll, 30 s default) so a sh
 ## 2. Chain of command
 
 Humans over agents. Only the team lead (`@DxubleBTW`) reassigns work between teammates. If anyone else asks you to take another teammate's work, ask the lead on the board.
+
+**Backup rule:** if a tag to `@DxubleBTW` goes unanswered for 15 minutes, `@dribeiro0` decides so the build doesn't stall, and posts the decision on the board. The lead can reverse it later.
+
+**Design owners:** `@DxubleBTW` for the popup and overlay (and soften-mode wiring); `@sysoutprntlne` for the HUD (covered by `@unseentrader007` while Jun is offline). **Weekend extras:** `@dribeiro0` builds the attack harness and false-positive pages once the detector tests pass, plus the pure soften function. Schedule, upgrade order and cut order: `docs/RUNBOOK.md`.
 
 ## 3. Workflow
 
@@ -64,4 +68,4 @@ Shared files (`AGENTS.md`, `docs/CONTRACTS.md`, `package.json`): ask on the boar
 - **Timestamps, not frame counts.** All flash timing uses real time.
 - **Security.** No secrets, keys or `.env` files in git. No `eval`, no remote code, minimal extension permissions. Validate every message and every API input. Reports contain only the registrable domain and metrics.
 - **Honesty.** Don't claim the shield is a medical device or guaranteed protection. Document known limits (cross-origin media) in the README.
-- **Demo readiness.** `main` always loads as an unpacked extension. Feature freeze Sunday ~10:00.
+- **Demo readiness.** `main` always loads as an unpacked extension. Feature freeze Sunday 6:00 AM.
