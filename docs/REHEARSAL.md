@@ -3,38 +3,57 @@
 Owner: Jun (@sysoutprntlne). Presenter: Yaovi. Driver: Jun. Script: [PITCH.md](PITCH.md).
 Devpost is due Sunday 9:00 AM; judging is at 9:30 AM.
 
-## Final build handoff (cutoff and tag pending lead/backup confirmation)
+## Final build on the demo laptop
 
-- [ ] Confirm the final cutoff and `demo` tag with David/lead on the board. The old tag `47d9023` predates dim + greyscale; do not use it as the final build without confirmation. Final commit: ______. Latest canonical 3-run evidence: `0c610e2` (29/29); rerun on the final tag.
-- [ ] On the demo laptop, fetch the confirmed final build, check out its tag/commit, and record `git rev-parse --short HEAD`.
-- [ ] **Laptop PLUGGED IN** for video preparation, harness and rehearsal. Battery throttling broke the synthetic recording path in David’s tests. Run `node harness/run.mjs --only video,overlay-killer`, then the full harness on the final build.
-- [ ] `chrome://extensions` → Developer mode → Load unpacked → `extension/`. Reload it after every pull.
-- [ ] Popup: preset is **WCAG** (older installs kept Strict). Turn on **Demo HUD**.
-- [ ] Start the demo server: `node demo/serve.mjs` and open http://localhost:8080/.
-- [ ] Run each slide's step once:
-  - [ ] Slide 2: `canvas.html` with the HUD open ("Open HUD for this tab") → dimmed and in greyscale, detector estimates show.
-  - [ ] Slide 3: one benign page (`demo/benign/`) → nothing happens.
-  - [ ] Slide 4: `demo/adversarial/overlay-killer.html` → lockdown, badge on the icon.
-  - [ ] Slide 5: keyboard only: Tab reaches "Show original on this site" on FlashBan's bar, with a visible focus ring, and Enter works. Turn protection back on in the popup afterwards.
-- [ ] **Screenshots for backup**, saved on the laptop and on a phone: canvas dimmed with the HUD, overlay-killer lockdown, the harness table, the popup.
-- [ ] Compare the PITCH.md evidence with Yaovi’s rerun on the confirmed final tag. Keep the build id attached to numbers; bracketed driver cues are not measurements. Delete unsupported claims.
-- [ ] **Rehearsal 1** (after the freeze, or Sunday 7:00 AM if we sleep first): time it. Target 2:45–3:00. Cut words, not slides.
-- [ ] **Rehearsal 2:** with the one-minute security demo and three questions from the "Likely questions" table.
+The final build is the **`final` tag, commit `129e645`** (David, board Sun 09:38 UTC). Docs and the website on `main` are newer; that's fine, only the extension comes from the tag.
+
+- [ ] **Laptop PLUGGED IN** the whole time (battery throttling broke the video path in David's tests).
+- [ ] `git fetch --tags && git checkout final`, then `git rev-parse --short HEAD` must print `129e645`.
+- [ ] `chrome://extensions` → Developer mode → reload FlashBan (or Load unpacked → `extension/`). The toolbar shows the olive eye icon.
+- [ ] Play one YouTube video once (warms the video path, per David).
+- [ ] `node harness/run.mjs --only video,overlay-killer` → both pass. Note the lockdown time: ______ s.
+- [ ] Popup: Sensitivity **WCAG**; Protection strength on **Strong (94%)**, the 4th step; Demo HUD **on**.
+- [ ] `node demo/serve.mjs` → http://localhost:8080/.
+- [ ] **Backup screenshots**, on the laptop and a phone: canvas dimmed with the HUD, popup with the slider, overlay-killer lockdown with the "!" badge, the harness 29/29 output.
+
+## Driver cue sheet
+
+Jun drives, Yaovi talks. Open these tabs left to right before judging: **1** `canvas.html`, **2** `benign/sunset.html`, **3** `adversarial/overlay-killer.html`. Brightness down, notifications off, no other tabs.
+
+| Slide | Yaovi is saying… | Jun does | You should see |
+|---|---|---|---|
+| 1 | "…one in four thousand…" | Slides only. Nothing on screen moves. | |
+| 2 | "**Warning:** the next test contains flashing light…" | Wait one second after the warning. Look at the table: anyone uncomfortable → screenshots for the rest. | |
+| 2 | "This test canvas flashes four times a second…" | Tab 1: "Open HUD for this tab" from the popup, then press **Start**. | Within about 1 s: canvas dark and grey, bar top right "Dimming 1 item on this page", HUD counting. |
+| 2 | "You choose how strong…" | Open the popup, press the **Left arrow** on **Protection strength** step by step to **Lightest**, hold it up, then back to **Strong**, close the popup. | The description changes at each step, ending on "Dimmed 72% and in greyscale: the lightest level that still can't flash." The canvas does **not** change live: a new strength applies the next time FlashBan catches flashing (reload + Start). Don't claim it changes. |
+| 3 | "We test the real extension…" | Tab 2 (sunset). Press Start if it has one. | Nothing happens: no bar, no dim. That is the point. |
+| 4 | "This page attacks us…" | Tab 3 (overlay-killer), **Start**. | Whole page dims (lockdown) in about 1.25 s; "!" badge on the eye icon. |
+| 5 | "Everything works by keyboard alone…" | Hands off the mouse. Back on tab 1, **Tab** to "Show original on this site" (bar, top right), wait one second, press **Enter**. | Visible yellow-ish focus ring; the dim lifts. Then turn protection back on in the popup (switch "Protect localhost"). |
+| 6 | "FlashBan reduces exposure…" | Slides only. | |
+
+The "Show original" button only works after it has been on screen for a second, and only for real clicks or key presses. If Enter does nothing, wait a moment and press it again.
+
+## Rehearsals
+
+- [ ] **Rehearsal 1:** full run with a timer. Target 2:45–3:00. Too long → cut words from slides 3 and 4, never the warning or slide 6.
+- [ ] **Rehearsal 2:** the one-minute security demo, then three questions from the "Likely questions" table in PITCH.md, asked by Jun in random order.
+- [ ] Yaovi can say from memory: "not a medical device", "about one in four thousand", "29 pages, 16 attacks, 8 everyday", "about a second and a quarter", "94%, down to 72%".
 
 ## Sunday morning, at the venue
 
-- [ ] Laptop charged, charger packed and **plugged in**. Chrome closed and reopened, extension reloaded, demo server running.
-- [ ] Turn screen brightness down. Close every other tab and turn notifications off.
-- [ ] Open the tabs in order: canvas + HUD, benign page, overlay-killer, popup.
-- [ ] Before the first Start: **say the warning** and wait a second. If anyone objects, use the screenshots.
-- [ ] Be at the table 15 minutes before judging.
+- [ ] Laptop charged and **plugged in**. Chrome restarted, extension reloaded, demo server running, three tabs open in order.
+- [ ] Popup back on Strong (94%), protection on for localhost, HUD on.
+- [ ] Screen brightness down. Notifications off.
+- [ ] Before the first Start: **say the warning** and wait a second. If anyone objects, screenshots.
+- [ ] At the table 15 minutes before judging.
 
 ## If something goes wrong
 
 | Problem | Do this |
 |---|---|
 | The extension doesn't react | Reload it at `chrome://extensions`, then reload the page. Still nothing: screenshots. |
-| The HUD says "unavailable" | Check that Demo HUD is on in the popup and reopen the HUD from that tab. Otherwise skip the numbers. |
-| The demo server won't start | Stop the known demo server in its own terminal with Ctrl+C, then restart it. Or show the screenshots. |
+| The HUD says "unavailable" | Check Demo HUD is on in the popup and reopen the HUD from that tab. Otherwise skip the numbers. |
+| The demo server won't start | Stop it in its own terminal with Ctrl+C and restart it, or use another port: `node demo/serve.mjs 8081`. Or screenshots. |
 | A run stops by itself | Escape or switching tabs stops a run (opening the popup doesn't). Press Start again. |
+| Canvas looks almost black | That's the 94% default working. To show a lighter level, set the slider first, then reload the page and press Start. |
 | Out of time | Skip slide 3's second paragraph, keep slide 6 (limits). Never skip the warning or the limits. |
