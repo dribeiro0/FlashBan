@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createDetector } from "../src/detect/index.js";
 import { LINEAR } from "../src/detect/luma.js";
-import { grid, drive } from "./helpers.js";
+import { grid, drive, rng } from "./helpers.js";
 
 const W = 16;
 const H = 9;
@@ -179,4 +179,28 @@ test("Re8: all-black then all-red frames (one change) give no flash and no NaN",
     assert.equal(r.severity, "none");
     assert.ok(Number.isFinite(r.redFlashesPerSecond));
   }
+});
+
+test("Re9: near-black video noise (dark scenes, letterbox bars) is not a red flash", () => {
+  // Compression noise in black areas: RGB 0-4 random per frame. Its hue is
+  // meaningless and used to jump across the u'v' plane (Sat 10:20 PM: most
+  // YouTube videos covered for "rapid red flashes"). Strict counts any red pair.
+  for (const preset of ["wcag", "strict"]) {
+    const rand = rng(7);
+    const noise = (px) => {
+      for (let i = 0; i < px.length; i += 4) {
+        px[i] = Math.floor(rand() * 5);
+        px[i + 1] = Math.floor(rand() * 3);
+        px[i + 2] = Math.floor(rand() * 3);
+        px[i + 3] = 255;
+      }
+    };
+    const reports = run(noise, { preset });
+    assert.equal(reports.filter(({ t }) => t > 1500).some(({ r }) => r.violation || r.redFlashesPerSecond > 0), false, preset);
+  }
+});
+
+test("Re10: a 4 Hz strobe between black and visible red counts as red", () => {
+  const reports = run(strobe([0, 0, 0], [120, 0, 0], 125));
+  assert.ok(reports.some(({ r }) => r.redFlashesPerSecond >= 4));
 });
