@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<title>CPU flood (threat T5) | FlashBan adversarial test</title>
+<link rel="stylesheet" href="../demo.css">
+<style>
+  #grid { display: grid; gap: 4px; margin-top: 8px; }
+  .tile { display: block; width: 60px; height: 40px; }
+</style>
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic attack fixture for the FlashBan extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>CPU flood (threat T5)</h1>
+<p>40 small canvases (60 by 40 CSS px each, too small to violate alone) flash at 4 full cycles per second, each with its own random phase so they never flip together, while the page also burns about 8 ms of CPU on every animation frame. Together they cover about 520 by 220 CSS px. FlashBan must still protect the user, by softening, covering or dimming them, and must never silently give up.</p>
+<p class="meta">Expected shield verdict: <strong>block</strong>. Colors #222222 and #777777. Default run 3 s; add <code>?seconds=N</code> (1 to 10). <a href="../index.html">All fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<div id="grid" role="img" aria-label="Grid of 40 small test canvases"></div>
+<script src="cpu-flood.js"></script>
+</body>
+</html>
