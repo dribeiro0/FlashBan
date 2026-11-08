@@ -27,13 +27,22 @@ Built by team FlashBan at Hackcessability (Tech Access track; entered in the Bui
 node demo/serve.mjs
 ```
 
-Then open http://localhost:8080/ with the extension loaded. To check every page against the real extension without anything flashing on screen (headless Chrome):
+Then open http://localhost:8080/ with the extension loaded. For judging, http://localhost:8080/showcase/ is **Grain**, a pretend video site with a video, a canvas, a CSS animation and a script-driven banner on one screen. To check every page against the real extension without anything flashing on screen (headless Chrome):
 
 ```bash
 node harness/run.mjs
 ```
 
 Unit tests: `npm test` (Node built-in test runner, no dependencies).
+
+### Website and download
+
+```bash
+node site/build.mjs   # packages extension/ into site/download/flashban-<version>.zip + SHA-256
+node site/serve.mjs   # http://localhost:8090/ (the demos are at /demo/)
+```
+
+The zip is reproducible: building the same commit always gives the same SHA-256, so anyone can check a download against the source. The site isn't published yet.
 
 ## Security
 
@@ -66,6 +75,7 @@ The overlay's shadow root is closed in the shipped build; the axe run used a tes
 - Flashes split across iframes aren't added together: each frame is judged on its own (the cross-element area sum works within one frame).
 - Brightness is computed from sRGB pixel values. HDR, display colour profiles and screen brightness aren't modelled, and the area rule assumes WCAG's typical viewing distance (a 341 by 256 px field at 100% zoom).
 - Red flash uses WCAG's formula on linear-light values; tools that use gamma-encoded values can disagree at the edges.
+- Near-black has no hue (so video compression noise isn't read as red): a flash between black and a very dark red (sRGB red below about 60) doesn't count as a red flash, though it still counts as an ordinary flash if it is big enough.
 
 More in the threat model's [Known limits](security/THREAT_MODEL.md#known-limits).
 
