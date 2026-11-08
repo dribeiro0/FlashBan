@@ -1,0 +1,13 @@
+# Review · FlashBan 10-second intro
+
+Creative choice: charcoal, cream and olive from the real FlashBan page, with its own Sofia display font and Martian Mono. Three beats: introduce the shield with its actual ASCII eye, show the website’s protection-state panel, end on a restrained editable wordmark and download CTA. Did not build a flashing before/after demonstration, invented dashboard, voiceover, captions or a longer story. Adapted the registry logo-brand-close cascade into static editable letter elements.
+
+Measured: root duration 10 seconds, 1920×1080 at 30 fps. Final HyperFrames check passes, browser audits ran, lint/runtime/layout/contrast/craft have no findings; 40/40 sampled contrast checks pass. No audio by design. Review-beats, both transition strips and phone sheet inspected. Original localhost URL capture was rejected by the capture tool’s private-address policy; supported local-file capture of the same source succeeded, then actual browser screenshots supplied the protection states. The ASCII eye is cropped from the successful full-page plate to avoid the real page’s sticky heading overlapping it.
+
+Frames: opening shows the FlashBan name and olive eye, then the calmer-browsing line; middle shows Soften/Cover/Dim alongside the real website’s labelled protection-state examples; close lands the FlashBan wordmark, privacy line, download CTA and medical-device caveat. No P0 findings remain. Opening and transition frames reviewed on hardware AMD Radeon / ANGLE through HyperFrames snapshots.
+
+Weakest shot: the protection-state panel is a context image; its small original body text is not readable at phone size. The large authored Soften/Cover/Dim labels carry the meaning. A longer film would isolate each real state full-screen and show a controlled live extension interaction. This short intro does not establish detector performance or medical protection.
+
+Warnings kept: none. Audio_none is informational and intentional for this silent ten-second intro. An existing preview export was present at the later repository handoff. It is preserved as renders/flashban-intro.mp4: ffprobe confirms H.264, 1920×1080, 30 fps, exactly 10.000 seconds; decoded opening, middle and closing frames were inspected. It is an existing export, not a new delivery render. To open a preview from this checkout, run npm run dev in this directory.
+
+Export scan at repository handoff: all 300 decoded frames checked at 160×90, 30 fps, realAreaScale 12. WCAG and Strict: 0 violating frames, peak estimated general flashes 2/s, red flashes 0/s. The detector can count the restrained scene changes; do not describe this as zero measured flashes. verification.json binds the result to the exact MP4 SHA-256. No browser playback/harness claim.
