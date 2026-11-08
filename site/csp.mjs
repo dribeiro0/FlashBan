@@ -29,8 +29,11 @@ export function withHashes(html) {
   if (!csp) throw new Error("no CSP meta tag");
   const set = (policy, directive, hashes) =>
     policy.replace(new RegExp(`${directive} 'self'[^;]*`), `${directive} 'self'${hashes.map((h) => ` '${h}'`).join("")}`);
-  let next = set(csp, "script-src", scripts.map(hash));
-  next = set(next, "style-src", styles.map(hash));
+  // Hash each block as LF and as CRLF: a Windows checkout (core.autocrlf) turns \n into \r\n inside the
+  // blocks, and the browser hashes the bytes it is given, so both forms must be allowed.
+  const both = (blocks) => [...new Set(blocks.flatMap((b) => { const lf = b.replace(/\r\n/g, "\n"); return [hash(lf), hash(lf.replace(/\n/g, "\r\n"))]; }))];
+  let next = set(csp, "script-src", both(scripts));
+  next = set(next, "style-src", both(styles));
   return html.replace(csp, next);
 }
 

@@ -41,7 +41,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-sSwA4RE5sSIIG7zPq9VbqyTuJNrLDIqtTpzZxk4+W4E='; style-src 'self' 'sha256-zHH0D3SMCz0oNLOjCnivhjtECuutlwg5N3ALu7YptqU='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-keKRCtFeOXRaLK52LN3Z6VuBfv8t17gzn0ApldTQzIg=' 'sha256-B93PDgoRwg/Xm9YizbvwXFNcPafRvRWjdRTFs/Q/tlw='; style-src 'self' 'sha256-RLdLAHFwWYsgnYrBV2BdPNpJV8VYlvCHzP416a/DemU=' 'sha256-HLf/RlgqW5pJgJzgVbpu6alkPFo5vDYuiZdJCqHQLAc='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — flashing content, softened before it reaches you</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
@@ -186,8 +186,11 @@ body.menu-open .menu-btn .w2{top:0}
 .bdisc{width:44px;height:44px;border:1px solid var(--ink);border-radius:50%;display:flex;align-items:center;justify-content:center}
 .bdisc svg{width:20px;height:20px;stroke-width:1.5}
 
-/* marquee (moves with scroll only) */
+/* marquee: drifts slowly on its own (pausable, stops off-screen and under reduced motion) */
 .marq-wrap{position:relative;z-index:1;padding:48px 0 64px}
+.marq-pause{position:absolute;right:24px;top:16px;z-index:2;background:none;border:1px solid var(--line2);padding:6px 10px;min-height:32px;cursor:pointer}
+.marq-pause:hover{border-color:var(--mute)}
+@media (prefers-reduced-motion:reduce){.marq-pause{display:none}}
 .marq{height:168px;overflow:hidden;display:flex;align-items:center;container-type:size}
 .track{display:flex;flex-shrink:0;font:900 100cqh/1 var(--display);text-transform:uppercase;will-change:transform}
 .mi{display:flex;align-items:center;flex-shrink:0;gap:.3em;padding-right:.3em;white-space:nowrap}
@@ -533,6 +536,7 @@ body.menu-open .menu-btn .w2{top:0}
 
   <!-- 04 MARQUEE -->
   <section class="marq-wrap" data-section="marquee" aria-label="Softened, not stopped">
+    <button type="button" class="marq-pause label fg" id="marqPause" aria-pressed="false">Pause motion</button>
     <div class="marq" aria-hidden="true"><div class="track" id="track">
       <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
       <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
@@ -972,16 +976,44 @@ else{
   document.querySelectorAll("[data-reveal]").forEach(el=>io.observe(el));
 }
 
-/* ---------- hero parallax + marquee: scroll-linked only, nothing moves on its own ---------- */
+/* ---------- hero parallax (scroll only) + marquee (slow drift + scroll) ----------
+   The "Softened, not stopped" band drifts sideways at 40 px/s by real time: even, slow motion, nothing flashes.
+   WCAG 2.2.2: a visible Pause button; it also pauses on hover/focus, off-screen and in a hidden tab.
+   Reduced motion: no drift and no parallax. */
 const hero=document.getElementById("heroArt"),track=document.getElementById("track");
+const marq=track.closest(".marq-wrap"),pauseBtn=document.getElementById("marqPause");
+const DRIFT=40; // px per second
+let drift=0,lastT=0,userPaused=false,hovered=false,onScreen=false,driving=false;
+function place(){
+  const w=track.firstElementChild.offsetWidth||1;
+  track.style.transform=`translate3d(${-((drift+scrollY*.35)%w).toFixed(1)}px,0,0)`;
+}
+const moving=()=>!reduce&&!userPaused&&!hovered&&onScreen&&!document.hidden;
+function step(t){
+  if(!moving()){ driving=false; lastT=0; return; }
+  const dt=lastT?Math.min(100,t-lastT):16.7; lastT=t;
+  drift+=DRIFT*dt/1000; place();
+  requestAnimationFrame(step);
+}
+function kick(){ if(moving()&&!driving){ driving=true; requestAnimationFrame(step); } }
 function onScroll(){
   if(reduce) return;
-  const y=scrollY;
-  hero.style.transform=`translate3d(0,${Math.min(y*.06,40).toFixed(1)}px,0)`;
-  const w=track.firstElementChild.offsetWidth||1;
-  track.style.transform=`translate3d(${-((y*.35)%w).toFixed(1)}px,0,0)`;
+  hero.style.transform=`translate3d(0,${Math.min(scrollY*.06,40).toFixed(1)}px,0)`;
+  place();
 }
 addEventListener("scroll",()=>requestAnimationFrame(onScroll),{passive:true});
+pauseBtn.addEventListener("click",()=>{
+  userPaused=!userPaused;
+  pauseBtn.setAttribute("aria-pressed",String(userPaused));
+  pauseBtn.textContent=userPaused?"Play motion":"Pause motion";
+  kick();
+});
+marq.addEventListener("pointerenter",()=>{hovered=true;});
+marq.addEventListener("pointerleave",()=>{hovered=false;kick();});
+marq.addEventListener("focusin",()=>{hovered=true;});
+marq.addEventListener("focusout",()=>{hovered=false;kick();});
+new IntersectionObserver(es=>es.forEach(e=>{onScreen=e.isIntersecting;kick();})).observe(marq);
+document.addEventListener("visibilitychange",kick);
 onScroll();
 
 /* ---------- download box (from download/latest.js, written by node site/build.mjs) ---------- */
