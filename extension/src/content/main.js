@@ -222,6 +222,20 @@ function onRuntimeMessage(msg, sender, sendResponse) {
     covered: c.cover,
     lockdown: lockedDown,
     repeatOffender,
+    // Last detector report per media source: numbers and kind only, no URLs
+    // or page content. Lets the team measure slow machines without the HUD.
+    reports: [...sources.values()].slice(0, 20).map((s) => {
+      const r = s.lastRaw;
+      return {
+        kind: s.kind,
+        severity: r?.severity ?? null,
+        reason: r?.reason ?? null,
+        flashesPerSecond: typeof r?.flashesPerSecond === "number" ? r.flashesPerSecond : null,
+        sampleRateHz: typeof r?.sampleRateHz === "number" ? r.sampleRateHz : null,
+        undersampled: typeof r?.undersampled === "boolean" ? r.undersampled : null,
+        ageMs: s.lastRawAt ? Math.round(performance.now() - s.lastRawAt) : null,
+      };
+    }),
   });
   return false;
 }
@@ -831,6 +845,8 @@ class Source {
 
   /** @param {any} report @param {number} t */
   handleReport(report, t) {
+    this.lastRaw = report; // for getStatus diagnostics (numbers only)
+    this.lastRawAt = performance.now();
     // A video sampled on every presented frame can't hide flashes between
     // samples, so the detector's gap rule ("undersampled", and the block after a
     // full-window gap, which carries no reason) doesn't apply: a 10 fps video
