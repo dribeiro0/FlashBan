@@ -25,7 +25,7 @@ The web already has a rule against this: **WCAG 2.3.1**, no more than three flas
 - **Blocks the worst.** Red flashing (the most provoking kind) and very fast flashing (6 or more a second) are paused behind a static panel.
 - **Slows and smooths the rest.** Flashing CSS animations slow to about one cycle a second, and flickering page elements fade slowly instead of blinking.
 - **Fails closed.** Media it can't read, like DRM or cross-origin video, is dimmed and labelled "can't verify" instead of let through.
-- **Fights back.** If a page keeps deleting FlashBan's protection, FlashBan locks the page down with browser-level styles the page can't see or remove.
+- **Fights back.** If a page keeps deleting FlashBan's protection, FlashBan locks the page down with browser-level styles the page can't remove.
 - **Stays out of the way.** One slim bar says what FlashBan is doing ("Dimming 2 items on this page") and has a single "Show original on this site" button, which only real clicks can press.
 - **Respects privacy.** No account, no server, no tracking. It keeps only a local list of sites that flashed (domain, date and detector numbers), deleted after 30 days or with one click.
 
@@ -74,7 +74,7 @@ Accessibility is the product, so we held FlashBan's own interface to the same st
 Using a seizure shield **reveals a health condition**, and a list of flashing sites shows where someone browses. So our main protection is collecting almost nothing:
 - No accounts, identifiers, API keys or server.
 - The only record is site domains, dates and detector numbers, kept on the user's computer, deleted after 30 days or with Clear my data.
-- The one network request reads the first bytes of an image the page is already loading, without cookies. It refuses any address on the user's own computer or network, so a page can't use FlashBan to probe a router.
+- The one network request reads the first bytes of an image the page is already loading, without cookies. It refuses links that point at the user's own computer or network.
 
 We modelled attackers and built a page for each attack. **16 attack pages** cover:
 - strobes timed between samples (12.5 Hz and 30 Hz)
@@ -154,7 +154,7 @@ FlashBan reduces exposure; it isn't a medical device and can't guarantee protect
 
 1. **Protection a page can't switch off.** Our overlay lives in a closed shadow root in the browser's top layer. If a page keeps deleting it, FlashBan locks the page down with browser-level styles the page can't remove: in about 1.25 s, in every test run. All 16 of our attack pages were protected.
 2. **Fail closed, safe by construction.** By default, media we can't check is dimmed, not let through, and dimmed media can't flash: the strength slider never goes below that floor (unit-tested).
-3. **Untrusted input stays data.** Text is rendered with textContent, there's no remote code, every message's sender and shape is checked, and our one network request refuses addresses on the user's own computer or network.
+3. **Untrusted input stays data.** Text is rendered with textContent, there's no remote code, every message's sender and shape is checked, and our one network request refuses links to the user's own computer or network.
 
 None of this adds a login, CAPTCHA or extra step.
 
