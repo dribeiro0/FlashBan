@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="shield-expected" content="block">
-<title>Canvas strobe | Seizure Shield demo</title>
+<title>Canvas strobe | FlashBan demo</title>
 <link rel="stylesheet" href="demo.css">
 </head>
 <body>
-<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic test fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic test fixture for the FlashBan extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
 <h1>Canvas strobe</h1>
 <p>One same-origin 2D canvas switches the whole area between two gray levels, 4 full cycles per second (8 transitions per second). Drawn with requestAnimationFrame from real elapsed time.</p>
-<p class="meta">Expected shield verdict: <strong>block</strong>. Colors #222222 and #777777 (relative luminance about 0.016 and 0.184). Area 320 by 180 CSS px. Default run 3 s; add <code>?seconds=N</code> (1 to 10) to change it. <a href="index.html">All fixtures</a></p>
+<p class="meta">Expected FlashBan verdict: <strong>protected</strong> (dimmed 94% and greyscale by default). Colors #222222 and #777777 (relative luminance about 0.016 and 0.184). Area 320 by 180 CSS px. Default run 3 s; add <code>?seconds=N</code> (1 to 10) to change it. <a href="index.html">All fixtures</a></p>
 <div class="controls">
 <button id="start" type="button">Start</button>
 <button id="stop" type="button" disabled>Stop</button>

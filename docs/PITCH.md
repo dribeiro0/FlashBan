@@ -7,7 +7,7 @@ Judging: Sunday 9:30 AM. Track: Tech Access, plus the Built To Be Trusted securi
 
 ## How to use this
 
-- **3 minutes, 6 slides.** Spoken notes: 376 words (about 2:30 at 150 words a minute), which leaves time for the demo holds. Rehearse with a timer; if long, cut words, never the warning or the limits.
+- **3 minutes, 6 slides.** Spoken notes: 358 words (about 2:23 at 150 words a minute, about 2:45 at a relaxed 130), which leaves time for the demo holds. Rehearse with a timer; if long, cut words, never the warning or the limits.
 - **Yaovi talks, Jun drives the laptop.** Lines in *[brackets and italics]* are cues for Jun, not things to say. The full click-by-click is in [REHEARSAL.md](REHEARSAL.md#driver-cue-sheet).
 - **Safety first.** Say the warning on slide 2 before anything moves on screen. If anyone asks us not to show flashing, Jun shows the screenshots instead. That is still a complete pitch.
 - **Never claim more than we have.** FlashBan is not a medical device and doesn't guarantee protection. Say "reduces", "dims", "catches", never "prevents seizures" or "makes it safe".
@@ -33,7 +33,7 @@ Words you might hear, in plain terms:
 **On the slide:** "FlashBan" with the eye icon. One line: "For 1 in 4,000 people, a flashing screen can cause a seizure." A still image only.
 
 **Say:**
-> About one in four thousand people have photosensitive epilepsy. For them a flashing ad or video is a barrier, and sometimes a deliberate attack. FlashBan is a free Chrome extension that finds flashing content and tones it down, while keeping the page usable.
+> For one in four thousand people, a flashing screen can trigger a seizure, and some trolls send strobes on purpose. For them, content is the attack. FlashBan is a free Chrome extension that finds flashing and tones it down, while keeping the page usable.
 
 ---
 
@@ -47,11 +47,11 @@ Words you might hear, in plain terms:
 *[Jun: canvas.html, HUD open beside it. Press Start. Within about a second the canvas goes dark and grey; the bar says "Dimming 1 item on this page". Point at the HUD.]*
 
 **Say:**
-> This test canvas flashes four times a second, over the WCAG limit of three. FlashBan reads a small copy of every frame, counts the flashes by the clock, and dims it to 94% in greyscale. It keeps playing; it just can't flash any more.
+> This test canvas flashes four times a second, over the WCAG limit of three. FlashBan checks every frame against the clock, so a strobe can't hide between our samples, then dims it to 94% grey. It keeps playing; it just can't flash.
 
 *[Jun: open the popup, step Protection strength down to Lightest so its description shows, then back to Strong. The canvas doesn't change live; don't say it does.]*
 
-> You choose how strong. Even the lightest setting stays under the flash limit; we test that. Red flashing, or anything faster than six a second, is blocked outright.
+> You choose how strong. Even the lightest, 72%, leaves too little brightness change to count as a flash. That's arithmetic, and it's unit-tested. Red flashing, or anything faster than six a second, is blocked outright.
 
 **If the live demo fails:** *[Jun: show the screenshot.]* "Here's the same test from this morning."
 
@@ -59,11 +59,11 @@ Words you might hear, in plain terms:
 
 ## Slide 3: Tested like a product (1:05 to 1:35)
 
-**On the slide:** two columns. "Caught: video, canvas, animated images, CSS animations, flickering page elements." "Left alone: scene cuts, a camera flash, slow fades, dark mode, a sunset."
+**On the slide:** big numbers first: "16/16 attacks caught · 8/8 everyday pages left alone · 29/29, every run". Under them, two columns. "Caught: video, canvas, animated images, CSS animations, flickering page elements." "Left alone: scene cuts, a camera flash, slow fades, dark mode, a sunset."
 
 **Say:**
-> We test the real extension in Chrome with an automated harness: 29 test pages, three runs in a row, and again on our final build. All 16 attack pages were caught, and all 8 everyday pages were left alone. Zero false alarms in that test set.
-> And if we can't read a video, like protected or cross-site video, it stays dimmed and labelled. We never quietly let it through.
+> Sixteen attack pages, all caught. Eight everyday pages, none flagged. Twenty-nine of twenty-nine, every run, on our final build. Every trick we found to beat FlashBan became a permanent test.
+> Video we can't read stays dimmed and labelled, never quietly let through.
 
 ---
 
@@ -74,8 +74,8 @@ Words you might hear, in plain terms:
 *[Jun: overlay-killer.html, press Start. Lockdown in about a second; the toolbar icon shows "!".]*
 
 **Say:**
-> This page attacks us: it deletes our protection every frame. FlashBan notices, puts it back, and locks the whole page down with styles from the browser itself. That took about a second and a quarter, every run.
-> Using FlashBan reveals a health condition, so we collect almost nothing: no accounts, no server. The only record is site names, dates and detector numbers, on your own computer, cleared with one button or after 30 days.
+> This page attacks us: it deletes our protection every frame. FlashBan puts it back, then locks the whole page down with styles from the browser itself, in about a second.
+> Using FlashBan reveals a health condition, so we collect almost nothing: no accounts, no server, nothing uploaded. A short log of site names and detector numbers stays on your own computer, cleared with one button or after 30 days.
 
 ---
 
@@ -86,7 +86,7 @@ Words you might hear, in plain terms:
 *[Jun: hands off the mouse. Tab to "Show original on this site" on FlashBan's bar, top right. Visible focus ring. Press Enter.]*
 
 **Say:**
-> Everything works by keyboard alone, with a visible focus ring. Every panel is labelled for screen readers, and when FlashBan hides something it tells them why. It respects reduced motion and never flashes itself. And a page can't press this button for you: it only counts real clicks.
+> Everything works by keyboard alone, with a visible focus ring. Every panel is labelled for screen readers, and when FlashBan hides something it tells them why. It respects reduced motion and never flashes itself. A page can't press this button for you: it only counts real clicks. And the popup's switch does the same, by keyboard.
 
 ---
 
@@ -103,8 +103,8 @@ Words you might hear, in plain terms:
 
 *[Jun: overlay-killer.html, HUD optional. Say the warning first if anyone new is at the table.]*
 
-> A troll controls the page, so they can run code against us. This page tries to delete FlashBan's protection every frame. *[Start.]* FlashBan puts it back each time, and when the page keeps fighting, it locks the whole page down with browser-level styles the page can't see or remove. In our harness that takes about a second and a quarter, three runs out of three, and the toolbar icon shows why.
-> It's one of 16 attack pages: strobes timed between our samples, one big flash split into tiles, red-only flashes, flashing that starts late, pages that undo our dimming. All 16 are caught, three runs in a row. And FlashBan itself can't be turned against you: the one network check it makes, to see whether an image is animated, refuses your local network, so a page can't use us to poke your router.
+> A troll controls the page, so they can run code against us. This page tries to delete FlashBan's protection every frame. *[Start.]* FlashBan puts it back each time, and when the page keeps fighting, it locks the whole page down with browser-level styles the page can't remove. In our harness that takes about a second and a quarter, three runs out of three, and the toolbar icon shows why.
+> It's one of 16 attack pages: strobes timed between our samples, a strobe layered over a calm video, red-only flashes, flashing that starts late, pages that undo our dimming. All 16 are caught, three runs in a row. And where are our API keys? There are none: no server, no accounts, nothing uploaded.
 
 ---
 
@@ -120,7 +120,10 @@ Words you might hear, in plain terms:
 | How fast does it react? | About a second on our test pages; lockdown in about 1.25 s. It depends on the page and the machine, so we don't promise a number. |
 | Why not just stop all animation? | That breaks most of the web. We only step in when something actually flashes too fast, and we dim rather than remove. |
 | Does it slow my browser? | It checks a small, shrunk copy of each frame and measures its own cost. If it can't keep up, it dims what it couldn't check rather than freezing the page. |
-| What data do you collect? | Only site names, dates and detector numbers, kept on your computer, with "Clear my data" and 30-day deletion. Nothing is uploaded. The animated-image check can contact the image's host; that's documented. |
-| Why 94%? Isn't that nearly black? | It's the default because it's the strongest dim that keeps the video playing. If it's too dark for you, the slider goes down to 72%, which still can't flash. |
+| What data do you collect? | A log of site names, dates and detector numbers, kept on your computer, with "Clear my data" and 30-day deletion; plus the sites where you pressed "Show original", kept until you turn protection back on there. Nothing is uploaded. |
+| Why does it need access to every site? | Flashing can appear on any page, and lockdown has to add its styles there. That's `<all_urls>` plus `scripting` (lockdown only). No tabs, history or cookies permissions. |
+| Can FlashBan be turned against me? | Its one network request checks whether a WebP/APNG image is animated. It refuses local and private addresses in the link, so a page can't simply aim it at your router. It doesn't yet stop a public link that redirects to one; that's on our known-limits list. |
+| Does it ever dim things it shouldn't? | Sometimes: fast camera pans over fine detail and some slow colour-changing mood-light videos. They get dimmed when they needn't be. That's the safe direction to be wrong, and it's in our known limits. |
+| Can I still see the video at 94%? | Barely, on purpose. Lower the slider in the popup; the new level applies the next time FlashBan catches flashing. |
 
 If you don't know: "Good question, Jun or David built that part," and hand over.

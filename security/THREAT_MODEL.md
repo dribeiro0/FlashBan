@@ -29,12 +29,12 @@ An attacker uses ordinary web content as the payload. Nothing is "hacked" in the
 | T3 | Red-only flashes that pass the luminance check | Separate red-flash detector | tested: red-only strobe blocks (detector.red.test.js) |
 | T4 | Hide pixels from analysis (cross-origin video, tainted canvas, DRM, WebGL buffer cleared) | Fail closed: media we can’t check is always dimmed and labeled "can’t verify", playing or not (option B, lead decision Sat 16:10; `UNVERIFIABLE_POLICY = "always"`). Domains with a past violation in the local log also get guarded start (they keep the user's preset since #106) | tested: tainted.html (cross-origin canvas) is dimmed 'comes from another site' (harness, main 6bde8e4); always-dim (option B) |
 | T5 | CPU exhaustion: hundreds of videos/iframes so the detector falls behind | Per-page budget; when exceeded, fail closed on everything not yet verified | tested: cpu-flood.html softened in 1.5 s, never a silent allow (harness, main 6bde8e4) |
-| T6 | Page script removes or restyles the overlay | Closed shadow root, top-layer placement, `MutationObserver` that re-applies the guard, guard state kept in the isolated content-script world | tested: overlay-killer locked down in 824-900 ms; soften-killer pages end in cover or lockdown (harness 3x, main 01a0598) |
+| T6 | Page script removes or restyles the overlay | Closed shadow root, top-layer placement, `MutationObserver` that re-applies the guard, guard state kept in the isolated content-script world | tested: overlay-killer locked down in 1.22-1.25 s; soften-killer pages end in cover or lockdown (harness 3x on d474896, confirmed on the `final` tag 129e645) |
 | T7 | Page script spoofs messages to the extension | Background only trusts `chrome.runtime` messages from our own extension id; shape validation on every message | tested: message validation unit tests (core.test.js); lockdown message never carries CSS |
 | T8 | Flashing starts after a long safe intro to get past guarded start | Detection runs continuously, not only at start | tested: late-start strobe caught ~1.2 s after it begins (harness 3x, main 01a0598) |
-| T9 | Report poisoning to list a legitimate domain | Listing needs several distinct installs in a window; per-install weighting and rate limits; contest path | planned |
-| T10 | Spam or oversized reports against the API | Strict schema, 2 KB limit, rate limiting by IP and install id, reject unknown fields | planned |
-| T11 | Privacy leak through reports | Only registrable domain + metrics are sent, never URLs, page content, or personal identifiers; reporting is opt-in | built for the local log (domain only); reporting API not built |
+| T9 | Report poisoning to list a legitimate domain | Listing needs several distinct installs in a window; per-install weighting and rate limits; contest path | N/A: no report API or shared list shipped (no server by design), so this risk does not exist in the build |
+| T10 | Spam or oversized reports against the API | Strict schema, 2 KB limit, rate limiting by IP and install id, reject unknown fields | N/A: no report API or shared list shipped (no server by design), so this risk does not exist in the build |
+| T11 | Privacy leak through reports | Only registrable domain + metrics are sent, never URLs, page content, or personal identifiers; reporting is opt-in | N/A: no report API or shared list shipped (no server by design), so this risk does not exist in the build |
 | T12 | Supply-chain or remote code in the extension | No remote scripts, no `eval`, strict MV3 CSP, pinned dependencies | built: no eval or remote code, strict CSP (PR #8 review) |
 | T13 | The overlay itself harms the user (flicker on show/hide) | Overlay is static; transitions are slow fades or none under `prefers-reduced-motion` | built: static overlay, slow fade only on release, none under reduced motion |
 
@@ -42,8 +42,8 @@ Update the Status column (planned, built, tested) as work lands. Judges should b
 
 ## Adversarial test pages (in `demo/adversarial/`)
 
-1. `aliasing.html`: 15 Hz strobe that lines up with a 30 Hz timer.
-2. `split-area.html`: 16 small canvases flashing in sync.
+1. `aliasing.html`: 12.5 Hz strobe timed between samples (and `aliasing-30hz.html`).
+2. Split area (T2): tested by unit tests (`aggregate.test.js`), not a harness page.
 3. `red-only.html`: saturated red flashes with little luminance change.
 4. `late-start.html`: 10 s calm, then strobe.
 5. `overlay-killer.html`: script that deletes and hides our overlay elements in a loop.
@@ -58,6 +58,12 @@ Each page states its expected result. A pass means the shield blocks or fails cl
 - Guaranteed protection: the shield reduces risk, it is not a medical device. The README and the popup must say this.
 
 ## Known limits
+
+- The image probe checks only the address written in the link and follows redirects, so a public link that redirects to a local or private address (or a public name that resolves to one) is still fetched. Fix: refuse redirects (`redirect: "error"`); the image then stays dimmed.
+- Dimming is labelled but not announced to screen readers; only covers are announced.
+- FlashBan's bar is added at the end of the page, so on long pages it comes last in Tab order. The popup's per-site switch is the keyboard route.
+- Lockdown hides media and filters `<body>`; content the page puts in the top layer (a modal `<dialog>`, a popover) is not covered by that filter (untested).
+- Sites where the user pressed "Show original" are kept until protection is turned back on there; "Clear my data" and the 30-day rule cover the flashing-site log only.
 
 - The extension is fingerprintable: its modules are listed in `web_accessible_resources` so the content script can `import()` them, which means any page can fetch them at a fixed `chrome-extension://<id>/` URL and learn the shield is installed (for example, to target users who have it). `use_dynamic_url` would rotate the URL but breaks module imports in Chrome 153. The fix is bundling the content script into one file; not done this weekend. (Security review of PR #8, M4.)
 - The image-animation probe can be cloaked (T4). Since PR #57 (lead decision), cross-origin `.webp`/`.apng` images are probed before they're dimmed; GIFs are never probed and always count as animated (the mitigation). To tell a still cross-origin WebP/APNG from an animated one, the background fetches the file again, without cookies. That request looks different from the page's own image load (no cookies, an extension `Origin`, `Sec-Fetch-Dest: empty`, a second request for the same URL), so a malicious server can send a still frame to the probe and the strobe to the page. The image then counts as "still" and stays visible on a first visit. Video is not affected (paused/playing is read from the element), and repeat-offender domains always dim. GIFs are already excluded; a full fix would need the page's own decoded image, which an extension can't read cross-origin. (Security reviews of PR #41 and #57.)
