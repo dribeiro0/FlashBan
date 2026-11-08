@@ -15,6 +15,17 @@
 // then uses the 2D-canvas path.
 
 const BAND = 0.03; // linear-light luminance half-band around the average (clamp.js: BAND)
+// Average time constant per stage. clamp.js's swing bound (2*BAND plus the
+// average's ripple under 0.10) holds for 0.5 s; at 0.2 s David's sim (Sun
+// 12:50 AM) let a 2-4 Hz full-swing strobe through at 0.12-0.22, and a
+// browser run measured 0.17 at 4 Hz. Don't shorten it to cut trailing: the
+// desaturated base below hides the colour smear instead.
+const AVG_TAU = 0.5;
+// Share of the average's colour kept inside the mask (the rest goes to grey of
+// the same luminance): the lagging average's colours looked too vibrant and
+// smeared behind moving things (David's real-GPU check), and less saturation
+// also means less red.
+const BASE_CHROMA = 0.45;
 const DETAIL_GAIN = 0.6; // how much of the frame's fine detail is kept inside the mask
 const DETAIL_STRIDE_PX = 4; // low-pass tap spacing for the detail estimate
 const MAX_STEP = 0.15; // largest share of the way to a new frame the average may move per processed frame
@@ -42,7 +53,7 @@ void main() {
 
 const FRAG_OUT = `
 precision highp float; varying vec2 uv;
-uniform sampler2D frame; uniform sampler2D avg; uniform sampler2D mask; uniform vec2 texel; uniform float band; uniform float detailGain; uniform float stride;
+uniform sampler2D frame; uniform sampler2D avg; uniform sampler2D mask; uniform vec2 texel; uniform float band; uniform float detailGain; uniform float stride; uniform float chroma;
 ${LIN}
 void main() {
   vec2 fuv = vec2(uv.x, 1.0 - uv.y);
@@ -61,7 +72,8 @@ void main() {
   float La = lum(A);
   float Lx = lum(x);
   float L = clamp(Lx, La - band, La + band);
-  vec3 base = A * (L / max(La, 0.0005));
+  vec3 Ad = mix(vec3(La), A, chroma); // same luminance, less colour
+  vec3 base = Ad * (L / max(La, 0.0005));
   vec3 o = base + detail * detailGain;
   float Lo = lum(o);
   float Lc = clamp(Lo, max(La - 2.0 * band, 0.0), La + 2.0 * band);
@@ -188,7 +200,7 @@ export function createGlSoftener(canvas, opts) {
     return null;
   }
   const uAvg = { src: G.getUniformLocation(progAvg, "src"), prev: G.getUniformLocation(progAvg, "prev"), a: G.getUniformLocation(progAvg, "a"), fromSrgb: G.getUniformLocation(progAvg, "fromSrgb"), flipSrc: G.getUniformLocation(progAvg, "flipSrc") };
-  const uOut = { frame: G.getUniformLocation(progOut, "frame"), avg: G.getUniformLocation(progOut, "avg"), mask: G.getUniformLocation(progOut, "mask"), texel: G.getUniformLocation(progOut, "texel"), band: G.getUniformLocation(progOut, "band"), detailGain: G.getUniformLocation(progOut, "detailGain"), stride: G.getUniformLocation(progOut, "stride") };
+  const uOut = { frame: G.getUniformLocation(progOut, "frame"), avg: G.getUniformLocation(progOut, "avg"), mask: G.getUniformLocation(progOut, "mask"), texel: G.getUniformLocation(progOut, "texel"), band: G.getUniformLocation(progOut, "band"), detailGain: G.getUniformLocation(progOut, "detailGain"), stride: G.getUniformLocation(progOut, "stride"), chroma: G.getUniformLocation(progOut, "chroma") };
   const ones = new Uint8Array(MW * MH).fill(255);
   const maskBytes = new Uint8Array(MW * MH);
   let ping = 0;
@@ -215,7 +227,7 @@ export function createGlSoftener(canvas, opts) {
     // tau 0.2 s per stage (SOFTEN_DESIGN). The step is capped so a slow frame
     // loop (a busy page, software GL) still averages over several frames
     // instead of jumping to each new frame, which would let a strobe through.
-    const a = first ? 1 : Math.min(MAX_STEP, 1 - Math.exp(-Math.max(0, dt) / 1000 / 0.2));
+    const a = first ? 1 : Math.min(MAX_STEP, 1 - Math.exp(-Math.max(0, dt) / 1000 / AVG_TAU));
     first = false;
     // Stage 1: avg1 <- frame (sRGB -> linear). Stage 2: avg2 <- avg1.
     G.useProgram(progAvg);
@@ -255,6 +267,7 @@ export function createGlSoftener(canvas, opts) {
     G.uniform1f(uOut.band, BAND);
     G.uniform1f(uOut.detailGain, DETAIL_GAIN);
     G.uniform1f(uOut.stride, DETAIL_STRIDE_PX);
+    G.uniform1f(uOut.chroma, BASE_CHROMA);
     G.drawArrays(G.TRIANGLE_STRIP, 0, 4);
     return G.getError() === G.NO_ERROR;
   }
