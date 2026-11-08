@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const site=dirname(fileURLToPath(import.meta.url));
 const stage=await mkdtemp(join(tmpdir(),'flashban-public-'));
 for(const entry of await readdir(site,{withFileTypes:true})) {
-  if(entry.isFile() && /\.(html|css|js)$/.test(entry.name) && !entry.name.endsWith('.test.js')) {
+  if(entry.isFile() && /\.(html|css|js|png|svg|ico)$/.test(entry.name) && !entry.name.endsWith('.test.js')) {
     await copyFile(join(site,entry.name),join(stage,entry.name));
   }
 }
