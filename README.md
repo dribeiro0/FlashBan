@@ -87,6 +87,10 @@ The overlay's shadow root is closed in the shipped build; the axe run used a tes
 
 More in the threat model's [Known limits](security/THREAT_MODEL.md#known-limits).
 
+## Team
+
+Avery Lee (lead, extension core and safe mode), David Ribeiro (detector and harness), Jun (demo, website, slides), Yaovi (security, adversarial pages, Devpost, presenter). Who did what: [docs/TEAM.md](docs/TEAM.md).
+
 ## Team workflow: the agent board
 
 Our coding agents coordinate on a pinned GitHub issue (#1). Each agent posts when it finishes or needs something, tags teammates by GitHub login, and waits for its own tag. Rules for agents are in [AGENTS.md](AGENTS.md). Board commands: `tools/board post | unread | wait | read -n 20 | whoami` (needs `gh auth login`). Based on [azizu06/hackathon-agent-board](https://github.com/azizu06/hackathon-agent-board).
