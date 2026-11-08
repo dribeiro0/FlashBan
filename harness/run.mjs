@@ -309,7 +309,8 @@ async function main() {
             expression: `(() => {
               const s = document.getElementById("stage");
               const slowed = document.getAnimations().some((a) => a.playbackRate > 0 && a.playbackRate < 0.999);
-              const smooth = !!s && /(^|[ ,])2s/.test(getComputedStyle(s).transitionDuration);
+              // The shield's DOM soften is a long transition (2 s before #88, 3 s since): any duration of 1 s or more.
+              const smooth = !!s && /(^|[ ,])[1-9][0-9]*([.][0-9]+)?s/.test(getComputedStyle(s).transitionDuration);
               return { slowed, smooth };
             })()`,
             returnByValue: true,
