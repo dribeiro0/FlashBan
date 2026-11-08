@@ -145,3 +145,88 @@ footer p { margin: 0; max-width: 60ch; }
 }
 caption.label { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--soft); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ------------------------------------------------------------------
+   Grain / homepage language (David, Sun 4:30 AM): the same display face,
+   mono body, boxed uppercase nav and FLASHBAN wordmark as index.html and
+   demo/showcase, so every page reads as one site. Dark only, like those pages.
+   Fonts are local files (site/fonts, licence in fonts/LICENSE.md); nothing is
+   loaded from other servers. Static: no motion. */
+@font-face { font-family: "Sofia Sans Extra Condensed"; font-weight: 900; font-display: swap; src: url("fonts/sofia-sans-extra-condensed-900.woff2") format("woff2"); }
+@font-face { font-family: "Martian Mono"; font-weight: 100 800; font-display: swap; src: url("fonts/martian-mono.woff2") format("woff2"); }
+:root, :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --paper: #0e0e0e; --panel: #161616; --ink: #edeae3; --muted: #a3a29c; /* 7.6:1 */
+  --rule: #2a2a2a; --soft: #2a2a2a; --accent: #b5c48a; --accent-ink: #0e0e0e; --focus: #b5c48a;
+  --grain: repeating-conic-gradient(#2c2c28 0 25%, #24241f 0 50%) 0 0 / 4px 4px;
+  --grain-accent: repeating-conic-gradient(#5e6844 0 25%, #4f583a 0 50%) 0 0 / 4px 4px;
+  --display: "Sofia Sans Extra Condensed", "Arial Narrow", sans-serif;
+  --mono: "Martian Mono", ui-monospace, monospace;
+  --sans: var(--mono);
+}
+body { font: 400 13px/1.7 var(--mono); -webkit-font-smoothing: antialiased; }
+a:not(.btn):hover { color: var(--accent); }
+.wrap { max-width: none; padding: 0 24px; }
+
+/* header: wordmark cell + boxed uppercase links, as on the homepage and Grain */
+.top { border-bottom: 1px solid var(--rule); }
+.top .wrap { padding: 0; min-height: 64px; gap: 0; align-items: stretch; flex-wrap: nowrap; }
+.brand { gap: 12px; padding: 0 24px; border-right: 1px solid var(--rule); font: 900 32px/1 var(--display); text-transform: uppercase; letter-spacing: 0; }
+.brand img { width: 30px; height: 30px; display: block; }
+.brand .mark { display: none; }
+.top nav { gap: 0; margin-left: auto; flex-wrap: nowrap; }
+.top nav a { display: flex; align-items: center; padding: 16px 22px; border: 0; border-left: 1px solid var(--rule); font: 400 11px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; }
+.top nav a:hover { background: var(--panel); color: var(--accent); }
+.top nav a[aria-current="page"] { background: var(--ink); color: var(--paper); font-weight: 400; border-bottom: 0; }
+.top .get { display: none; }
+
+/* type: big condensed uppercase headings, mono everywhere else */
+h1 { font: 900 clamp(64px, 9vw, 150px)/0.86 var(--display); letter-spacing: -0.015em; text-transform: uppercase; }
+h2 { font: 900 clamp(36px, 3.4vw, 60px)/1 var(--display); letter-spacing: 0; text-transform: uppercase; margin: 0 0 22px; }
+h3 { font: 900 26px/1.05 var(--display); text-transform: uppercase; letter-spacing: 0.01em; }
+.lede { font-size: 13px; line-height: 1.7; max-width: 62ch; margin-top: 24px; }
+p { max-width: 72ch; }
+.label, caption.label { font: 400 11px/1.4 var(--mono); letter-spacing: 0.08em; }
+section { padding: 48px 0; border-bottom: 1px solid var(--rule); }
+.hero { gap: 56px; align-items: end; padding-top: 40px; }
+
+/* buttons: square, mono uppercase, ink then olive on hover (Grain) */
+.btn { min-height: 48px; padding: 14px 20px; font: 400 12px/1.3 var(--mono); letter-spacing: 0.03em; text-transform: uppercase; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); }
+.btn:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: transparent; color: var(--ink); border-color: #5a5a54; }
+.btn.ghost:hover { background: var(--panel); color: var(--accent); border-color: var(--accent); }
+.btn.small { min-height: 36px; padding: 8px 12px; font-size: 11px; }
+
+/* figures, lists, steps, tables, download box */
+.plate, .table, .dl, pre, .notice { border: 1px solid var(--rule); }
+.plate figcaption { border-top: 1px solid var(--rule); font: 400 11px/1.6 var(--mono); }
+.rows { border-top: 1px solid var(--rule); }
+.rows > li { border-bottom: 1px solid var(--rule); }
+.rows > li > :first-child { font: 900 24px/1.05 var(--display); text-transform: uppercase; font-weight: 900; }
+.steps > li { border-bottom: 1px solid var(--rule); }
+.steps > li::before { border: 1px solid var(--rule); font: 400 12px var(--mono); background: var(--panel); color: var(--accent); }
+.steps > li p, .rows > li p { font-size: 12.5px; }
+table { font-size: 12.5px; }
+thead th { font: 400 11px/1.4 var(--mono); border-bottom: 1px solid var(--rule); }
+th, td { border-bottom: 1px solid var(--rule); }
+.status { font: 400 11px/1.6 var(--mono); text-transform: uppercase; letter-spacing: 0.04em; }
+.notice.warn { border-color: #626d48; background: #181c13; color: #c8cdbb; }
+.notice.warn a { color: var(--accent); }
+.dl .swatch { border-right: 1px solid var(--rule); }
+
+/* footer: uppercase mono line, as on Grain */
+footer { border-top: 1px solid var(--rule); padding: 22px 0 30px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+footer a { color: var(--ink); }
+
+@media (max-width: 860px) {
+  .top .wrap { flex-wrap: wrap; }
+  .brand { padding: 14px 16px; font-size: 28px; border-right: 0; }
+  .top nav { width: 100%; border-top: 1px solid var(--rule); overflow-x: auto; }
+  .top nav a { padding: 14px 12px; font-size: 10px; }
+  .top nav a:first-child { border-left: 0; }
+  .wrap { padding: 0 16px; }
+  h1 { font-size: clamp(54px, 15vw, 96px); }
+}
+@media (forced-colors: active) {
+  .top nav a[aria-current="page"] { forced-color-adjust: auto; background: Highlight; color: HighlightText; }
+}

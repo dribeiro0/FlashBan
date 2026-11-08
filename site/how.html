@@ -6,14 +6,15 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>How FlashBan works</title>
-<meta name="description" content="How FlashBan finds flashing content, counts it against WCAG 2.3.1 and decides whether to soften, cover or dim it.">
+<meta name="description" content="How FlashBan finds flashing content, counts it against WCAG 2.3.1 and decides whether to dim or block it.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap">
-  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>FlashBan</a>
-  <nav aria-label="Site"><a href="index.html">Home</a><a href="how.html" aria-current="page">How it works</a><a href="security.html">Privacy &amp; security</a><a href="download.html">Download</a></nav>
+  <a class="brand" href="index.html"><img src="icon.svg" alt="" width="30" height="30">FlashBan</a>
+  <nav aria-label="Site"><a href="index.html">Home</a><a href="how.html" aria-current="page">How it works</a><a href="../demo/showcase/index.html">Grain demo</a><a href="security.html">Privacy &amp; security</a><a href="download.html">Download</a></nav>
   <a class="btn small get" href="download.html">Get FlashBan</a>
 </div></header>
 
@@ -22,7 +23,7 @@
     <section class="hero" aria-labelledby="t">
       <div>
         <h1 id="t">From flashing content to <em>a calmer page.</em></h1>
-        <p class="lede">FlashBan reads the pixels and animations already on the page, counts flashes by the clock, and tones down content that crosses the limit. The first frames can reach the screen before it reacts.</p>
+        <p class="lede">FlashBan reads the pixels and animations already on the page, counts flashes by the clock, and dims or blocks content that crosses the limit. When a site reuses one video player (YouTube), each new video is checked again. The first frames can reach the screen before it reacts.</p>
       </div>
       <figure class="plate">
         <canvas data-scene="window" width="720" height="300" role="img" aria-label="Eight bars standing for one second of samples; alternating tall and short bars show light and dark states"></canvas>
@@ -37,7 +38,7 @@
         <li><div><h3>Measure brightness and red</h3><p>Relative luminance per WCAG, plus a separate check for saturated red, which can trigger seizures at lower brightness. Near-black noise is treated as having no colour.</p></div></li>
         <li><div><h3>Count flashes in a one-second window</h3><p>By real time, not frame counts, so a slow machine can't make a strobe look slower than it is. Flashing area is added up across elements, so a big flash split into small tiles still counts.</p></div></li>
         <li><div><h3>Decide</h3><p>Over the limit (WCAG by default; Strict and Relaxed are in the popup) means act. Can't read it at all means fail closed.</p></div></li>
-        <li><div><h3>Soften, cover or dim</h3><p>Flashing media stays playing but is dimmed and turned grey. CSS animation is slowed; script-driven flicker is smoothed. Users can choose a cover instead. Media that cannot be checked stays dimmed and labelled.</p></div></li>
+        <li><div><h3>Dim, block or slow</h3><p>Flashing media keeps playing, dimmed (94% by default) and turned grey, so its brightest pixel can't change enough to count as a flash. Red or very fast flashing (6 or more a second) is blocked: paused behind a plain panel. CSS animation is slowed and script-driven flicker is smoothed. Media that can't be checked stays dimmed and labelled.</p></div></li>
       </ol>
     </section>
 
@@ -46,14 +47,14 @@
       <div class="split">
         <figure class="plate"><canvas data-scene="dimmed" width="560" height="315" role="img" aria-label="Flashing media dimmed and in greyscale, with the scene still visible"></canvas><figcaption>Dimmed and in greyscale: still playing.</figcaption></figure>
         <ul class="rows">
-          <li><span>Dimmed for safety</span><p>The default for flashing media: dimmed and in greyscale while it keeps playing. CSS animation is slowed and script-driven flicker is smoothed.</p></li>
-          <li><span>Covered</span><p>"Flashing content hidden" on a plain panel. To see the site as it is, press "Show original on this site" in FlashBan's bar. Pages can't press it for you: only real clicks count.</p></li>
+          <li><span>Dimmed for safety</span><p>The default for flashing media: dimmed and in greyscale while it keeps playing. The popup's Protection strength slider sets how dark (72, 80, 88 or 94%, never lighter than the level that still can't flash); its top step blocks instead.</p></li>
+          <li><span>Blocked</span><p>Red or very fast flashing, or anything at the slider's top step: paused behind a plain panel. To see the site as it is, press "Show original on this site" in FlashBan's bar. Pages can't press it for you: only real clicks count.</p></li>
           <li><span>Can't verify</span><p>Dimmed and labelled. Protected or cross-origin video can only be dimmed, not checked.</p></li>
           <li><span>Locked down</span><p>When a page keeps fighting the protection, its media is hidden and the toolbar icon shows "!".</p></li>
         </ul>
       </div>
       <div class="split">
-        <figure class="plate"><canvas data-scene="covered" width="560" height="315" role="img" aria-label="Covered: a plain panel over the flashing video"></canvas><figcaption>Covered: paused behind a plain panel.</figcaption></figure>
+        <figure class="plate"><canvas data-scene="covered" width="560" height="315" role="img" aria-label="Blocked: a plain panel over the flashing video"></canvas><figcaption>Blocked: paused behind a plain panel.</figcaption></figure>
         <figure class="plate"><canvas data-scene="dimmed" width="560" height="315" role="img" aria-label="Can't verify: the whole video dimmed"></canvas><figcaption>Can't verify: dimmed and labelled.</figcaption></figure>
       </div>
     </section>
