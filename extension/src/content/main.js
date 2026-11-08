@@ -505,25 +505,15 @@ class Source {
         this.applyUnverifiableDim(); // dim the moment playback starts
         return;
       }
-      // A different video in the same element (YouTube reuses one <video> and
-      // changes the page address per video; its source change isn't always seen):
-      // judge the new content instead of keeping the old verdict forever.
-      if (this.verdictHref && location.href !== this.verdictHref && !safemode.wasShownByUser(v)) {
-        this.verdictHref = "";
-        if (safemode.guardMode(v) === "cover") {
-          // Stay covered; the cover lifts after RECHECK_CALM_MS of calm frames.
-          const now = performance.now();
-          this.softFailed = false;
-          this.recheckSince = now;
-          this.recheckCalmFrom = now;
-        } else if (this.persistentDim && !this.unverifiable && safemode.guardMode(v) === "dim") {
-          // Flashing dim from the old video: drop it and check the new one
-          // from the start (guarded start dims it briefly while it is checked).
-          this.persistentDim = false;
-          this.flatDim = false;
-          safemode.release(v, { immediate: true });
-          this.guardedStartDone = false;
-        }
+      // A different video in the same element (YouTube reuses one <video> for the
+      // watch page AND for home-page hover previews; the address or the source
+      // changes, but the source change isn't always seen): re-judge the new
+      // content UNDER the existing cover or dim, and lift it after RECHECK_CALM_MS
+      // of calm frames. Never a bare release: a page flipping strobe/calm sources
+      // would get a moment of exposure each flip.
+      if (this.verdictKey && this.verdictKeyNow() !== this.verdictKey && !safemode.wasShownByUser(v)) {
+        this.verdictKey = "";
+        this.startRecheck();
       }
       if (safemode.guardMode(v) === "cover" && !safemode.wasShownByUser(v) && !this.recheckSince) {
         v.pause(); // the page may not restart covered flashing video
@@ -571,6 +561,28 @@ class Source {
     this.checkVideoReadable();
   }
 
+  /** Which video a cover/dim verdict belongs to: the page address plus the media source. */
+  verdictKeyNow() {
+    const v = /** @type {any} */ (this.el);
+    return `${location.href}
+${v.currentSrc || v.src || ""}`;
+  }
+
+  /**
+   * Start re-checking new content under the current flashing cover or dim.
+   * @returns {boolean} false when there is no flashing verdict to re-check
+   */
+  startRecheck() {
+    const v = this.el;
+    const mode = safemode.guardMode(v);
+    if (mode !== "cover" && !(mode === "dim" && this.persistentDim && !this.unverifiable)) return false;
+    const now = performance.now();
+    this.softFailed = false;
+    this.recheckSince = now;
+    this.recheckCalmFrom = now;
+    return true;
+  }
+
   /** Forget the old media's verdict when the element loads a different source. */
   resetForNewSource() {
     const v = /** @type {HTMLVideoElement} */ (this.el);
@@ -608,14 +620,11 @@ class Source {
       this.checkVideoReadable();
       return;
     }
-    if (safemode.guardMode(v) === "cover") {
-      // Covered for flashing: the new source may play (under the cover) and
-      // the cover lifts after RECHECK_CALM_MS of calm frames. The flash
-      // history is kept, so flipping between a strobe and a calm file keeps
-      // it covered (demo: srcflip).
-      this.softFailed = false;
-      this.recheckSince = now;
-      this.recheckCalmFrom = now;
+    if (this.startRecheck()) {
+      // Covered or dimmed for flashing: the new source may play (under it) and
+      // it lifts after RECHECK_CALM_MS of calm frames. The flash history is
+      // kept, so flipping between a strobe and a calm file keeps it protected
+      // (demo: srcflip).
       // We may have just paused its play() (the events race): let it play.
       if (v.paused && now - (this.pausedByUsAt || -Infinity) < 3000) v.play().catch(() => {});
     }
@@ -1071,10 +1080,12 @@ class Source {
       // new media has been calm for RECHECK_CALM_MS.
       const nowMs = performance.now();
       if (violating || report.severity === "warn") this.recheckCalmFrom = nowMs;
-      if (safemode.guardMode(el) !== "cover") {
+      const mode = safemode.guardMode(el);
+      if (mode !== "cover" && !(mode === "dim" && this.persistentDim && !this.unverifiable)) {
         this.recheckSince = 0;
       } else if (!violating && nowMs - this.recheckCalmFrom >= RECHECK_CALM_MS) {
         this.recheckSince = 0;
+        if (mode === "dim") this.persistentDim = false;
         safemode.release(el);
         return;
       }
@@ -1156,7 +1167,7 @@ class Source {
       // and nothing in it can reach a flash. Stays for this element (no on/off).
       const alpha = STRENGTH_DIM[/** @type {1|2|3|4} */ (settings.strength)] ?? 0.94;
       safemode.guard(v, "dim", REASONS.softDim, { canShow: true, alpha });
-      this.verdictHref = location.href; // a later video at another address is judged afresh
+      this.verdictKey = this.verdictKeyNow(); // another video (address or source) is judged afresh
       this.persistentDim = true;
       this.noteViolation(report, t); // still logged: the site served flashing media
       return true;
@@ -1202,7 +1213,7 @@ class Source {
     if (this.trySoften(report, t)) return;
     const reason = REASONS[/** @type {keyof typeof REASONS} */ (report.reason)] || REASONS.unknown;
     safemode.guard(el, "cover", reason, { canShow: true });
-    this.verdictHref = location.href; // a later video at another address is judged afresh
+    this.verdictKey = this.verdictKeyNow(); // another video (address or source) is judged afresh
     if (el instanceof HTMLVideoElement && !el.paused) el.pause();
     if (t - this.lastViolationMsg >= VIOLATION_MSG_INTERVAL_MS || !this.lastViolationMsg) {
       this.lastViolationMsg = t;
