@@ -76,6 +76,9 @@ const MAX_DOM_SOURCES = 24; // CPU guard (threat T5)
 const DOM_CHILD_SHARE = 0.25; // also watch direct children covering at least this share
 const DOM_MAX_CHILDREN = 6;
 const BACKDROP_CACHE_MS = 250;
+const SOURCE_RESET_MIN_MS = 1500; // a video element's verdict resets on a new source at most this often
+const PAUSE_RESET_MS = 1000; // a video's flash history resets only after a pause this long
+const RECHECK_CALM_MS = 1500; // a covered video's new source must be calm this long before the cover lifts
 const MEDIA_OVERLAP_SHARE = 0.5; // a DOM layer this much over a measured video/canvas is player chrome
 const MEDIA_OVERLAP_CACHE_MS = 500;
 
@@ -471,6 +474,8 @@ class Source {
     /** @type {number[]} */ this.missTimes = []; // ...and those where presented frames were missed
     this.completeFrames = false;
     /** @type {{ stop(): void } | null} */ this.soft = null; // soften layer while active
+    this.recheckSince = 0; // video: a new source is being checked behind the cover (performance.now())
+    this.recheckCalmFrom = 0;
     this.softFailed = false; // soften fell back to block once: don't retry on this element
     if (kind === "video") this.attachVideoListeners();
   }
@@ -483,11 +488,15 @@ class Source {
         this.applyUnverifiableDim(); // dim the moment playback starts
         return;
       }
-      if (safemode.guardMode(v) === "cover" && !safemode.wasShownByUser(v)) {
+      if (safemode.guardMode(v) === "cover" && !safemode.wasShownByUser(v) && !this.recheckSince) {
         v.pause(); // the page may not restart covered flashing video
+        this.pausedByUsAt = performance.now();
         return;
       }
-      this.resetDetector();
+      // No detector reset here: pausing, flipping sources or seeking every
+      // half second used to wipe the flash history each time, so a strobe cut
+      // into short pieces was never caught (demo: srcflip). A real pause
+      // resets it (onPauseOrSeek); the detector's gap rule covers the rest.
       this.lastPresented = -1;
       this.callbacksSinceSample = 0;
       // Guarded start from the "play" event, before the first frame is shown.
@@ -495,8 +504,16 @@ class Source {
       this.scheduleVideo();
     };
     this.onPauseOrSeek = () => {
-      if (this.unverifiable) this.applyUnverifiableDim(); // paused or ended: show it again
-      else this.resetDetector();
+      if (this.unverifiable) {
+        this.applyUnverifiableDim(); // paused or ended: show it again
+        return;
+      }
+      // Forget the flash history only after a real pause (still paused after
+      // PAUSE_RESET_MS), never on a seek or a quick pause/play.
+      clearTimeout(this.pauseResetTimer);
+      this.pauseResetTimer = setTimeout(() => {
+        if (v.paused || v.ended) this.resetDetector();
+      }, PAUSE_RESET_MS);
     };
     v.addEventListener("play", this.onPlay, true);
     v.addEventListener("playing", this.onPlay, true);
@@ -505,7 +522,66 @@ class Source {
     v.addEventListener("ended", this.onPauseOrSeek, true);
     this.onMeta = () => this.checkVideoReadable();
     v.addEventListener("loadedmetadata", this.onMeta, true);
+    // A new source in the same element is new media (Sat 11:40 PM): YouTube
+    // reuses one <video> for the ad, the video, and every video you click
+    // next, so one verdict (a covered ad, a DRM movie) stuck to every later
+    // video in the tab: covered, and paused whenever it tried to play.
+    this.lastSrcKey = v.src || v.currentSrc || "";
+    this.lastSourceReset = -Infinity;
+    this.onNewSource = () => this.resetForNewSource();
+    v.addEventListener("emptied", this.onNewSource, true);
+    v.addEventListener("loadstart", this.onNewSource, true);
     this.checkVideoReadable();
+  }
+
+  /** Forget the old media's verdict when the element loads a different source. */
+  resetForNewSource() {
+    const v = /** @type {HTMLVideoElement} */ (this.el);
+    // The src attribute changes at once ("emptied"); currentSrc only on "loadstart".
+    const src = v.src || v.currentSrc || "";
+    if (!src || src === this.lastSrcKey) return;
+    const now = performance.now();
+    const wait = SOURCE_RESET_MIN_MS - (now - this.lastSourceReset);
+    if (wait > 0) {
+      // Swapping sources faster than this keeps the old verdict (a page can't
+      // shed a cover by reloading a strobe); look again once it settles.
+      clearTimeout(this.srcResetTimer);
+      this.srcResetTimer = setTimeout(() => this.resetForNewSource(), wait + 10);
+      return;
+    }
+    this.lastSrcKey = src;
+    this.lastSourceReset = now;
+    if (safemode.wasShownByUser(v)) return;
+    if (this.unverifiable) {
+      // "Can't check" belonged to the old source (a DRM movie, a cross-origin
+      // file): judge the new one from scratch.
+      unverifiables.delete(this);
+      this.unverifiable = null;
+      this.persistentDim = false;
+      this.stopped = false;
+      this.fadeGlow(false);
+      if (safemode.guardMode(v)) safemode.release(v, { immediate: true });
+      this.resetDetector();
+      this.detector = null;
+      this.budgetPx = SAMPLE_BUDGET_PX;
+      this.cost?.reset?.();
+      this.sampleTimes = [];
+      this.missTimes = [];
+      this.guardedStartDone = false;
+      this.checkVideoReadable();
+      return;
+    }
+    if (safemode.guardMode(v) === "cover") {
+      // Covered for flashing: the new source may play (under the cover) and
+      // the cover lifts after RECHECK_CALM_MS of calm frames. The flash
+      // history is kept, so flipping between a strobe and a calm file keeps
+      // it covered (demo: srcflip).
+      this.softFailed = false;
+      this.recheckSince = now;
+      this.recheckCalmFrom = now;
+      // We may have just paused its play() (the events race): let it play.
+      if (v.paused && now - (this.pausedByUsAt || -Infinity) < 3000) v.play().catch(() => {});
+    }
   }
 
   /**
@@ -930,6 +1006,19 @@ class Source {
 
     if (safemode.wasShownByUser(el)) return;
     const violating = report.violation || report.severity === "block";
+    if (this.recheckSince) {
+      // A new source behind a cover (resetForNewSource): lift it once the
+      // new media has been calm for RECHECK_CALM_MS.
+      const nowMs = performance.now();
+      if (violating || report.severity === "warn") this.recheckCalmFrom = nowMs;
+      if (safemode.guardMode(el) !== "cover") {
+        this.recheckSince = 0;
+      } else if (!violating && nowMs - this.recheckCalmFrom >= RECHECK_CALM_MS) {
+        this.recheckSince = 0;
+        safemode.release(el);
+        return;
+      }
+    }
     if (this.soft) {
       if (this.soft.dom) {
         // DOM soften: this detector IS the verifier. Still flashing after the
@@ -1005,7 +1094,7 @@ class Source {
         onTamper: () => safemode.reportTamper(),
         appearance: () => this.appearance(performance.now()),
         detect,
-        preset: effectivePreset(), // strict on repeat-offender sites, like everything else
+        preset: effectivePreset(), // the user's preset, like everything else
         onFail: (failReport) => {
           this.soft = null;
           this.softFailed = true;
@@ -1526,8 +1615,16 @@ function pageCheckOnce() {
 }
 
 /** Sites with a past violation get the strict preset (STRATEGY 7.6). */
+/**
+ * The detector preset is the user's choice. Repeat-offender sites used to get
+ * "strict" automatically (Sat 11:45 PM, lead decision): one flagged ad on
+ * youtube.com made the whole site strict for 30 days, and strict's "any red
+ * flash pair" rule fires on ordinary video (a few hundred px of red shirt
+ * changing colour), so most videos were covered for "rapid red flashes".
+ * Repeat offenders keep guarded start and always-dimmed unverifiable media.
+ */
 function effectivePreset() {
-  return repeatOffender ? "strict" : settings.preset;
+  return settings.preset;
 }
 
 /** @param {unknown} log */
