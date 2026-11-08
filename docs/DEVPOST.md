@@ -4,7 +4,7 @@ Owner: @unseentrader007 (covering Jun). Numbers come from `node harness/run.mjs`
 
 ## Tagline
 
-FlashBan catches flashing web content and tones it down before it reaches you, keeping the page usable.
+FlashBan detects flashing web content and tones it down to reduce your exposure, keeping the page usable.
 
 ## Inspiration
 
@@ -18,7 +18,7 @@ FlashBan is a Chrome extension that watches video, canvas, animated images, CSS 
 - **Covers when it has to.** If that can't bring the flashing under the limit, FlashBan pauses the content and puts a static panel over it. One bar at the top of the page says what FlashBan is doing ("Softening 2 items on this page") and has a single "Show original on this site" button, remembered per site and undone in the popup.
 - **Fails closed.** Media it can't read, like DRM or cross-origin video, is dimmed and labelled "can't verify".
 - **Fights back.** If a page keeps deleting FlashBan's protection, FlashBan locks the page down with browser-level styles the page can't see or remove, and explains why.
-- **Respects privacy.** It keeps a local list of sites that flashed (site and date only), with a Clear my data button and 30-day deletion. There's no account and no server.
+- **Respects privacy.** It keeps a local list of sites that flashed (site, dates and the detector's numbers, never page addresses or content), with a Clear my data button and 30-day deletion. There's no account and no server.
 
 ## How we built it
 
@@ -54,7 +54,7 @@ JavaScript, Chrome Extensions (Manifest V3), Web Animations API, Canvas 2D, Node
 
 ## Security question (150–250 words; count before pasting)
 
-**What did we protect, and how?** Using a seizure shield reveals a health condition, and a list of flashing sites shows where someone browses. So FlashBan collects almost nothing: there are no accounts, identifiers or keys, and no server. The only record is a list of site domains and dates on the user's own computer, with a Clear my data button and automatic deletion after 30 days. Three things keep users safe:
+**What did we protect, and how?** Using a seizure shield reveals a health condition, and a list of flashing sites shows where someone browses. So FlashBan collects almost nothing: there are no accounts, identifiers or keys, and no server. The only record is a list of site domains, dates and detector numbers on the user's own computer, with a Clear my data button and automatic deletion after 30 days. Three things keep users safe:
 
 1. Protection a page can't switch off. Our cover lives in a closed shadow root. If a page keeps deleting it, FlashBan locks the page down with browser-level styles the page can't see or remove. Our attack page is locked down within about 1.25 s, and pages that undo our slowing or smoothing are covered or locked down every time.
 2. Fail closed. Media we can't check, like DRM or cross-origin video, is dimmed and labelled "can't verify" instead of let through.
