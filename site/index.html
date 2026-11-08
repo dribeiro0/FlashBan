@@ -23,8 +23,8 @@
             video, no blink), only displaces cells near the pointer trail (never brightens), redraws only while the gaze
             or trail is settling, and holds still under reduced motion. The dithered plate is the fallback.
   decides   a pinned scroll stepper (pattern studied on good-fella.com: tall section, sticky child, scroll progress
-            picks the active step, a marker square moves and turns). Ours uses native scroll, rate-limits the plate
-            swap to one fade per 400 ms, and falls back to a plain list under 1200px or with reduced motion.
+            picks the active step, a marker square moves and turns). Ours uses native scroll, shows the step number
+            as plain text, and falls back to a plain list under 1200px or with reduced motion.
   scripts   one classic IIFE: one shared WebGL2 context raymarches a signed-distance shape and Bayer-dithers it in
             the same pass (silhouette outline from the ray's closest approach), then copies it into each [data-art]
             canvas; fit-to-width headings, reveals, scroll-only parallax and marquee, phone menu, download box.
@@ -40,7 +40,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-+iucUCszsj3h06fC6MhY8EreQwtghRHm4oCkyWwSrVE='; style-src 'self' 'sha256-Euugs4BP+R83yPNJgR+Arg06YB9GPm6/Gk/K68HjvGQ='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-iBUuq4ioocCHAPtnHF9SvY579YxbVtsqhoJo6Yicao0='; style-src 'self' 'sha256-p72DmV5sHb9S2HXraPwTd2SFiXteOPtkahqgWvnDI+c='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — flashing content, softened before it reaches you</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
@@ -131,7 +131,6 @@ body.menu-open .menu-btn .w2{top:0}
 .stmt{position:sticky;top:160px;display:flex;flex-direction:column;gap:24px}
 .stmt .body,.bio .body{max-width:340px;color:var(--fg)}
 .stmt .muted{color:var(--mute)}
-.portrait{flex:1.4;height:720px;position:relative;overflow:clip}
 .ic3{flex:1;display:flex;flex-direction:column;justify-content:flex-end}
 .bio{display:flex;flex-direction:column;gap:24px;align-items:flex-start}
 
@@ -150,10 +149,9 @@ body.menu-open .menu-btn .w2{top:0}
 .dec-pin{position:sticky;top:0;height:100vh;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;padding-top:64px}
 .dec-l{display:flex;flex-direction:column;gap:24px;height:min(72vh,640px)}
 .dec-l h2{font:900 96px/.88 var(--display);text-transform:uppercase}
-.dec-plate{position:relative;flex:1;overflow:clip}
-.dec-plate .art{transition:opacity .35s var(--ease)}
-.dec-plate .art.swap{opacity:0}
-.dec-plate .ov-chip{z-index:2}
+.dec-count{font:900 200px/.8 var(--display);color:var(--fg);margin-top:auto}
+.dec-count .of{font-size:.3em;color:var(--mute);margin-left:.1em}
+.dec-name{font-size:14px}
 .steps{position:relative;display:flex;flex-direction:column;gap:28px;padding-left:16px}
 .marker{position:absolute;left:0;top:10px;width:12px;height:12px;background:var(--warn);transition:transform .8s var(--roll)}
 .step{display:flex;gap:16px;align-items:flex-start;width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:4px 0 4px 16px;color:var(--mute);transition:color .6s var(--ease),transform .8s var(--roll)}
@@ -165,6 +163,7 @@ body.menu-open .menu-btn .w2{top:0}
 .dec-static .dec-pin{position:static;height:auto;padding-top:0}
 .dec-static .marker{display:none}
 .dec-static .step{color:var(--fg);transform:none;cursor:default}
+.dec-static .dec-count,.dec-static .dec-name{display:none}
 /* states gallery */
 .work{position:relative;z-index:1;padding:128px 24px 0}
 .grid{display:grid;grid-template-columns:1fr 1fr}
@@ -251,7 +250,7 @@ body.menu-open .menu-btn .w2{top:0}
   .latest{display:none}
   .dec-pin{grid-template-columns:1fr;gap:32px}
   .dec-l{height:auto}
-  .dec-plate{height:420px;flex:none}
+  .dec-count{font-size:140px;margin-top:0}
   .dec-l h2{font-size:72px}
   .brand{padding:0 20px}
   .hero{padding:88px 20px 64px}
@@ -259,7 +258,6 @@ body.menu-open .menu-btn .w2{top:0}
   .ic1,.ic3{flex:none;width:100%}
   .stmt{position:static}
   .stmt .body,.bio .body{max-width:560px}
-  .portrait{flex:none;width:100%;height:600px}
   .work{padding:128px 20px 64px}
   .card{height:440px}.card.tall{height:520px}
   .cap{padding:20px}
@@ -290,12 +288,11 @@ body.menu-open .menu-btn .w2{top:0}
   .navlinks{display:none}
   .menu-btn{display:flex}
   .dec-l h2{font-size:56px}
-  .dec-plate{height:320px}
+  .dec-count{font-size:96px}
   .step .h{font-size:32px}
   .hero{padding:80px 16px 48px}
   .hero-img{height:62vh}
   .intro{gap:40px;padding:64px 16px}
-  .portrait{height:440px}
   .work{padding:96px 16px 64px}
   .grid{display:flex;flex-direction:column}
   .card,.card.tall{height:420px}
@@ -384,7 +381,7 @@ body.menu-open .menu-btn .w2{top:0}
     <div class="hero-img">
       <div class="art" data-art="hero" id="heroArt" role="img" aria-label="A dithered 3D shape, holding still"></div>
       <canvas class="eye" id="eye" hidden role="img" aria-label="An eye drawn in letters. It looks toward your pointer and never blinks."></canvas>
-      <p class="label fg hero-note" id="heroNote">Every picture here is a live 3D shape, dithered in two close tones. None of them move on their own.</p>
+      <p class="label fg hero-note" id="heroNote">A live 3D shape, dithered in two close tones. It doesn't move on its own.</p>
     </div>
   </section>
 
@@ -396,7 +393,6 @@ body.menu-open .menu-btn .w2{top:0}
         <p class="body" data-reveal data-d=".08">FlashBan is a free Chrome extension for people with photosensitive epilepsy. It finds flashing video, GIFs, canvas and animation and softens just that part, before it reaches you.</p>
       </div>
     </div>
-    <div class="portrait"><div class="art" data-art="portrait" role="img" aria-label="A dithered 3D shape"></div></div>
     <div class="ic3">
       <div class="bio">
         <p class="body" data-reveal>Soften first. Cover only if it won't calm down. Dim what it can't check. No account and no server: the only record is a site's domain, on your computer, for 30 days.</p>
@@ -415,10 +411,8 @@ body.menu-open .menu-btn .w2{top:0}
       <div class="dec-l">
         <p class="label">// The pipeline</p>
         <h2 id="dec-title">How it decides</h2>
-        <div class="dec-plate">
-          <div class="art" data-art="step0" id="stepArt" role="img" aria-label="A dithered 3D shape for the current step"></div>
-          <span class="ov-chip" id="stepChip" aria-hidden="true"><b>01</b>Sample</span>
-        </div>
+        <p class="dec-count" aria-hidden="true"><span id="stepNum">01</span><span class="of">/05</span></p>
+        <p class="label fg dec-name" id="stepName" aria-hidden="true">Sample</p>
       </div>
       <ol class="steps" id="steps">
         <li class="marker" id="marker" aria-hidden="true"></li>
@@ -436,26 +430,22 @@ body.menu-open .menu-btn .w2{top:0}
     <h2 class="fit" id="s-title" data-reveal><span>What you see on the page</span></h2>
     <div class="grid">
       <a class="card full" href="how.html">
-        <div class="art" data-art="softened"></div>
         <span class="ov-chip"><b>FlashBan</b>Flashing softened</span>
         <div class="cap"><div class="cap-row"><h3>Softened</h3>
           <div class="meta"><span class="label">Default</span><span class="label">▪</span><span class="label">Still playing</span></div></div></div>
       </a>
       <a class="card tall" href="how.html">
-        <div class="art" data-art="covered"></div>
         <div class="ov-cover"><strong>Flashing content hidden</strong><p>It kept flashing after softening, so it's paused and covered. "Show original on this site" in FlashBan's bar brings the site back.</p></div>
         <div class="cap"><div class="cap-row"><h3>Covered</h3>
           <div class="meta"><span class="label">Won't calm</span><span class="label">▪</span><span class="label">Paused</span></div></div></div>
       </a>
       <a class="card tall" href="security.html#limits">
-        <div class="art" data-art="verify"></div>
         <div class="ov-dim"></div>
         <span class="ov-chip"><b>Can't verify</b>Dimmed</span>
         <div class="cap"><div class="cap-row"><h3>Can't verify</h3>
           <div class="meta"><span class="label">Unreadable</span><span class="label">▪</span><span class="label">Fails closed</span></div></div></div>
       </a>
       <a class="card full" href="security.html">
-        <div class="art" data-art="locked"></div>
         <span class="ov-chip"><b>!</b>Page locked down</span>
         <div class="cap"><div class="cap-row"><h3>Locked down</h3>
           <div class="meta"><span class="label">Page fights back</span><span class="label">▪</span><span class="label">Media hidden</span></div></div></div>
@@ -507,35 +497,35 @@ body.menu-open .menu-btn .w2{top:0}
     </div>
     <div class="posts">
       <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/94" rel="noopener noreferrer" data-reveal data-d=".1">
-        <div class="bg"><div class="art" data-art="log1"></div></div>
+        <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">Near-black isn't red</h3>
         <p class="body exc">Compression noise in dark scenes was being read as red flashing. Near-black now has no hue, so letterbox bars stop tripping the red-flash rule. (#94)</p>
         <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
       </a>
       <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/84" rel="noopener noreferrer" data-reveal data-d=".2">
-        <div class="bg"><div class="art" data-art="log2"></div></div>
+        <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">Sharper soften</h3>
         <p class="body exc">The brightness clamp runs on the GPU at full resolution, only inside the flashing area. Everything outside it stays sharp and in colour. (#84)</p>
         <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
       </a>
       <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/77" rel="noopener noreferrer" data-reveal data-d=".3">
-        <div class="bg"><div class="art" data-art="log3"></div></div>
+        <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">YouTube, measured</h3>
         <p class="body exc">YouTube video can now be read and measured instead of only dimmed, and ambient glows are faded rather than covered. (#77)</p>
         <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
       </a>
       <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/65" rel="noopener noreferrer" data-reveal data-d=".4">
-        <div class="bg"><div class="art" data-art="log4"></div></div>
+        <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">Every presented frame</h3>
         <p class="body exc">Sampling every presented frame closed a gap where a 30 Hz strobe at 60 fps could slip between samples. (#65)</p>
         <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
       </a>
       <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/64" rel="noopener noreferrer" data-reveal data-d=".5">
-        <div class="bg"><div class="art" data-art="log5"></div></div>
+        <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">One bypass bar</h3>
         <p class="body exc">A single "Show original on this site" bar replaces per-video buttons. Pages can't press it for you: only real clicks count. (#64)</p>
@@ -733,7 +723,7 @@ void main(){
   const ready=document.fonts&&document.fonts.load?document.fonts.load('700 48px "Martian Mono"').catch(()=>{}):Promise.resolve();
   ready.then(()=>{
     buildAtlas(); cv.hidden=false; plate.hidden=true;
-    document.getElementById("heroNote").textContent="An eye drawn in letters. It follows your pointer and never blinks. The other pictures are dithered 3D shapes that hold still.";
+    document.getElementById("heroNote").textContent="An eye drawn in letters. It follows your pointer and never blinks.";
     size(); addEventListener("resize",size);
   });
   return {cv};
@@ -762,22 +752,7 @@ const PAL={
 // shapes: 0 rounded box · 1 sphere · 2 torus · 3 capsule · 4 octahedron · 5 cylinder · 6 blob
 const SPEC={
   hero:    {shape:6,pal:"sage", zoom:1.15,yaw:.72, pitch:.5, bayer:4},
-  step0:   {shape:1,pal:"sage", zoom:1.2, yaw:.5,  pitch:.5, bayer:4},
-  step1:   {shape:5,pal:"sage", zoom:1.2, yaw:-.4, pitch:.6, bayer:4},
-  step2:   {shape:2,pal:"sage", zoom:1.15,yaw:.8,  pitch:.7, bayer:4},
-  step3:   {shape:4,pal:"sage", zoom:1.15,yaw:-.7, pitch:.5, bayer:4},
-  step4:   {shape:0,pal:"sage", zoom:1.2, yaw:.6,  pitch:.55,bayer:4},
   thumb:   {shape:2,pal:"sage", zoom:1.25,yaw:.4,  pitch:.7, bayer:2},
-  portrait:{shape:2,pal:"sand", zoom:1.1, yaw:-.5, pitch:.45,bayer:4},
-  softened:{shape:0,pal:"sage", zoom:1.2, yaw:.6,  pitch:.55,bayer:8},
-  covered: {shape:4,pal:"stone",zoom:1.15,yaw:-.4, pitch:.5, bayer:4},
-  verify:  {shape:1,pal:"pool", zoom:1.2, yaw:.3,  pitch:.4, bayer:4},
-  locked:  {shape:3,pal:"clay", zoom:1.15,yaw:.9,  pitch:.6, bayer:8},
-  log1:    {shape:5,pal:"dusk", zoom:1.2, yaw:.5,  pitch:.6, bayer:4},
-  log2:    {shape:0,pal:"dusk", zoom:1.2, yaw:-.6, pitch:.5, bayer:4},
-  log3:    {shape:2,pal:"dusk", zoom:1.2, yaw:1.0, pitch:.7, bayer:4},
-  log4:    {shape:4,pal:"dusk", zoom:1.15,yaw:.2,  pitch:.5, bayer:4},
-  log5:    {shape:3,pal:"dusk", zoom:1.2, yaw:-.9, pitch:.6, bayer:4}
 };
 const rgb=c=>`rgb(${c[0]},${c[1]},${c[2]})`;
 
@@ -920,7 +895,7 @@ document.querySelectorAll("[data-art]").forEach(el=>{
   const m={el,c,ctx,spec,scale:el.classList.contains("thumb")?1:.5,w:0,h:0,visible:false,
     gate:el.closest(".row"),px:0,py:0,tx:0,ty:0,dirty:true};
   if(!reduce){
-    const host=el.closest("a,.portrait,.hero-img")||el;
+    const host=el.closest("a,.hero-img")||el;
     host.addEventListener("pointermove",e=>{const r=host.getBoundingClientRect();m.tx=(e.clientX-r.left)/r.width-.5;m.ty=(e.clientY-r.top)/r.height-.5;schedule();});
     host.addEventListener("pointerleave",()=>{m.tx=0;m.ty=0;schedule();});
   }
@@ -948,13 +923,13 @@ schedule();
 
 /* ---------- "How it decides": pinned scroll stepper ----------
    Progress through the tall section picks the active step (first sixth holds step 1, the rest splits evenly).
-   The plate swap is a fade, rate-limited to one change per 400 ms, so a fast scroll fling can't make it flicker.
+   The left column shows the current step number as plain text (no pictures change).
    Under 1200px or with reduced motion: a plain list, every step visible, nothing pinned. */
 (function(){
   const sec=document.getElementById("decides"),list=document.getElementById("steps"),marker=document.getElementById("marker");
-  const btns=[...list.querySelectorAll(".step")],art=document.getElementById("stepArt"),chip=document.getElementById("stepChip");
+  const btns=[...list.querySelectorAll(".step")],num=document.getElementById("stepNum"),name=document.getElementById("stepName");
   const NAMES=["Sample","Measure","Count","Decide","Act"],n=btns.length,wide=matchMedia("(min-width:1200px)");
-  let active=0,shown=0,lastSwap=0,swapTimer=0;
+  let active=0;
   const isStatic=()=>reduce||!wide.matches;
   const indexAt=p=>p<1/6?0:Math.min(Math.floor((p-1/6)/(5/6)*(n-1))+1,n-1);
   const progress=()=>{const r=sec.getBoundingClientRect(),range=sec.offsetHeight-innerHeight;return range>0?Math.min(1,Math.max(0,-r.top/range)):0;};
@@ -962,26 +937,12 @@ schedule();
     const first=btns[0].getBoundingClientRect(),cur=btns[active].getBoundingClientRect();
     marker.style.transform=`translateY(${(cur.top-first.top).toFixed(1)}px) rotate(${90*active}deg)`;
   }
-  function showPlate(){
-    clearTimeout(swapTimer);
-    const wait=Math.max(0,400-(performance.now()-lastSwap));
-    swapTimer=setTimeout(()=>{
-      if(shown===active) return;
-      lastSwap=performance.now(); shown=active;
-      art.classList.add("swap");
-      setTimeout(()=>{
-        const m=byEl.get(art); if(m){m.spec=SPEC["step"+shown];m.dirty=true;schedule();}
-        if(!render) art.style.backgroundColor=rgb(PAL[SPEC["step"+shown].pal][0]);
-        chip.lastChild.textContent=NAMES[shown]; chip.firstChild.textContent=String(shown+1).padStart(2,"0");
-        art.classList.remove("swap");
-      },reduce?0:350);
-    },wait);
-  }
+  function showStep(){ num.textContent=String(active+1).padStart(2,"0"); name.textContent=NAMES[active]; }
   function setActive(i){
     if(i===active) return;
     active=i;
     btns.forEach((b,k)=>{ if(k===i) b.setAttribute("aria-current","step"); else b.removeAttribute("aria-current"); });
-    placeMarker(); showPlate();
+    placeMarker(); showStep();
   }
   function update(){ if(!isStatic()) setActive(indexAt(progress())); }
   function mode(){
