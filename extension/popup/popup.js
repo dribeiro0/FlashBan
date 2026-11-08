@@ -9,7 +9,16 @@ const failClosed = /** @type {HTMLInputElement} */ ($("failClosed"));
 const hud = /** @type {HTMLInputElement} */ ($("hud"));
 const openHud = /** @type {HTMLButtonElement} */ ($("open-hud"));
 const presetRadios = /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll('input[name="preset"]'));
-const onFlashRadios = /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll('input[name="onFlash"]'));
+const strength = /** @type {HTMLInputElement} */ ($("strength"));
+const strengthDesc = $("strength-desc");
+// What each protection-strength step does (shown and announced as the slider moves).
+const STRENGTH_TEXT = {
+  1: ["Lightest", "Dimmed 72% and in greyscale: the lightest level that still can't flash. It keeps playing."],
+  2: ["Light", "Dimmed 80% and in greyscale, so it can't flash. It keeps playing."],
+  3: ["Medium", "Dimmed 88% and in greyscale: barely visible changes. It keeps playing."],
+  4: ["Strong", "Dimmed 94%: almost covered. It keeps playing."],
+  5: ["Block", "Paused and covered. Use Show anyway to see it."],
+};
 const dataSummary = $("data-summary");
 const dataDetails = $("data-details");
 const dataList = $("data-list");
@@ -30,7 +39,11 @@ async function init() {
   render();
 
   presetRadios.forEach((r) => r.addEventListener("change", () => r.checked && save({ preset: /** @type {any} */ (r.value) })));
-  onFlashRadios.forEach((r) => r.addEventListener("change", () => r.checked && save({ onFlash: /** @type {any} */ (r.value) })));
+  strength.addEventListener("input", () => describeStrength(Number(strength.value)));
+  strength.addEventListener("change", () => {
+    const s = /** @type {any} */ (Number(strength.value));
+    save({ strength: s, onFlash: s >= 5 ? "block" : "soften" });
+  });
   guardedStart.addEventListener("change", () => save({ guardedStart: guardedStart.checked }));
   failClosed.addEventListener("change", () => save({ failClosed: failClosed.checked }));
   hud.addEventListener("change", () => save({ hud: hud.checked }));
@@ -54,11 +67,21 @@ async function init() {
 
 function render() {
   presetRadios.forEach((r) => (r.checked = r.value === settings.preset));
-  onFlashRadios.forEach((r) => (r.checked = r.value === settings.onFlash));
+  // An older "Hide it" choice maps to the Block step.
+  const s = settings.onFlash === "block" ? 5 : settings.strength;
+  strength.value = String(s);
+  describeStrength(s);
   guardedStart.checked = settings.guardedStart;
   failClosed.checked = settings.failClosed;
   hud.checked = settings.hud;
   if (domain) siteBox.checked = !settings.allowlist.includes(domain);
+}
+
+/** @param {number} s */
+function describeStrength(s) {
+  const [name, text] = STRENGTH_TEXT[/** @type {1|2|3|4|5} */ (s)] || STRENGTH_TEXT[2];
+  strength.setAttribute("aria-valuetext", `${s} of 5, ${name}`);
+  strengthDesc.textContent = text;
 }
 
 /** @param {Partial<import("../src/shared/settings.js").Settings>} patch */

@@ -12,7 +12,16 @@
  * @property {string[]} allowlist     registrable domains where the shield is off
  * @property {boolean} hud            relay detector reports to the Demo HUD page
  * @property {OnFlash} onFlash        what to do with flashing video: soften it (default) or cover it
+ * @property {Strength} strength      protection strength 1-5: how dark flashing media is dimmed; 5 blocks it
  */
+
+/** @typedef {1 | 2 | 3 | 4 | 5} Strength */
+// Dim darkness per strength step (share of black over the media). Step 1 is the
+// safe floor: below ~0.66 black the brightest pixel could reach the 0.10
+// relative-luminance change a flash needs, so the slider can't go lighter than
+// 0.72 (max change ~0.064). Step 5 has no dim: it blocks (covers and pauses).
+export const STRENGTH_DIM = Object.freeze({ 1: 0.72, 2: 0.8, 3: 0.88, 4: 0.94 });
+export const STRENGTH_BLOCK = 5;
 
 /** @typedef {"soften" | "block"} OnFlash */
 export const ON_FLASH = /** @type {const} */ (["soften", "block"]);
@@ -28,6 +37,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   allowlist: [],
   hud: false,
   onFlash: "soften",
+  strength: 2,
 });
 
 const DOMAIN_RE = /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$/;
@@ -51,6 +61,7 @@ export function normalizeSettings(raw) {
   if (typeof r.failClosed === "boolean") out.failClosed = r.failClosed;
   if (typeof r.hud === "boolean") out.hud = r.hud;
   if (ON_FLASH.includes(/** @type {any} */ (r.onFlash))) out.onFlash = /** @type {OnFlash} */ (r.onFlash);
+  if (Number.isInteger(r.strength) && /** @type {number} */ (r.strength) >= 1 && /** @type {number} */ (r.strength) <= 5) out.strength = /** @type {Strength} */ (r.strength);
   if (Array.isArray(r.allowlist)) {
     out.allowlist = [
       ...new Set(

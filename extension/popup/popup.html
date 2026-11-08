@@ -37,16 +37,13 @@
 
       <fieldset>
         <legend>When a video flashes</legend>
-        <div class="row">
-          <input type="radio" name="onFlash" id="onflash-soften" value="soften" aria-describedby="hint-soften" />
-          <label for="onflash-soften">Soften it (recommended)</label>
+        <div class="strength">
+          <label for="strength">Protection strength</label>
+          <input type="range" id="strength" min="1" max="5" step="1" value="2" aria-describedby="strength-desc" />
+          <div class="strength-scale" aria-hidden="true"><span>Lighter</span><span>Block</span></div>
         </div>
-        <p class="hint" id="hint-soften">Keeps the video playing, dimmed and in greyscale, so it can't flash.</p>
-        <div class="row">
-          <input type="radio" name="onFlash" id="onflash-block" value="block" aria-describedby="hint-block" />
-          <label for="onflash-block">Hide it</label>
-        </div>
-        <p class="hint" id="hint-block">Pauses the video and covers it.</p>
+        <p class="hint strength-desc" id="strength-desc" aria-live="polite">Dimmed and in greyscale, so it can't flash. It keeps playing.</p>
+        <p class="hint strength-note">Red or very fast flashing is always blocked.</p>
       </fieldset>
 
       <fieldset>

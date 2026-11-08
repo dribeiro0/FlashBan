@@ -10,7 +10,7 @@ import { loadDetector } from "./detector.js";
 import { backdropOf, effectiveColor, visibleArea, relativeLuminance, parseComputedColor } from "./domflicker.js";
 import { startSoften, softenable } from "./soften.js";
 import { readAsync } from "./glread.js";
-import { normalizeSettings, registrableDomain } from "../shared/settings.js";
+import { normalizeSettings, registrableDomain, STRENGTH_DIM, STRENGTH_BLOCK } from "../shared/settings.js";
 
 // ---------------------------------------------------------------- tuning
 
@@ -1130,10 +1130,12 @@ class Source {
     if (!softenable(v)) return false;
     const severe = report.reason === "red" || report.reason === "both" || (report.flashesPerSecond || 0) >= SEVERE_FLASHES_PER_S;
     if (severe) return false; // block() covers and pauses it
+    if (settings.strength >= STRENGTH_BLOCK) return false; // the popup's top step: block
     if (SOFTEN_STYLE === "dim") {
       // Dim + greyscale: the content stays visible and playing, darker and grey,
       // and nothing in it can reach a flash. Stays for this element (no on/off).
-      safemode.guard(v, "dim", REASONS.softDim, { canShow: true });
+      const alpha = STRENGTH_DIM[/** @type {1|2|3|4} */ (settings.strength)] ?? 0.8;
+      safemode.guard(v, "dim", REASONS.softDim, { canShow: true, alpha });
       this.persistentDim = true;
       this.noteViolation(report, t); // still logged: the site served flashing media
       return true;

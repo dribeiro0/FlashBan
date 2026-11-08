@@ -164,3 +164,11 @@ button:disabled {
   h1::before { background: CanvasText; }
   button { border: 1px solid ButtonText; }
 }
+
+/* Protection-strength slider: native range input (keyboard: arrows, Home/End). */
+.strength { padding: 6px 14px 0; }
+.strength label { display: block; font-weight: 600; margin-bottom: 4px; }
+.strength input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); min-height: 24px; }
+.strength-scale { display: flex; justify-content: space-between; font: 600 11px/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.hint.strength-desc { margin-left: 14px; }
+.hint.strength-note { margin-left: 14px; }
