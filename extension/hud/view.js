@@ -13,6 +13,14 @@ const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 const num = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
 const isObj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
 
+// A missing query value must not become tab 0 through Number(null).
+export function parseHudTab(search) {
+  const value = new URLSearchParams(search).get("tab");
+  if (value === null || !/^\d+$/.test(value)) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) ? id : null;
+}
+
 /**
  * Parse one message from the background port.
  * @param {unknown} m

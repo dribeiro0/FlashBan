@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseHudMessage, formatRow } from "./view.js";
+import { parseHudMessage, formatRow, parseHudTab } from "./view.js";
+
+test("HUD requires an explicit valid tab selection before subscribing", () => {
+  for (const search of ["", "?tab", "?tab=", "?tab=%20", "?tab=-1", "?tab=1.5", "?tab=1e2", "?tab=Infinity", "?tab=9007199254740992"]) {
+    assert.equal(parseHudTab(search), null, search);
+  }
+  assert.equal(parseHudTab("?tab=0"), 0);
+  assert.equal(parseHudTab("?tab=7"), 7);
+});
 
 const report = (over = {}) => ({
   type: "report", v: 1, tabId: 7, sourceId: "f0-s1", source: "canvas", preset: "strict", at: 1,
