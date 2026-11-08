@@ -753,8 +753,24 @@ class Source {
     // Softened: the soften layer reads and verifies every frame itself, so
     // skip the raw read (saves a second readback). While it's only checking
     // (guarded start), keep sampling: the raw detector decides calm or not.
-    if (this.soft && !this.soft.checking) return;
     const el = this.el;
+    // An ambient glow (a small canvas blown up 3x or more, like YouTube's
+    // ambient mode, which starts at the default 300x150) is faded, never
+    // measured: its crossfades read as flashing and covered or softened half
+    // the page (Sat 11:55 PM, 12:18 AM). The fade caps anything it could show
+    // at 0.08 of its swing.
+    if (isStretchedCanvas(el)) {
+      if (this.soft) {
+        const sft = this.soft;
+        this.soft = null;
+        try {
+          sft.stop();
+        } catch {}
+      }
+      if (safemode.guardMode(el)) safemode.release(el, { immediate: true });
+      return this.markUnverifiable(REASONS.glow);
+    }
+    if (this.soft && !this.soft.checking) return;
     if (!el.isConnected) return;
     if (el instanceof HTMLVideoElement) {
       if (el.readyState < 2) return;
@@ -762,11 +778,6 @@ class Source {
     }
     if (el instanceof HTMLCanvasElement && (el.width === 0 || el.height === 0)) return;
     if (el instanceof HTMLImageElement && (!el.complete || el.naturalWidth === 0)) return;
-    // An ambient glow (a tiny canvas blown up 4x or more, like YouTube's
-    // ambient mode) is faded, never measured: its crossfades between two
-    // stretched canvases read as flashing and covered half the page (Sat
-    // 11:55 PM). The fade caps anything it could show at 0.08 of its swing.
-    if (isStretchedCanvas(el)) return this.markUnverifiable(REASONS.glow);
     if (t <= this.lastT) return;
     this.lastT = t;
     if (!this.ensureDetector(t) || !this.ctx) return;
@@ -1220,7 +1231,7 @@ class Source {
     // own opacity leaves at most ~0.04 of a strobe's swing on screen).
     // YouTube's ambient mode (Sat 11:05 PM, Avery's laptop) is two 110x75
     // canvases drawn from cross-origin thumbnails, stretched to 979x734 and
-    // crossfaded, so one is fully opaque: a tiny bitmap blown up 4x or more is
+    // crossfaded, so one is fully opaque: a small bitmap blown up 3x or more is
     // a glow too. The fade caps any flash it could carry at 0.08 of its swing.
     const glow = (isStretchedCanvas(el) || this.appearance(performance.now()).opacity < CLEAR_GLOW_OPACITY) && el instanceof HTMLElement;
     if (dim && glow) {
@@ -1482,11 +1493,11 @@ function ensureGlowStyle() {
   (document.head || document.documentElement).append(glowStyle);
 }
 
-/** A tiny bitmap shown 4x or more its size on both axes: a blurred ambient glow. @param {Element} el */
+/** A small bitmap (<= 320 px) shown 3x or more its size on both axes: a blurred ambient glow. @param {Element} el */
 function isStretchedCanvas(el) {
-  if (!(el instanceof HTMLCanvasElement) || el.width <= 0 || el.height <= 0 || el.width > 256 || el.height > 256) return false;
+  if (!(el instanceof HTMLCanvasElement) || el.width <= 0 || el.height <= 0 || el.width > 320 || el.height > 320) return false;
   const r = el.getBoundingClientRect();
-  return r.width >= 4 * el.width && r.height >= 4 * el.height;
+  return r.width >= 3 * el.width && r.height >= 3 * el.height;
 }
 
 /** Cheap change detector for guarded start (not a security check). @param {Uint8ClampedArray} d */
