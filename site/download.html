@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Download FlashBan for Chrome</title>
+<meta name="description" content="Download the FlashBan Chrome extension, check its SHA-256, and install it with Load unpacked.">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap">
+  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>FlashBan</a>
+  <nav aria-label="Site"><a href="index.html">Home</a><a href="how.html">How it works</a><a href="security.html">Privacy &amp; security</a><a href="download.html" aria-current="page">Download</a></nav>
+</div></header>
+
+<main id="main">
+  <div class="wrap">
+    <section aria-labelledby="t">
+      <h1 id="t">Get FlashBan <em>for Chrome.</em></h1>
+      <p class="lede">FlashBan isn't in the Chrome Web Store yet, so you install it by hand: download one zip, check it, and load it in Chrome. It takes about two minutes.</p>
+    </section>
+
+    <section aria-labelledby="file">
+      <h2 id="file" class="sr-only">The file</h2>
+      <p id="download-missing" class="notice">The download hasn't been built on this copy of the site. In the project folder, run <code>node site/build.mjs</code>, then reload this page.</p>
+      <div id="download-box" class="dl" hidden>
+        <div class="swatch" aria-hidden="true"></div>
+        <div class="body">
+          <a id="dl-link" class="btn" href="download/"><span id="dl-label">Download FlashBan</span></a>
+          <dl>
+            <dt>Version</dt><dd id="dl-version" class="num"></dd>
+            <dt>File</dt><dd id="dl-file" class="num"></dd>
+            <dt>Size</dt><dd id="dl-size"></dd>
+            <dt>SHA-256</dt><dd><span id="dl-sha" class="hash"></span><button type="button" class="btn small ghost copy" data-copy="dl-sha">Copy</button></dd>
+            <dt>Built from</dt><dd>commit <span id="dl-commit" class="num"></span></dd>
+            <dt>Permissions</dt><dd id="dl-perms" class="num"></dd>
+          </dl>
+          <p id="copy-status" class="fine" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+      <p class="fine">Requires Chrome 116 or newer on a desktop computer (Windows, macOS, Linux or ChromeOS). Not a medical device: FlashBan reduces exposure to flashing content and can't guarantee protection.</p>
+    </section>
+
+    <section aria-labelledby="install">
+      <h2 id="install">Install it</h2>
+      <ol class="steps">
+        <li><div><h3>Unzip the download</h3><p>You get one folder named <code data-folder>flashban-0.1.0</code>. Keep it somewhere it won't be deleted: Chrome loads FlashBan from that folder every time it starts.</p></div></li>
+        <li><div><h3>Open the extensions page</h3><p>Type <code>chrome://extensions</code> in the address bar and press Enter.</p></div></li>
+        <li><div><h3>Turn on Developer mode</h3><p>The switch is at the top right of the page.</p></div></li>
+        <li><div><h3>Choose Load unpacked</h3><p>Pick the <code data-folder>flashban-0.1.0</code> folder (the one that contains <code>manifest.json</code>).</p></div></li>
+        <li><div><h3>Pin FlashBan</h3><p>Click the puzzle-piece icon in the toolbar and pin FlashBan, so its popup and the "!" lockdown badge are easy to see.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="split" aria-labelledby="verify">
+      <div>
+        <h2 id="verify">Check the file before you load it</h2>
+        <p class="muted">An extension can read the pages you visit, so make sure the zip is the one we built. Compare its SHA-256 with the one above: they must match exactly.</p>
+      </div>
+      <div>
+        <p class="label">Windows (PowerShell)</p>
+        <pre><code data-file>Get-FileHash .\flashban-0.1.0.zip -Algorithm SHA256</code></pre>
+        <p class="label">macOS</p>
+        <pre><code data-file>shasum -a 256 flashban-0.1.0.zip</code></pre>
+        <p class="label">Linux</p>
+        <pre><code data-file>sha256sum flashban-0.1.0.zip</code></pre>
+      </div>
+    </section>
+
+    <section class="split" aria-labelledby="rebuild">
+      <div>
+        <h2 id="rebuild">Or rebuild it yourself</h2>
+        <p class="muted">The zip is reproducible: the same source always gives the same bytes. Build it from the commit shown above and the checksum must equal the one above. No dependencies, just Node.</p>
+      </div>
+      <div>
+        <pre><code id="rebuild-cmd">git clone https://github.com/dribeiro0/FlashBan.git
+cd FlashBan
+git checkout <span data-commit>the commit shown above</span>
+node site/build.mjs</code></pre>
+        <button type="button" class="btn small ghost copy" data-copy="rebuild-cmd">Copy commands</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="perms">
+      <h2 id="perms">Why it asks for these permissions</h2>
+      <div class="table"><table>
+        <thead><tr><th scope="col">Permission</th><th scope="col">What FlashBan uses it for</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><code>&lt;all_urls&gt;</code> (read and change site data)</th><td>To see flashing on any page you visit and to put its labels and panels over it. Pages are read on your computer; nothing is sent anywhere.</td></tr>
+          <tr><th scope="row"><code>storage</code></th><td>Your settings, and the local log of domains that flashed (30 days).</td></tr>
+          <tr><th scope="row"><code>scripting</code></th><td>Only for lockdown: adding browser-level styles that a hostile page can't see or remove.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section aria-labelledby="manage">
+      <h2 id="manage">Update or remove</h2>
+      <ul class="rows">
+        <li><span>Update</span><p>Download the new zip, check it, unzip it over the old folder, then press the reload arrow on FlashBan's card in <code>chrome://extensions</code>.</p></li>
+        <li><span>Remove</span><p>Press Remove on FlashBan's card. Its settings and log are deleted with it.</p></li>
+        <li><span>Pause on one site</span><p>Open the popup and switch off "Protect this site", or use "Show original on this site" in FlashBan's bar on the page.</p></li>
+      </ul>
+    </section>
+  </div>
+</main>
+
+<footer><div class="wrap">
+  <p>FlashBan, by team FlashBan at Hackcessability. Not a medical device. Don't rely on it as your only protection.</p>
+  <p><a href="security.html">Privacy &amp; security</a> · <a href="security.html#limits">Known limits</a></p>
+</div></footer>
+<script src="download/latest.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
