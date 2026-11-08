@@ -1,96 +1,778 @@
 <!doctype html>
+<!--
+  FLASHBAN · website home (site/index.html)
+  what      The landing page for FlashBan, a Chrome extension that softens flashing content for people with
+            photosensitive epilepsy. Every fact on it comes from README.md, security/THREAT_MODEL.md or git history.
+  safety    This page is for photosensitive visitors, so nothing on it flashes or moves by itself. The 3D plates
+            hold still and only tilt, eased, while the pointer moves over them; the marquee and hero parallax
+            move only with scroll; reveals are slow fades. prefers-reduced-motion turns all of that off.
+            Dither is low contrast (close tones) because fine high-contrast patterns can trigger pattern
+            sensitivity.
+  security  Strict CSP below. The one inline <style> and inline <script> are allowed by their SHA-256 hashes;
+            site/csp.test.js recomputes them, so editing either block without updating the CSP fails `npm test`
+            (`node site/csp.mjs` rewrites the hashes). No inline style attributes or event handlers. Fonts are
+            self-hosted (site/fonts, OFL); no third-party requests.
+
+  MAP
+  tokens    one :root block at the top of the <style>: --bg #0e0e0e, --card, --fg #edeae3, --mute, --line,
+            --paper (cream changelog), --ink; Sofia Sans Extra Condensed 900 for fitted display type, Martian Mono
+            for labels and body; --ease for reveals, --roll for link and arrow rolls.
+  sections  nav, hero, about, states, marquee, tested, changelog, download, footer (each carries data-section)
+  scripts   one classic IIFE: one shared WebGL2 context raymarches a signed-distance shape and Bayer-dithers it in
+            the same pass (silhouette outline from the ray's closest approach), then copies it into each [data-art]
+            canvas; fit-to-width headings, reveals, scroll-only parallax and marquee, phone menu, download box.
+  assets    no image files; fonts in site/fonts; download/latest.js is written by `node site/build.mjs`.
+
+  ADAPTING
+  - Add a plate: <div class="art" data-art="name"> inside any sized box, plus a SPEC entry with that name.
+  - Plates draw on load, on resize, and while a pointer tilts them; changelog plates only while their row is hovered.
+  - Breakpoints at 1200px (tablet) and 810px (phone, where the nav becomes a menu panel).
+  - Without WebGL2 each plate falls back to its palette colour with a CSS dot grid.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-cp+YaSE+q71m3A2m9OXw8clPQzSFBRqSBr8JFl2PbGM='; style-src 'self' 'sha256-0gW15zk7lUNYgr+ZQyzckjC9nhAtz1JDfYtV9D77yIE='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<title>FlashBan: flashing content, softened before it reaches you</title>
+<title>FlashBan — flashing content, softened before it reaches you</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
-<link rel="stylesheet" href="site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230e0e0e'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='Arial Narrow,Arial' font-weight='900' font-size='18' fill='%23edeae3'%3EFB%3C/text%3E%3C/svg%3E">
+<style>
+@font-face{font-family:"Sofia Sans Extra Condensed";font-weight:900;font-style:normal;font-display:swap;src:url(fonts/sofia-sans-extra-condensed-900.woff2) format("woff2")}
+@font-face{font-family:"Martian Mono";font-weight:100 800;font-style:normal;font-display:swap;src:url(fonts/martian-mono.woff2) format("woff2")}
+:root{
+  --bg:#0e0e0e;--card:#161616;--fg:#edeae3;--mute:#a3a29c;
+  --line:#edeae324;--line2:#2a2a2a;
+  --ink:#0e0e0e;--ink-mute:#0e0e0eb8;--ink-line:#0e0e0e29;--paper:#edeae3;
+  --warn:#ffd84d;--panel:#121212;
+  --display:"Sofia Sans Extra Condensed","Arial Narrow",sans-serif;
+  --mono:"Martian Mono",ui-monospace,monospace;
+  --ease:cubic-bezier(.12,.23,.27,1);
+  --roll:cubic-bezier(.65,0,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);font-family:var(--mono);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::selection{background:var(--fg);color:var(--bg)}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--warn);outline-offset:3px}
+.skip{position:absolute;left:-999px;top:8px;z-index:60;background:var(--fg);color:var(--bg);padding:8px 12px}
+.skip:focus{left:8px}
+.sym{position:absolute;width:0;height:0;overflow:hidden}
+ul{list-style:none}
+.label{font:400 12px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
+.label.fg{color:var(--fg)}
+.body{font:400 13px/1.65 var(--mono)}
+.ic{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.25}
+
+/* dithered SDF plates (image modules); low-contrast palettes are set per plate in the script */
+.art{position:absolute;inset:0;overflow:hidden;background-color:#8f9680}
+.art canvas{width:100%;height:100%;display:block;image-rendering:crisp-edges;image-rendering:pixelated}
+.no-gl .art{background-image:radial-gradient(circle,#4f584244 1.1px,transparent 1.5px);background-size:6px 6px}
+
+/* fit text */
+.fit{display:block;width:100%;white-space:nowrap;font-family:var(--display);font-weight:900;text-transform:uppercase;line-height:.88}
+.fit>span{display:inline-block;font-size:160px}
+
+/* reveal: a slow fade, never a flash */
+[data-reveal]{opacity:0;transform:translateY(16px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+[data-reveal].in{opacity:1;transform:none}
+
+/* roll links */
+.rl{display:inline-block;position:relative;overflow:hidden;vertical-align:top;line-height:1.4}
+.rl>span{display:block;transition:transform .5s var(--roll)}
+.rl>span+span{position:absolute;left:0;top:100%}
+a:hover .rl>span,a:focus-visible .rl>span{transform:translateY(-100%)}
+
+/* nav */
+.nav{position:fixed;top:0;left:0;right:0;z-index:50;height:64px;display:flex;justify-content:space-between;align-items:stretch;
+  background:#0e0e0ef0;border-bottom:1px solid var(--line2)}
+.brand{display:flex;align-items:center;padding:0 24px;border-right:1px solid var(--line);font:900 32px/1 var(--display);text-transform:uppercase;color:var(--fg)}
+.nav-r{display:flex}
+.latest{display:flex;align-items:center;gap:12px;padding:0 24px;border-left:1px solid var(--line)}
+.latest .thumb{width:32px;height:32px;position:relative;overflow:hidden}
+.latest .body{color:var(--fg)}
+.latest:hover .body{text-decoration:underline;text-underline-offset:3px}
+.navlinks{display:flex}
+.navlinks a{display:flex;align-items:center;padding:0 24px;border-left:1px solid var(--line)}
+.menu-btn{display:none;flex-direction:column;align-items:flex-start;gap:4px;background:none;border:0;cursor:pointer;align-self:center;padding:8px}
+.menu-btn .wb{height:16px;width:44px;overflow:hidden;position:relative}
+.menu-btn .wb span{position:absolute;left:0;transition:top .4s var(--roll);color:var(--fg)}
+.menu-btn .w1{top:0}.menu-btn .w2{top:16px}
+.menu-btn .rule{height:1px;width:36px;background:var(--fg)}
+body.menu-open .menu-btn .w1{top:-16px}
+body.menu-open .menu-btn .w2{top:0}
+.mmenu{position:fixed;inset:64px 0 0 0;z-index:49;background:var(--bg);padding:16px 16px 32px;display:flex;flex-direction:column;justify-content:space-between}
+.mmenu[hidden]{display:none}
+.mmenu nav a{display:block;font:900 64px/1 var(--display);text-transform:uppercase;padding:14px 0 10px;border-bottom:1px solid var(--line)}
+.mmenu .mfoot{display:flex;flex-wrap:wrap;gap:12px 20px}
+
+/* hero */
+.hero{position:relative;z-index:1;display:flex;flex-direction:column;gap:24px;padding:88px 24px 64px}
+.hero h1{position:sticky;top:64px;z-index:2;mix-blend-mode:difference;color:var(--fg)}
+.hero-img{position:relative;height:78vh;min-height:420px;overflow:clip}
+.hero-img .art{inset:-40px 0;will-change:transform}
+.hero-note{position:absolute;left:16px;bottom:16px;z-index:2;max-width:360px;background:var(--panel);color:var(--fg);padding:10px 12px}
+
+/* about */
+.intro{display:flex;gap:24px;padding:128px 24px}
+.ic1{flex:1;display:flex;align-items:flex-start}
+.stmt{position:sticky;top:160px;display:flex;flex-direction:column;gap:24px}
+.stmt .body,.bio .body{max-width:340px;color:var(--fg)}
+.stmt .muted{color:var(--mute)}
+.portrait{flex:1.4;height:720px;position:relative;overflow:clip}
+.ic3{flex:1;display:flex;flex-direction:column;justify-content:flex-end}
+.bio{display:flex;flex-direction:column;gap:24px;align-items:flex-start}
+
+/* button */
+.btn{display:inline-flex;align-items:center;padding:10px 10px 10px 16px;border:1px solid var(--line2);transition:border-color .3s;min-height:44px}
+.btn:hover,.btn:focus-visible{border-color:var(--mute)}
+.btn.solid{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn.solid .label{color:var(--bg)}
+.slot{width:24px;height:24px;margin-left:8px;position:relative;overflow:hidden}
+.slot svg{position:absolute;width:16px;height:16px;transform:translate(-50%,-50%);transition:left .45s var(--roll),top .45s var(--roll)}
+.slot .ain{left:120%;top:-20%}.slot .aout{left:50%;top:50%}
+.btn:hover .ain,.btn:focus-visible .ain{left:50%;top:50%}.btn:hover .aout,.btn:focus-visible .aout{left:-20%;top:120%}
+
+/* states gallery */
+.work{position:relative;z-index:1;padding:128px 24px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr}
+.card{position:relative;display:flex;overflow:clip;background:var(--card);height:560px}
+.card.full{grid-column:1/-1}
+.card.tall{height:640px}
+.cap{position:relative;z-index:3;flex:1;display:flex;align-items:flex-end;padding:24px}
+.cap-row{flex:1;display:flex;justify-content:space-between;align-items:flex-end;gap:16px}
+.cap h3{font:900 64px/.9 var(--display);text-transform:uppercase;background:var(--panel);padding:8px 12px 4px}
+.meta{display:flex;gap:8px;background:var(--panel);padding:8px 10px}
+.meta .label{color:var(--fg)}
+/* the extension's own overlay look (white on #121212, dark on yellow) */
+.ov-chip{position:absolute;left:16px;top:16px;z-index:2;display:flex;gap:8px;align-items:center;background:var(--panel);color:#fff;padding:6px 10px;font:700 13px/1.35 var(--mono)}
+.ov-chip b{background:var(--warn);color:var(--ink);padding:0 6px;font-weight:700}
+.ov-cover{position:absolute;left:12%;right:12%;top:14%;bottom:30%;z-index:1;background:var(--panel);color:#fff;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:24px}
+.ov-cover strong{font:900 40px/.95 var(--display);text-transform:uppercase}
+.ov-cover p{font:400 12px/1.6 var(--mono);color:#e8e8e8;max-width:40ch}
+.ov-dim{position:absolute;inset:0;z-index:1;background:rgba(18,18,18,.66)}
+.band{position:relative;grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;height:128px;padding:0 24px;background:var(--paper);color:var(--ink)}
+.band h2{font:900 64px/.9 var(--display);text-transform:uppercase}
+.band .side{display:flex;align-items:center;gap:16px}
+.band .side .label{color:var(--ink-mute)}
+.bdisc{width:64px;height:64px;border:1px solid var(--ink);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.bdisc svg{width:24px;height:24px;stroke-width:1.5}
+
+/* marquee (moves with scroll only) */
+.marq-wrap{position:relative;z-index:1;padding:96px 0 128px}
+.marq{height:280px;overflow:hidden;display:flex;align-items:center;container-type:size}
+.track{display:flex;flex-shrink:0;font:900 100cqh/1 var(--display);text-transform:uppercase;will-change:transform}
+.mi{display:flex;align-items:center;flex-shrink:0;gap:.3em;padding-right:.3em;white-space:nowrap}
+.sq{display:inline-block;width:.14em;height:.14em;background:currentColor}
+
+/* tested wall */
+.clients{position:relative;z-index:1;padding:0 24px 96px}
+.clients .tag{padding:0 0 16px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.wall{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.cell{position:relative;height:240px;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:0 20px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.cell .num{font:900 88px/.85 var(--display);text-transform:uppercase;color:var(--fg)}
+.cell .what{font:400 12px/1.5 var(--mono);color:var(--fg);max-width:26ch}
+.cell .label{position:absolute;left:20px;bottom:14px}
+
+/* changelog */
+.journal{position:relative;z-index:1;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;gap:48px;padding:48px 24px 96px}
+.jhead{display:flex;flex-direction:column;gap:40px}
+.introrow{display:flex;gap:24px}
+.sp96{width:96px;flex:none}.grow{flex:1}.sp48{width:48px;flex:none}
+.jintro{flex:1;max-width:340px}
+.posts{border-bottom:1px solid var(--ink-line)}
+.row{position:relative;display:flex;align-items:center;gap:24px;padding:24px 24px 24px 0;border-top:1px solid var(--ink-line);overflow:clip;transition:padding .5s var(--roll),color .4s}
+.row .bg{position:absolute;inset:0;overflow:hidden;transform:translateY(-100%);transition:transform .5s var(--roll)}
+.row .bg::after{content:"";position:absolute;inset:0;background:rgba(14,14,14,.62)}
+.row>*:not(.bg){position:relative}
+.date{width:96px;flex:none;color:var(--ink-mute)}
+.rtitle{flex:1;font:900 48px/.9 var(--display);text-transform:uppercase}
+.exc{flex:1;max-width:360px;color:var(--ink-mute);transition:color .4s}
+.disc{width:48px;height:48px;flex:none;border:1px solid currentColor;border-radius:50%;position:relative;overflow:hidden}
+.disc svg{position:absolute;width:20px;height:20px;left:13px;stroke-width:1.5;transition:top .5s var(--roll)}
+.disc .i1{top:13px}.disc .i2{top:62px}
+@media (hover:hover) and (min-width:810px){
+  .row:hover,.row:focus-visible{padding:24px;color:var(--paper)}
+  .row:hover .bg,.row:focus-visible .bg{transform:none}
+  .row:hover .date,.row:hover .exc,.row:focus-visible .date,.row:focus-visible .exc{color:#edeae3d9}
+  .row:hover .i1,.row:focus-visible .i1{top:-34px}.row:hover .i2,.row:focus-visible .i2{top:13px}
+}
+
+/* download */
+.cta{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:32px;padding:160px 24px 112px;text-align:center}
+.cta .fit{text-align:center}
+.cta .acts{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.sha{max-width:100%;overflow-wrap:anywhere;font:400 12px/1.6 var(--mono);color:var(--fg)}
+.sha .label{display:block;margin-bottom:4px}
+.cta .note{max-width:560px;color:var(--mute)}
+
+/* footer */
+.foot{display:flex;min-height:64px;border-top:1px solid var(--line)}
+.copy{display:flex;align-items:center;padding:12px 24px;border-right:1px solid var(--line)}
+.fsp{flex:1}
+.flinks{display:flex}
+.flinks a{display:flex;align-items:center;justify-content:center;padding:0 24px;border-left:1px solid var(--line)}
+.flinks .div{display:none}
+
+/* tablet */
+@media (max-width:1199.98px){
+  .latest{display:none}
+  .brand{padding:0 20px}
+  .hero{padding:88px 20px 64px}
+  .intro{flex-direction:column;gap:48px;padding:96px 20px}
+  .ic1,.ic3{flex:none;width:100%}
+  .stmt{position:static}
+  .stmt .body,.bio .body{max-width:560px}
+  .portrait{flex:none;width:100%;height:600px}
+  .work{padding:128px 20px 64px}
+  .card{height:440px}.card.tall{height:520px}
+  .cap{padding:20px}
+  .cap h3{font-size:48px}
+  .ov-cover strong{font-size:32px}
+  .band{height:112px;padding:0 20px}
+  .band h2{font-size:48px}
+  .marq{height:200px}
+  .clients{padding:0 20px 72px}
+  .wall{grid-template-columns:repeat(2,1fr)}
+  .cell{height:200px}
+  .cell .num{font-size:72px}
+  .journal{padding:40px 20px 64px}
+  .jhead{gap:32px}
+  .rtitle{font-size:40px}
+  .cta{padding:120px 20px 80px}
+  .foot{flex-direction:column}
+  .copy{min-height:56px;padding:12px 20px;border-right:0;border-bottom:1px solid var(--line)}
+  .fsp{display:none}
+  .flinks{height:56px}
+  .flinks a{flex:1;padding:0 12px}
+  .flinks a:first-child{border-left:0}
+}
+/* phone */
+@media (max-width:809.98px){
+  .nav{padding:0 8px 0 16px}
+  .brand{padding:0;border:0;font-size:26px}
+  .navlinks{display:none}
+  .menu-btn{display:flex}
+  .hero{padding:80px 16px 48px}
+  .hero-img{height:62vh}
+  .intro{gap:40px;padding:64px 16px}
+  .portrait{height:440px}
+  .work{padding:96px 16px 64px}
+  .grid{display:flex;flex-direction:column}
+  .card,.card.tall{height:420px}
+  .cap{padding:16px}
+  .cap-row{flex-direction:column;align-items:flex-start;gap:8px}
+  .cap h3{font-size:40px}
+  .ov-cover{left:6%;right:6%;top:18%;bottom:38%;padding:16px}
+  .ov-cover strong{font-size:26px}
+  .band{height:96px;padding:0 16px}
+  .band h2{font-size:36px}
+  .band .side .label{display:none}
+  .bdisc{width:48px;height:48px}
+  .marq{height:112px}
+  .clients{padding:0 16px 56px}
+  .wall{grid-template-columns:1fr}
+  .cell{height:auto;padding:20px 16px}
+  .cell .label{position:static}
+  .journal{padding:32px 16px 64px}
+  .jhead{gap:24px}
+  .sp96,.grow,.sp48{display:none}
+  .jintro{max-width:none}
+  .row{flex-direction:column;align-items:flex-start;gap:12px;padding:24px 0}
+  .date,.exc{width:100%;max-width:none}
+  .rtitle{font-size:32px;flex:none;width:100%}
+  .disc{width:40px;height:40px}
+  .disc svg{left:9px}.disc .i1{top:9px}
+  .cta{gap:28px;padding:96px 16px 64px}
+  .copy{justify-content:center;padding:12px 16px;text-align:center}
+  .flinks{display:grid;grid-template-columns:repeat(3,1fr);height:auto}
+  .flinks a{height:56px}
+  .flinks a:first-child{grid-column:1/-1}
+  .flinks .div{display:block;grid-column:1/-1;height:1px;background:var(--line)}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;scroll-behavior:auto!important}
+  [data-reveal]{opacity:1;transform:none}
+}
+@media (forced-colors:active){
+  .art{forced-color-adjust:auto;background:Canvas}
+  .ov-chip,.ov-cover,.cap h3,.meta{border:1px solid CanvasText}
+}
+</style>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<header class="top"><div class="wrap">
-  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>FlashBan</a>
-  <nav aria-label="Site"><a href="index.html" aria-current="page">Home</a><a href="how.html">How it works</a><a href="security.html">Privacy &amp; security</a><a href="download.html">Download</a></nav>
-  <a class="btn small get" href="download.html">Get FlashBan</a>
-</div></header>
+<svg class="sym" aria-hidden="true">
+  <symbol id="arw" viewBox="0 0 24 24"><path d="M7 7h10v10M7 17L17 7"/></symbol>
+</svg>
+
+<!-- NAV -->
+<header class="nav" data-section="nav">
+  <a class="brand" href="#top">FlashBan</a>
+  <div class="nav-r">
+    <a class="latest" href="../demo/showcase/index.html">
+      <div class="thumb" data-art="thumb"></div>
+      <span class="body">New: the Grain demo</span>
+    </a>
+    <nav class="navlinks" aria-label="Site">
+      <a href="how.html"><span class="label fg rl"><span>How it works</span><span aria-hidden="true">How it works</span></span></a>
+      <a href="#tested"><span class="label fg rl"><span>Tested</span><span aria-hidden="true">Tested</span></span></a>
+      <a href="security.html"><span class="label fg rl"><span>Privacy</span><span aria-hidden="true">Privacy</span></span></a>
+      <a href="#download"><span class="label fg rl"><span>Download</span><span aria-hidden="true">Download</span></span></a>
+    </nav>
+    <button class="menu-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="mmenu">
+      <span class="wb"><span class="label w1">Menu</span><span class="label w2">Close</span></span>
+      <span class="rule"></span>
+    </button>
+  </div>
+</header>
+<div class="mmenu" id="mmenu" hidden>
+  <nav aria-label="Site, phone">
+    <a href="how.html">How it works</a><a href="#tested">Tested</a><a href="security.html">Privacy</a><a href="#download">Download</a>
+  </nav>
+  <div class="mfoot">
+    <a class="label fg" href="../demo/showcase/index.html">Grain demo</a>
+    <a class="label" href="https://github.com/dribeiro0/FlashBan" rel="noopener noreferrer">GitHub</a>
+    <a class="label" href="security.html#limits">Known limits</a>
+  </div>
+</div>
 
 <main id="main">
-  <div class="wrap">
-    <section class="hero" aria-labelledby="t">
-      <div>
-        <h1 id="t">Flashing, reduced to <em>an even grain.</em></h1>
-        <p class="lede">FlashBan is a free Chrome extension for people with photosensitive epilepsy. It finds flashing video, GIFs, canvas and animation and softens just that part. The rest of the page stays sharp.</p>
-        <div class="actions">
-          <a class="btn" href="download.html">Download for Chrome</a>
-          <a class="btn ghost" href="../demo/showcase/index.html">Try it on the demo site</a>
+  <span id="top"></span>
+  <!-- 01 HERO -->
+  <section class="hero" data-section="hero" aria-labelledby="h-title">
+    <h1 class="fit" id="h-title" data-reveal data-d=".1"><span>FlashBan</span></h1>
+    <div class="hero-img">
+      <div class="art" data-art="hero" id="heroArt" role="img" aria-label="A dithered 3D shape, holding still"></div>
+      <p class="label fg hero-note">Every picture here is a live 3D shape, dithered in two close tones. None of them move on their own.</p>
+    </div>
+  </section>
+
+  <!-- 02 ABOUT -->
+  <section class="intro" id="about" data-section="about" aria-label="What FlashBan is">
+    <div class="ic1">
+      <div class="stmt">
+        <p class="body muted" data-reveal>[ What it is ]</p>
+        <p class="body" data-reveal data-d=".08">FlashBan is a free Chrome extension for people with photosensitive epilepsy. It finds flashing video, GIFs, canvas and animation and softens just that part, before it reaches you.</p>
+      </div>
+    </div>
+    <div class="portrait"><div class="art" data-art="portrait" role="img" aria-label="A dithered 3D shape"></div></div>
+    <div class="ic3">
+      <div class="bio">
+        <p class="body" data-reveal>Soften first. Cover only if it won't calm down. Dim what it can't check. No account and no server: the only record is a site's domain, on your computer, for 30 days.</p>
+        <p class="body" data-reveal data-d=".06">Not a medical device. It reduces exposure to flashing content; it can't guarantee protection.</p>
+        <a class="btn" href="how.html" data-reveal data-d=".1">
+          <span class="label fg">How it decides</span>
+          <span class="slot" aria-hidden="true"><svg class="ic ain"><use href="#arw"/></svg><svg class="ic aout"><use href="#arw"/></svg></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 STATES -->
+  <section class="work" id="states" data-section="states" aria-labelledby="s-title">
+    <h2 class="fit" id="s-title" data-reveal><span>What you see on the page</span></h2>
+    <div class="grid">
+      <a class="card full" href="how.html">
+        <div class="art" data-art="softened"></div>
+        <span class="ov-chip"><b>FlashBan</b>Flashing softened</span>
+        <div class="cap"><div class="cap-row"><h3>Softened</h3>
+          <div class="meta"><span class="label">Default</span><span class="label">▪</span><span class="label">Still playing</span></div></div></div>
+      </a>
+      <a class="card tall" href="how.html">
+        <div class="art" data-art="covered"></div>
+        <div class="ov-cover"><strong>Flashing content hidden</strong><p>It kept flashing after softening, so it's paused and covered. "Show original on this site" in FlashBan's bar brings the site back.</p></div>
+        <div class="cap"><div class="cap-row"><h3>Covered</h3>
+          <div class="meta"><span class="label">Won't calm</span><span class="label">▪</span><span class="label">Paused</span></div></div></div>
+      </a>
+      <a class="card tall" href="security.html#limits">
+        <div class="art" data-art="verify"></div>
+        <div class="ov-dim"></div>
+        <span class="ov-chip"><b>Can't verify</b>Dimmed</span>
+        <div class="cap"><div class="cap-row"><h3>Can't verify</h3>
+          <div class="meta"><span class="label">Unreadable</span><span class="label">▪</span><span class="label">Fails closed</span></div></div></div>
+      </a>
+      <a class="card full" href="security.html">
+        <div class="art" data-art="locked"></div>
+        <span class="ov-chip"><b>!</b>Page locked down</span>
+        <div class="cap"><div class="cap-row"><h3>Locked down</h3>
+          <div class="meta"><span class="label">Page fights back</span><span class="label">▪</span><span class="label">Media hidden</span></div></div></div>
+      </a>
+      <a class="band" href="../demo/showcase/index.html">
+        <h2>Try it on Grain</h2>
+        <div class="side">
+          <span class="label">Demo site ▪ read its warning first</span>
+          <span class="bdisc" aria-hidden="true"><svg class="ic"><use href="#arw"/></svg></span>
         </div>
-        <p class="fine">No account. No server. Not a medical device: FlashBan reduces exposure to flashing content, it can't guarantee protection.</p>
-      </div>
-      <figure class="plate">
-        <canvas data-scene="softened" width="720" height="405" role="img" aria-label="A video frame whose flashing area has been flattened to an even field while the rest of the scene stays visible"></canvas>
-        <figcaption>Illustration: the flashing area becomes a flat field; the video keeps playing.</figcaption>
-      </figure>
-    </section>
+      </a>
+    </div>
+  </section>
 
-    <section aria-labelledby="what">
-      <h2 id="what">What FlashBan does</h2>
-      <ul class="rows">
-        <li><span>Finds the flashing</span><p>Video, canvas, animated images, CSS animation and script-driven flicker, measured against WCAG 2.3.1 (more than three flashes a second over a large area) and the separate red-flash rule, by real time.</p></li>
-        <li><span>Softens first</span><p>Flashing video keeps playing through a smoothing filter, and a second detector checks the result. CSS animations slow to about one cycle a second. You keep watching.</p></li>
-        <li><span>Covers if it won't calm</span><p>If softening can't get the flashing under the limit, FlashBan pauses it behind a plain panel. Only you can bring it back, with Show anyway.</p></li>
-        <li><span>Fails closed</span><p>Media it can't read (protected or cross-origin video) is dimmed and labelled "can't verify", never silently let through.</p></li>
-        <li><span>Fights back</span><p>A page that keeps deleting or undoing FlashBan's protection gets locked down: its media is hidden with styles the page can't see or remove.</p></li>
-      </ul>
-    </section>
+  <!-- 04 MARQUEE -->
+  <section class="marq-wrap" data-section="marquee" aria-label="Softened, not stopped">
+    <div class="marq" aria-hidden="true"><div class="track" id="track">
+      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
+      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
+      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
+      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
+    </div></div>
+  </section>
 
-    <section class="split" aria-labelledby="proof">
-      <div>
-        <h2 id="proof">Tested against <em>pages built to beat it</em></h2>
-        <p class="muted">Every number here comes from our automated test harness, which loads the real extension in Chrome and runs synthetic, dim test pages. Nothing flashes on anyone's screen while it runs.</p>
-        <div class="actions"><a class="btn ghost" href="security.html">See the threat model</a></div>
-      </div>
-      <div class="table">
-        <table>
-          <caption class="label">Results from <code>node harness/run.mjs</code></caption>
-          <thead><tr><th scope="col">Attack page</th><th scope="col">Result</th></tr></thead>
-          <tbody>
-            <tr><th scope="row">Deletes FlashBan's cover every frame</th><td class="num">locked down in 0.82–0.90 s</td></tr>
-            <tr><th scope="row">Red-only flashes, almost no brightness change</th><td class="num">softened in 0.42 s</td></tr>
-            <tr><th scope="row">Strobe after 10 calm seconds</th><td class="num">caught ~1.2 s after it starts</td></tr>
-            <tr><th scope="row">Strobe timed between samples (12.5 Hz)</th><td class="num">softened in 0.44 s</td></tr>
-            <tr><th scope="row">7 everyday pages (scene cuts, a camera flash, a sunset…)</th><td class="num">never flagged</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+  <!-- 05 TESTED -->
+  <section class="clients" id="tested" data-section="tested" aria-labelledby="t-title">
+    <div class="tag"><p class="label" id="t-title" data-reveal>[ Attack pages it beats ▪ node harness/run.mjs ]</p><a class="label fg" href="security.html" data-reveal>Threat model →</a></div>
+    <ul class="wall">
+      <li class="cell" data-reveal><span class="num">0.82 s</span><span class="what">A page deletes FlashBan's cover every frame: locked down.</span><span class="label">Overlay killer ▪ T6</span></li>
+      <li class="cell" data-reveal data-d=".06"><span class="num">0.42 s</span><span class="what">Red-only flashes with almost no brightness change: softened.</span><span class="label">Red only ▪ T3</span></li>
+      <li class="cell" data-reveal data-d=".12"><span class="num">0.44 s</span><span class="what">A 12.5 Hz strobe timed between samples: softened.</span><span class="label">Aliasing ▪ T1</span></li>
+      <li class="cell" data-reveal data-d=".18"><span class="num">1.2 s</span><span class="what">Flashing after 10 calm seconds: caught after it starts.</span><span class="label">Late start ▪ T8</span></li>
+      <li class="cell" data-reveal><span class="num">1.5 s</span><span class="what">40 strobes plus busy work: softened, never a silent allow.</span><span class="label">CPU flood ▪ T5</span></li>
+      <li class="cell" data-reveal data-d=".06"><span class="num">Dim</span><span class="what">A strobe on a canvas it can't read: dimmed and labelled.</span><span class="label">Tainted canvas ▪ T4</span></li>
+      <li class="cell" data-reveal data-d=".12"><span class="num">16 tiles</span><span class="what">One big flash split into small tiles: still blocked.</span><span class="label">Split area ▪ T2</span></li>
+      <li class="cell" data-reveal data-d=".18"><span class="num">0 of 7</span><span class="what">Everyday pages (scene cuts, a camera flash, a sunset) flagged.</span><span class="label">False positives</span></li>
+    </ul>
+  </section>
 
-    <section class="split" aria-labelledby="privacy">
-      <div>
-        <h2 id="privacy">Built to reveal <em>as little as possible.</em></h2>
-        <p class="muted">A seizure shield reveals a health condition, so FlashBan collects almost nothing. One honest gap: websites can still tell it is installed (see <a href="security.html#limits">Known limits</a>).</p>
+  <!-- 06 CHANGELOG -->
+  <section class="journal" id="changelog" data-section="changelog" aria-labelledby="c-title">
+    <div class="jhead">
+      <h2 class="fit" id="c-title" data-reveal><span>From the changelog</span></h2>
+      <div class="introrow">
+        <div class="sp96"></div><div class="grow"></div>
+        <p class="body jintro" data-reveal>Merged pull requests from the hackathon build, newest first. Every fix to a false alarm gets an everyday test page, so the harness keeps it fixed.</p>
+        <div class="sp48"></div>
       </div>
-      <ul class="rows">
-        <li><span>No account</span><p>No sign-up, no identifiers, no keys.</p></li>
-        <li><span>No server</span><p>Nothing about you is sent to us or anyone else.</p></li>
-        <li><span>A domain, 30 days</span><p>The only record is a site's domain and a date, on your computer, deleted after 30 days. Clear it any time from the popup.</p></li>
-      </ul>
-    </section>
+    </div>
+    <div class="posts">
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/94" rel="noopener noreferrer" data-reveal data-d=".1">
+        <div class="bg"><div class="art" data-art="log1"></div></div>
+        <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
+        <h3 class="rtitle">Near-black isn't red</h3>
+        <p class="body exc">Compression noise in dark scenes was being read as red flashing. Near-black now has no hue, so letterbox bars stop tripping the red-flash rule. (#94)</p>
+        <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
+      </a>
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/84" rel="noopener noreferrer" data-reveal data-d=".2">
+        <div class="bg"><div class="art" data-art="log2"></div></div>
+        <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
+        <h3 class="rtitle">Sharper soften</h3>
+        <p class="body exc">The brightness clamp runs on the GPU at full resolution, only inside the flashing area. Everything outside it stays sharp and in colour. (#84)</p>
+        <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
+      </a>
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/77" rel="noopener noreferrer" data-reveal data-d=".3">
+        <div class="bg"><div class="art" data-art="log3"></div></div>
+        <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
+        <h3 class="rtitle">YouTube, measured</h3>
+        <p class="body exc">YouTube video can now be read and measured instead of only dimmed, and ambient glows are faded rather than covered. (#77)</p>
+        <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
+      </a>
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/65" rel="noopener noreferrer" data-reveal data-d=".4">
+        <div class="bg"><div class="art" data-art="log4"></div></div>
+        <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
+        <h3 class="rtitle">Every presented frame</h3>
+        <p class="body exc">Sampling every presented frame closed a gap where a 30 Hz strobe at 60 fps could slip between samples. (#65)</p>
+        <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
+      </a>
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/64" rel="noopener noreferrer" data-reveal data-d=".5">
+        <div class="bg"><div class="art" data-art="log5"></div></div>
+        <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
+        <h3 class="rtitle">One bypass bar</h3>
+        <p class="body exc">A single "Show original on this site" bar replaces per-video buttons. Pages can't press it for you: only real clicks count. (#64)</p>
+        <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
+      </a>
+    </div>
+  </section>
 
-    <section aria-labelledby="try">
-      <h2 id="try">See it work on <em>Grain</em></h2>
-      <p class="muted">Grain is our pretend video site. Every clip on it flashes four times a second, and FlashBan flattens each one. The clips are synthetic, dim and three seconds long, and nothing plays until you press Play. Read its warning first.</p>
-      <div class="actions"><a class="btn" href="../demo/showcase/index.html">Open the Grain demo</a><a class="btn ghost" href="how.html">How it decides</a></div>
-    </section>
-  </div>
+  <!-- 07 DOWNLOAD -->
+  <section class="cta" id="download" data-section="download" aria-labelledby="d-title">
+    <h2 class="fit" id="d-title" data-reveal><span>Get FlashBan</span></h2>
+    <div class="acts" data-reveal data-d=".08">
+      <a class="btn solid" id="dl" href="download.html">
+        <span class="label" id="dl-label">Download for Chrome</span>
+        <span class="slot" aria-hidden="true"><svg class="ic ain"><use href="#arw"/></svg><svg class="ic aout"><use href="#arw"/></svg></span>
+      </a>
+      <a class="btn" href="download.html">
+        <span class="label fg">Install steps + checksum</span>
+        <span class="slot" aria-hidden="true"><svg class="ic ain"><use href="#arw"/></svg><svg class="ic aout"><use href="#arw"/></svg></span>
+      </a>
+    </div>
+    <p class="sha" id="sha" hidden><span class="label">SHA-256 ▪ reproducible build</span><span id="sha-v"></span></p>
+    <p class="label note" data-reveal data-d=".16">Chrome 116+ ▪ Load unpacked ▪ Not in the Chrome Web Store yet ▪ Not a medical device</p>
+  </section>
 </main>
 
-<footer><div class="wrap">
-  <p>FlashBan, by team FlashBan at Hackcessability. Not a medical device: it reduces exposure to flashing content and can't guarantee protection. Don't rely on it as your only protection.</p>
-  <p><a href="security.html#limits">Known limits</a> · <a href="download.html">Download</a></p>
-</div></footer>
-<script src="site.js"></script>
+<footer class="foot" data-section="footer">
+  <div class="copy"><p class="label">© 2026 team FlashBan ▪ Hackcessability ▪ Not a medical device</p></div>
+  <div class="fsp"></div>
+  <div class="flinks">
+    <a href="https://github.com/dribeiro0/FlashBan" rel="noopener noreferrer"><span class="label fg rl"><span>GitHub</span><span aria-hidden="true">GitHub</span></span></a>
+    <span class="div"></span>
+    <a href="security.html"><span class="label fg rl"><span>Privacy</span><span aria-hidden="true">Privacy</span></span></a>
+    <a href="security.html#limits"><span class="label fg rl"><span>Limits</span><span aria-hidden="true">Limits</span></span></a>
+    <a href="download.html"><span class="label fg rl"><span>Download</span><span aria-hidden="true">Download</span></span></a>
+  </div>
+</footer>
+
+<script src="download/latest.js"></script>
+<script>
+(function(){
+"use strict";
+const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+/* ---------- reveal delays (data-d instead of inline styles, for the CSP) ---------- */
+document.querySelectorAll("[data-d]").forEach(el=>{el.style.transitionDelay=(+el.dataset.d||0)+"s";});
+
+/* =========================================================
+   DITHERED SDF PLATES
+   One shared WebGL2 context. Each plate is one signed-distance
+   shape, raymarched and Bayer-dithered in a single pass, with a
+   silhouette outline from the ray's closest approach. Plates are
+   STILL: they redraw on load, resize and while a pointer tilts
+   them (eased), never on a timer.
+========================================================= */
+// [background, dark ink, light ink]: the two inks are close tones, so the dither stays low contrast.
+const PAL={
+  sage :[[150,158,134],[108,117,92],[140,148,124]],
+  clay :[[196,160,142],[150,104,88],[184,146,128]],
+  sand :[[190,176,152],[140,124,100],[178,163,138]],
+  stone:[[178,179,174],[124,126,126],[166,167,162]],
+  pool :[[150,170,174],[96,122,130],[138,158,162]],
+  dusk :[[88,92,84],[58,62,54],[80,84,76]]
+};
+// shapes: 0 rounded box · 1 sphere · 2 torus · 3 capsule · 4 octahedron · 5 cylinder · 6 blob
+const SPEC={
+  hero:    {shape:6,pal:"sage", zoom:1.15,yaw:.72, pitch:.5, bayer:4},
+  thumb:   {shape:2,pal:"sage", zoom:1.25,yaw:.4,  pitch:.7, bayer:2},
+  portrait:{shape:2,pal:"sand", zoom:1.1, yaw:-.5, pitch:.45,bayer:4},
+  softened:{shape:0,pal:"sage", zoom:1.2, yaw:.6,  pitch:.55,bayer:8},
+  covered: {shape:4,pal:"stone",zoom:1.15,yaw:-.4, pitch:.5, bayer:4},
+  verify:  {shape:1,pal:"pool", zoom:1.2, yaw:.3,  pitch:.4, bayer:4},
+  locked:  {shape:3,pal:"clay", zoom:1.15,yaw:.9,  pitch:.6, bayer:8},
+  log1:    {shape:5,pal:"dusk", zoom:1.2, yaw:.5,  pitch:.6, bayer:4},
+  log2:    {shape:0,pal:"dusk", zoom:1.2, yaw:-.6, pitch:.5, bayer:4},
+  log3:    {shape:2,pal:"dusk", zoom:1.2, yaw:1.0, pitch:.7, bayer:4},
+  log4:    {shape:4,pal:"dusk", zoom:1.15,yaw:.2,  pitch:.5, bayer:4},
+  log5:    {shape:3,pal:"dusk", zoom:1.2, yaw:-.9, pitch:.6, bayer:4}
+};
+const rgb=c=>`rgb(${c[0]},${c[1]},${c[2]})`;
+
+const VS=`#version 300 es
+void main(){
+  vec2 v=vec2(gl_VertexID==1?3.0:-1.0,gl_VertexID==2?3.0:-1.0);
+  gl_Position=vec4(v,0.0,1.0);
+}`;
+
+const FS=`#version 300 es
+precision highp float;
+out vec4 fragColor;
+uniform vec2 uRes;
+uniform int uShape;
+uniform vec2 uCam;
+uniform float uZoom;
+uniform int uBayer;
+uniform vec3 uBg, uDark, uLight;
+
+float sdBox(vec3 p,vec3 b,float r){vec3 q=abs(p)-b;return length(max(q,0.0))+min(max(q.x,max(q.y,q.z)),0.0)-r;}
+float sdTorus(vec3 p,vec2 t){return length(vec2(length(p.xz)-t.x,p.y))-t.y;}
+float sdCap(vec3 p,float h,float r){p.y-=clamp(p.y,-h,h);return length(p)-r;}
+float sdOct(vec3 p,float s){p=abs(p);return (p.x+p.y+p.z-s)*0.57735027;}
+float sdCyl(vec3 p,float h,float r){vec2 d=abs(vec2(length(p.xz),p.y))-vec2(r,h);return min(max(d.x,d.y),0.0)+length(max(d,0.0));}
+float sdBlob(vec3 p){
+  float d=length(p)-0.78;
+  d+=0.07*sin(4.0*p.x)*sin(4.0*p.y)*sin(4.0*p.z);
+  return d*0.8;
+}
+float map(vec3 p){
+  if(uShape==0) return sdBox(p,vec3(0.62),0.16);
+  if(uShape==1) return length(p)-0.84;
+  if(uShape==2) return sdTorus(p,vec2(0.82,0.36));
+  if(uShape==3) return sdCap(p,0.56,0.56);
+  if(uShape==4) return sdOct(p,1.16);
+  if(uShape==5) return sdCyl(p,0.74,0.64);
+  return sdBlob(p);
+}
+vec3 nrm(vec3 p){
+  vec2 e=vec2(0.0015,0.0);
+  return normalize(vec3(map(p+e.xyy)-map(p-e.xyy),map(p+e.yxy)-map(p-e.yxy),map(p+e.yyx)-map(p-e.yyx)));
+}
+float shade(vec3 ro,vec3 rd,float tmax){
+  float s=1.0,t=0.03;
+  for(int i=0;i<40;i++){float h=map(ro+rd*t);if(h<0.001)return 0.0;s=min(s,10.0*h/t);t+=clamp(h,0.03,0.2);if(t>tmax)break;}
+  return clamp(s,0.0,1.0);
+}
+float threshold(ivec2 q){
+  if(uBayer==2){int m[4]=int[4](0,2,3,1);return (float(m[(q.y&1)*2+(q.x&1)])+0.5)/4.0;}
+  if(uBayer==8){
+    int m[64]=int[64](0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21);
+    return (float(m[(q.y&7)*8+(q.x&7)])+0.5)/64.0;
+  }
+  int m[16]=int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5);
+  return (float(m[(q.y&3)*4+(q.x&3)])+0.5)/16.0;
+}
+void main(){
+  vec2 uv=(gl_FragCoord.xy*2.0-uRes)/min(uRes.x,uRes.y);
+  vec3 ro=3.5*uZoom*vec3(sin(uCam.x)*cos(uCam.y),sin(uCam.y),cos(uCam.x)*cos(uCam.y));
+  vec3 fw=normalize(-ro),rt=normalize(cross(fw,vec3(0.0,1.0,0.0))),up=cross(rt,fw);
+  vec3 rd=normalize(rt*uv.x+up*(uv.y-0.06)+fw*2.3);
+  float t=0.0,closest=1e9;bool hit=false;
+  for(int i=0;i<96;i++){
+    float d=map(ro+rd*t);
+    closest=min(closest,d/max(t,0.5));
+    if(d<0.0015){hit=true;break;}
+    t+=d*0.9;
+    if(t>20.0)break;
+  }
+  vec3 L=normalize(vec3(-0.6,0.8,0.5));
+  float lum=1.0;bool floorHit=false;
+  if(hit){
+    vec3 p=ro+rd*t,n=nrm(p);
+    float dif=max(dot(n,L),0.0)*shade(p+n*0.01,L,6.0);
+    lum=clamp(0.22+0.7*dif+0.08*max(n.y,0.0),0.0,0.96);
+  }else if(rd.y<0.0){
+    float ft=(-1.0-ro.y)/rd.y;
+    vec3 p=ro+rd*ft;
+    lum=mix(0.62,0.96,shade(p+vec3(0.0,0.01,0.0),L,6.0));
+    floorHit=true;
+  }
+  ivec2 q=ivec2(gl_FragCoord.xy);
+  vec3 col=lum>=threshold(q)?uLight:uDark;
+  if(!hit&&!floorHit) col=uBg;
+  float px=2.0/min(uRes.x,uRes.y);
+  if(!hit&&closest<px*1.4) col=uDark;
+  fragColor=vec4(col,1.0);
+}`;
+
+const glc=document.createElement("canvas");
+const gl=glc.getContext("webgl2",{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:true});
+let render=null;
+
+function initGL(){
+  const sh=(type,src)=>{const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;};
+  const prog=gl.createProgram();
+  gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog));
+  const U={};["uRes","uShape","uCam","uZoom","uBayer","uBg","uDark","uLight"].forEach(n=>U[n]=gl.getUniformLocation(prog,n));
+  gl.useProgram(prog);gl.bindVertexArray(gl.createVertexArray());
+  const v3=(loc,c)=>gl.uniform3f(loc,c[0]/255,c[1]/255,c[2]/255);
+  return function(m){
+    const w=m.w,h=m.h; if(w<2||h<2) return;
+    if(glc.width<w) glc.width=w; if(glc.height<h) glc.height=h;
+    const s=m.spec,[bg,dark,light]=PAL[s.pal];
+    gl.viewport(0,glc.height-h,w,h);
+    gl.uniform2f(U.uRes,w,h);
+    gl.uniform1i(U.uShape,s.shape);
+    gl.uniform2f(U.uCam,s.yaw+m.px*.6,Math.max(.08,Math.min(1.05,s.pitch+m.py*.4)));
+    gl.uniform1f(U.uZoom,s.zoom);
+    gl.uniform1i(U.uBayer,s.bayer);
+    v3(U.uBg,bg);v3(U.uDark,dark);v3(U.uLight,light);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    m.ctx.drawImage(glc,0,0,w,h,0,0,w,h);
+  };
+}
+try{ if(gl) render=initGL(); }catch(e){ render=null; }
+if(!render) document.documentElement.classList.add("no-gl");
+
+const mods=[],byEl=new WeakMap();
+let queued=false;
+function schedule(){ if(render&&!queued){queued=true;requestAnimationFrame(frame);} }
+const ro=new ResizeObserver(es=>es.forEach(e=>{
+  const m=byEl.get(e.target); if(!m) return;
+  m.w=Math.max(0,Math.round(e.contentRect.width*m.scale)); m.h=Math.max(0,Math.round(e.contentRect.height*m.scale));
+  m.c.width=Math.max(1,m.w); m.c.height=Math.max(1,m.h); m.dirty=true; schedule();
+}));
+const vis=new IntersectionObserver(es=>es.forEach(e=>{const m=byEl.get(e.target); if(m){m.visible=e.isIntersecting; if(m.visible){m.dirty=true; schedule();}}}),{rootMargin:"200px 0px"});
+
+document.querySelectorAll("[data-art]").forEach(el=>{
+  const spec=SPEC[el.dataset.art]; if(!spec) return;
+  el.style.backgroundColor=rgb(PAL[spec.pal][0]);
+  if(!render) return;
+  const c=document.createElement("canvas"); c.setAttribute("aria-hidden","true"); el.appendChild(c);
+  const ctx=c.getContext("2d"); ctx.imageSmoothingEnabled=false;
+  const m={el,c,ctx,spec,scale:el.classList.contains("thumb")?1:.5,w:0,h:0,visible:false,
+    gate:el.closest(".row"),px:0,py:0,tx:0,ty:0,dirty:true};
+  if(!reduce){
+    const host=el.closest("a,.portrait,.hero-img")||el;
+    host.addEventListener("pointermove",e=>{const r=host.getBoundingClientRect();m.tx=(e.clientX-r.left)/r.width-.5;m.ty=(e.clientY-r.top)/r.height-.5;schedule();});
+    host.addEventListener("pointerleave",()=>{m.tx=0;m.ty=0;schedule();});
+  }
+  if(m.gate){
+    m.gate.addEventListener("pointerenter",()=>{m.dirty=true;schedule();});
+    m.gate.addEventListener("focus",()=>{m.dirty=true;schedule();});
+  }
+  byEl.set(el,m); mods.push(m); ro.observe(el); vis.observe(el);
+});
+
+// Redraw only what changed; the loop stops as soon as every tilt has settled.
+function frame(){
+  queued=false; let again=false;
+  for(const m of mods){
+    if(!m.visible||m.w<2||m.h<2) continue;
+    if(m.gate&&!m.gate.matches(":hover,:focus-visible")) continue;
+    const dx=m.tx-m.px,dy=m.ty-m.py,moving=Math.abs(dx)+Math.abs(dy)>.002;
+    if(moving){m.px+=dx*.12;m.py+=dy*.12;}
+    if(moving||m.dirty){render(m);m.dirty=false;}
+    if(moving) again=true;
+  }
+  if(again) schedule();
+}
+schedule();
+
+/* ---------- fit text ---------- */
+function fit(){
+  document.querySelectorAll(".fit").forEach(el=>{
+    const s=el.firstElementChild; s.style.fontSize="100px";
+    const w=s.getBoundingClientRect().width;
+    if(w) s.style.fontSize=(100*el.clientWidth/w).toFixed(2)+"px";
+  });
+}
+fit(); if(document.fonts) document.fonts.ready.then(fit);
+let rt; addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(fit,80);});
+
+/* ---------- reveal on scroll (slow fade; instant under reduced motion) ---------- */
+if(reduce){ document.querySelectorAll("[data-reveal]").forEach(el=>el.classList.add("in")); }
+else{
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}}),{rootMargin:"0px 0px -8% 0px"});
+  document.querySelectorAll("[data-reveal]").forEach(el=>io.observe(el));
+}
+
+/* ---------- hero parallax + marquee: scroll-linked only, nothing moves on its own ---------- */
+const hero=document.getElementById("heroArt"),track=document.getElementById("track");
+function onScroll(){
+  if(reduce) return;
+  const y=scrollY;
+  hero.style.transform=`translate3d(0,${Math.min(y*.06,40).toFixed(1)}px,0)`;
+  const w=track.firstElementChild.offsetWidth||1;
+  track.style.transform=`translate3d(${-((y*.35)%w).toFixed(1)}px,0,0)`;
+}
+addEventListener("scroll",()=>requestAnimationFrame(onScroll),{passive:true});
+onScroll();
+
+/* ---------- download box (from download/latest.js, written by node site/build.mjs) ---------- */
+const info=window.FLASHBAN_DOWNLOAD;
+if(info&&/^flashban-[\d.]+\.zip$/.test(info.file)&&/^[0-9a-f]{64}$/.test(info.sha256)){
+  const dl=document.getElementById("dl");
+  dl.href="download/"+info.file; dl.setAttribute("download",info.file);
+  document.getElementById("dl-label").textContent="Download FlashBan "+info.version;
+  document.getElementById("sha-v").textContent=info.sha256;
+  document.getElementById("sha").hidden=false;
+}
+
+/* ---------- phone menu ---------- */
+const mb=document.querySelector(".menu-btn"),mm=document.getElementById("mmenu");
+const setMenu=open=>{
+  document.body.classList.toggle("menu-open",open);
+  mb.setAttribute("aria-expanded",String(open));
+  mm.hidden=!open;
+  if(open) mm.querySelector("a").focus();
+};
+mb.addEventListener("click",()=>setMenu(!document.body.classList.contains("menu-open")));
+mm.querySelectorAll("a").forEach(a=>a.addEventListener("click",()=>setMenu(false)));
+addEventListener("keydown",e=>{if(e.key==="Escape"&&document.body.classList.contains("menu-open")){setMenu(false);mb.focus();}});
+addEventListener("resize",()=>{if(innerWidth>=810)setMenu(false);});
+})();
+</script>
 </body>
 </html>
