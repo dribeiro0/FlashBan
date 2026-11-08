@@ -172,7 +172,7 @@ a:not(.btn):hover { color: var(--accent); }
 .top { border-bottom: 1px solid var(--rule); }
 .top .wrap { padding: 0; min-height: 64px; gap: 0; align-items: stretch; flex-wrap: nowrap; }
 .brand { gap: 12px; padding: 0 24px; border-right: 1px solid var(--rule); font: 900 32px/1 var(--display); text-transform: uppercase; letter-spacing: 0; }
-.brand img { width: 30px; height: 30px; display: block; }
+.brand img { width: 40px; height: 40px; display: block; image-rendering: auto; }
 .brand .mark { display: none; }
 .top nav { gap: 0; margin-left: auto; flex-wrap: nowrap; }
 .top nav a { display: flex; align-items: center; padding: 16px 22px; border: 0; border-left: 1px solid var(--rule); font: 400 11px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; }
