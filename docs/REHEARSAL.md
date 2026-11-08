@@ -3,7 +3,7 @@
 Owner: Jun (@sysoutprntlne). Presenter: Yaovi. Driver: Jun. Script: [PITCH.md](PITCH.md).
 Devpost is due Sunday 9:00 AM; judging is at 9:30 AM.
 
-## Saturday night, right after the 11:00 PM freeze
+## Right after the freeze (Sunday 2:00 AM, moved from 11:00 PM)
 
 - [ ] `git pull` on the demo laptop and note the commit: ______. Avery tags the release (`git tag demo && git push --tags`). If anything breaks on Sunday, run `git checkout demo`.
 - [ ] `chrome://extensions` → Developer mode → Load unpacked → `extension/`. Reload it after every pull.
@@ -16,7 +16,7 @@ Devpost is due Sunday 9:00 AM; judging is at 9:30 AM.
   - [ ] Slide 5: keyboard only: Tab reaches "Show original on this site" on FlashBan's bar, with a visible focus ring, and Enter works. Turn protection back on in the popup afterwards.
 - [ ] **Screenshots for backup**, saved on the laptop and on a phone: canvas softened with the HUD, overlay-killer lockdown, the harness table, the popup.
 - [ ] Fill in every [bracket] in PITCH.md from the harness run on the frozen build (Yaovi's agent posts the numbers). Delete any sentence whose number we don't have.
-- [ ] **Rehearsal 1:** time it. Target 2:45–3:00. Cut words, not slides.
+- [ ] **Rehearsal 1** (after the freeze, or Sunday 7:00 AM if we sleep first): time it. Target 2:45–3:00. Cut words, not slides.
 - [ ] **Rehearsal 2:** with the one-minute security demo and three questions from the "Likely questions" table.
 
 ## Sunday morning, at the venue
