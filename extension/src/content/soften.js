@@ -31,6 +31,13 @@
 // viewport rect, like the safe-mode overlay, which covers the controls too.
 
 import { DEFAULT_TAU } from "../detect/soften.js";
+import { createGlSoftener } from "./glsoften.js";
+
+// GPU clamp (glsoften.js, David's masked brightness clamp): regions the raw
+// detector marks as flashing are clamped; the rest passes through sharp.
+const MASK_HOLD_MS = 3000; // a region stays clamped this long after it last flashed
+const MASK_RAMP_MS = 300; // weights move at most 1/RAMP per ms, so the mask never switches abruptly (T13)
+const MASK_WARMUP_MS = 1000; // no region is released before the raw detector has this much history
 
 const MAX_SIDE = 256; // detector limit per side
 const VERIFY_PX = 160 * 90; // the verifier's readback size
@@ -204,13 +211,34 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   live.setAttribute("aria-live", "polite");
   layer.append(canvas, badge);
   root.append(style, live, layer);
-  const dctx = canvas.getContext("2d", { alpha: false });
-  if (!dctx) return null;
-  // Stage 1 of the filter lives in its own canvas; the visible canvas is stage 2.
-  // In "limit" stage, stage1 holds the raw current frame.
-  let stage1 = new OffscreenCanvas(ow, oh);
-  let s1ctx = stage1.getContext("2d", { alpha: false });
-  if (!s1ctx) return null;
+  // GPU path first (sharp, per-pixel clamp); the 2D-canvas path is the fallback.
+  const glf = createGlSoftener(canvas, { width: ow, height: oh, maskWidth: w, maskHeight: h });
+  /** @type {CanvasRenderingContext2D | null} */
+  let dctx = null;
+  /** @type {OffscreenCanvas} */ let stage1;
+  /** @type {OffscreenCanvasRenderingContext2D | null} */ let s1ctx = null;
+  if (!glf) {
+    dctx = canvas.getContext("2d", { alpha: false });
+    if (!dctx) return null;
+    // Stage 1 of the filter lives in its own canvas; the visible canvas is stage 2.
+    // In "limit" stage, stage1 holds the raw current frame.
+    stage1 = new OffscreenCanvas(ow, oh);
+    s1ctx = stage1.getContext("2d", { alpha: false });
+    if (!s1ctx) return null;
+  }
+  // Mask state for the GPU path: weights per small pixel (1 = clamped), safe start at 1.
+  const weights = glf ? new Float32Array(w * h).fill(1) : null;
+  const holdUntil = glf ? new Float64Array(w * h).fill(Infinity) : null;
+  let rawSince = NaN;
+  let lastMaskT = NaN;
+  /** @type {any} */ let rawDetect = null;
+  if (glf) {
+    try {
+      rawDetect = detect.createDetector({ preset, sampleWidth: w, sampleHeight: h, realAreaScale: 1 / scale });
+    } catch {
+      rawDetect = null;
+    }
+  }
   let lastLook = -Infinity;
   let look = { opacity: 1, backdrop: [0, 0, 0] };
   let lastT = NaN; // first frame: a = 1, so the output equals the current frame (no jump: T13)
@@ -342,11 +370,16 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
       [ow, oh] = outputSize(b);
       sizedW = b.width;
       sizedH = b.height;
-      canvas.width = ow;
-      canvas.height = oh;
-      stage1 = new OffscreenCanvas(ow, oh);
-      s1ctx = stage1.getContext("2d", { alpha: false });
-      if (!s1ctx) return fail();
+      if (glf) {
+        glf.resize(ow, oh);
+        if (glf.lost) return fail();
+      } else {
+        canvas.width = ow;
+        canvas.height = oh;
+        stage1 = new OffscreenCanvas(ow, oh);
+        s1ctx = stage1.getContext("2d", { alpha: false });
+        if (!s1ctx) return fail();
+      }
       lastT = NaN;
     }
     // Look like the element: its opacity, blur or other filter, rounded
@@ -377,6 +410,35 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     badge.style.top = `${top}px`;
   }
 
+  /**
+   * Mask weights for the GPU clamp: a small pixel flagged by the raw detector
+   * (dilated by one) is held clamped for MASK_HOLD_MS; weights ramp over
+   * MASK_RAMP_MS; nothing is released before MASK_WARMUP_MS of detector history.
+   * @param {Uint8Array | null} m  1 = flashing @param {number} t
+   */
+  function updateMask(m, t) {
+    if (!weights || !holdUntil) return;
+    const step = Number.isFinite(lastMaskT) ? Math.min(1, Math.max(0, t - lastMaskT) / MASK_RAMP_MS) : 1;
+    lastMaskT = t;
+    const warm = t - rawSince >= MASK_WARMUP_MS;
+    if (m && m.length === w * h) {
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!m[y * w + x]) continue;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const yy = y + dy;
+          const xx = x + dx;
+          if (yy >= 0 && yy < h && xx >= 0 && xx < w) holdUntil[yy * w + xx] = t + MASK_HOLD_MS;
+        }
+      }
+    }
+    for (let i = 0; i < weights.length; i++) {
+      if (holdUntil[i] === Infinity && warm && m) holdUntil[i] = t; // first real verdict: start the hold clock
+      const target = !warm || t < holdUntil[i] ? 1 : 0;
+      const wv = weights[i];
+      weights[i] = wv + Math.max(-step, Math.min(step, target - wv));
+    }
+  }
+
   /** @param {any} [report] */
   function fail(report) {
     if (stopped) return;
@@ -401,7 +463,29 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     // update a gentle fraction instead. The first frame is a = 1 on purpose.
     const dt = Number.isFinite(lastT) ? Math.max(0, t - lastT) : Infinity;
     lastT = t;
-    try {
+    if (glf) {
+      // GPU clamp. The mask comes from a detector on the RAW small frames
+      // (where the input flashes), updated here before the frame is drawn.
+      if (rawDetect) {
+        let rd;
+        try {
+          rctx.drawImage(el, 0, 0, w, h);
+          rd = rctx.getImageData(0, 0, w, h).data;
+        } catch {
+          return fail();
+        }
+        const rrep = rawDetect.push({ t, pixels: rd });
+        if (!Number.isFinite(rawSince) || (rrep && rrep.undersampled)) rawSince = t; // gaps restart the warm-up: no release on a blind detector
+        let m = null;
+        try {
+          m = rrep && typeof rawDetect.mask === "function" ? rawDetect.mask() : null;
+        } catch {
+          m = null;
+        }
+        updateMask(m, t);
+      }
+      if (!glf.frame(el, dt === Infinity ? 0 : dt, weights)) return fail();
+    } else try {
       if (stage === "limit") {
         // Raw frame to stage1, measure its mean brightness from a tiny copy,
         // then show it scaled so the brightness follows the running level.
@@ -430,6 +514,19 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
       }
     } catch {
       return fail();
+    }
+    if (glf) {
+      // Output verification only (the mask stage above has its own detector).
+      let data;
+      try {
+        wctx.drawImage(canvas, 0, 0, w, h);
+        data = wctx.getImageData(0, 0, w, h).data;
+      } catch {
+        return fail();
+      }
+      const rep = verify.push({ t, pixels: data });
+      if ((rep.violation || rep.severity === "block") && rep.reason) return fail(rep);
+      return;
     }
     // Verify what is on screen: read the OUTPUT back at a small size and run
     // the second detector on it, on every frame of a 30 fps video (a readback
@@ -542,6 +639,9 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   function stop() {
     if (stopped) return;
     stopped = true;
+    try {
+      glf?.destroy();
+    } catch {}
     if (vfc) /** @type {HTMLVideoElement} */ (el).cancelVideoFrameCallback?.(vfc);
     cancelAnimationFrame(frameRaf);
     cancelAnimationFrame(placeRaf);
