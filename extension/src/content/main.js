@@ -58,6 +58,8 @@ const ANIM_EXT = /\.(gif|webp|apng)(\?|#|$)/i;
 // attribute is removed so the player can recover (lead priority: soften first).
 const CORS_VIDEO_HOSTS = /(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be)$/i;
 const CLEAR_GLOW_OPACITY = 0.5; // unverifiable elements this see-through get faded, not covered
+const BOOT_DIM_MAX_MS = 1500; // the loader's load-time media dim lifts by this long after start, verdict or not
+const BOOT_VERDICT_MS = 600; // ...or once a source has this much calm sampling behind it (a 3 Hz strobe shows in 600 ms)
 // Script-driven DOM flicker (class / style / hidden toggles)
 const DOM_HOT_MUTATIONS = 2; // mutations within 1 s before we start sampling an element
 const DOM_HOT_MS = 1500; // keep sampling this long after the last mutation
@@ -149,6 +151,21 @@ async function init() {
     }
   }
   applyEnabled();
+  // The loader's static media dim covers the load window. It lifts at the
+  // first detector verdict on this page (a strobe that started at load is
+  // softened or covered by then), or after BOOT_DIM_MAX_MS, or at once when
+  // the site is allowlisted.
+  if (!enabled) liftBootDim();
+  else setTimeout(liftBootDim, BOOT_DIM_MAX_MS);
+}
+
+let bootLifted = false;
+function liftBootDim() {
+  if (bootLifted) return;
+  bootLifted = true;
+  try {
+    /** @type {any} */ (globalThis).__flashbanBoot?.remove();
+  } catch {}
 }
 
 function topSiteDomain() {
@@ -835,6 +852,12 @@ class Source {
       report = { ...report, violation: false, severity: this.gapTimes.length < GAP_WARNS_TO_DIM ? "none" : "warn" };
     }
     const el = this.el;
+    // The load-time media dim lifts once this page has a real verdict: a
+    // violation (handled below) or BOOT_VERDICT_MS of calm samples.
+    if (!bootLifted) {
+      if (!this.firstReportAt) this.firstReportAt = t;
+      if (report.violation || report.severity === "block" || t - this.firstReportAt >= BOOT_VERDICT_MS) liftBootDim();
+    }
     this.sendHud(report, t);
     if (aggregator) this.updateAggregate(report, t);
 
