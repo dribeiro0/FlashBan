@@ -24,12 +24,17 @@ Team FlashBan at Hackcessability (Nov 7–8, 2026): four people, each working wi
   - CSS / Web Animations analysis;
   - cross-element area aggregation (T2);
   - the cost meter and the clamp softener.
+  - false-positive fixes (low-frame-rate video, looping clips, github.com's scroll-linked animations).
 - **Attack harness** (`harness/run.mjs`): runs every demo, benign and adversarial page against the real extension and scores what is actually visible.
+  - attack pages for a tainted canvas (T4) and a CPU flood (T5); a `--url` mode for checking real sites such as YouTube.
 - **Softening:** the soften design and its final look (dim plus greyscale, the "Protection strength" slider, severe flashing blocked), tuned from his real-GPU checks.
 - **Late-stage work:**
   - the extension restyle with a shared theme and the eye icon;
   - the image probe's local-network guard;
   - README final-build evidence;
+  - YouTube's reused video player and previews re-checked instead of keeping an old verdict;
+  - the How it works and Privacy pages restyled to the Grain look;
+  - tagging `final` and the verification runs behind the Devpost numbers (29/29 every run);
   - submitting the Devpost.
 - Backup decider overnight while Avery slept.
 
