@@ -22,6 +22,10 @@ for (const name of pages) {
     const { styles, scripts } = inlineBlocks(html);
     for (const s of scripts) assert.ok(csp.includes(`'${hash(s)}'`), "inline script hash is in script-src (run node site/csp.mjs)");
     for (const s of styles) assert.ok(csp.includes(`'${hash(s)}'`), "inline style hash is in style-src (run node site/csp.mjs)");
+    // Windows checkouts (core.autocrlf) rewrite line endings: the CRLF form must be allowed too.
+    const crlf = (x) => x.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+    for (const s of scripts) assert.ok(csp.includes(`'${hash(crlf(s))}'`), "CRLF form of the inline script is allowed (run node site/csp.mjs)");
+    for (const s of styles) assert.ok(csp.includes(`'${hash(crlf(s))}'`), "CRLF form of the inline style is allowed (run node site/csp.mjs)");
     assert.doesNotMatch(html, /\sstyle="/, "no inline style attributes (the CSP would block them)");
     assert.doesNotMatch(html, /\son[a-z]+="/, "no inline event handlers");
     assert.doesNotMatch(html, /<(script|link)[^>]+(src|href)="https?:/, "no scripts or stylesheets from other origins");
