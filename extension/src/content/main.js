@@ -18,10 +18,26 @@ const DEGRADED_BUDGET_PX = 64 * 36;
 const MIN_MEDIA_CSS_PX = 16; // ignore media smaller than this on either side
 const GUARD_START_MIN_AREA = 64 * 64; // smaller media skip guarded start
 const VIDEO_CHECK_MS = 2000; // a video that starts gets a light, see-through dim for this long
+const VIDEO_CHECK_MAX_MS = 3500; // ...and never longer than this, whatever the detector is unsure about
+// Media is sampled on every presented frame, capped at ~30 Hz: sparser
+// sampling aliases (a 7.5 Hz strobe sampled every 117 ms showed up as 1-2
+// flashes a second and slipped through in testing). The cost meter (T5) steps
+// the sample size down and then fails closed if the readbacks get too slow.
+const MIN_SAMPLE_MS = 25;
+const GAP_WINDOW_MS = 4000; // video: judge sampling gaps over this long...
+const GAP_MAX_SHARE = 0.5; // ...and if more than this share of samples came after a long gap, we can't keep up (fail closed, T5)
+const LONG_GAP_MS = 250; // a sample this long after the previous one means we were blind in between
+const GAP_MIN_SAMPLES = 12; // ...judged once the window holds at least this many samples
+const DOM_TICK_MS = 50; // DOM flicker sampling runs at most 20 times a second...
+const DOM_TICK_BUDGET_MS = 3; // ...and stops early when a tick has used this much time (threat T5)
 const PAGE_CHECK_MS = 1200; // the one page-wide "checking" dim, once per page
 // Media we can't analyse (lead decision, Sat 4:10 PM: option B): "always" dims
 // it whether it plays or not; "while-active" is option A (dim only while it
-// plays or animates; uses the background image probe).
+// plays or animates). Under both, a cross-origin WebP/APNG image is asked
+// about through the background probe first: a still photo in an animated-
+// capable format can't flash, and sites serve most photos as .webp, so dimming
+// every one of them would make the page unusable. GIFs are never probed and
+// always count as animated (threat T4; the probe's limits are in the threat model).
 const UNVERIFIABLE_POLICY = "always";
 const WARN_HOLD_MS = 500; // keep a "warn" dim this long after the last warn
 const GAP_WARNS_TO_DIM = 2; // video: ignore one isolated sampling gap; dim when gaps repeat within 1 s
@@ -377,6 +393,10 @@ class Source {
     this.vfcHandle = 0;
     this.lastT = 0;
     this.lastPresented = -1; // video: rVFC presentedFrames of the last sample
+    this.callbacksSinceSample = 0;
+    this.checkDeadline = 0; // video: the light check never outlasts this (performance.now())
+    /** @type {number[]} */ this.sampleTimes = []; // video: recent samples (performance.now())...
+    /** @type {number[]} */ this.missTimes = []; // ...and those where presented frames were missed
     this.completeFrames = false;
     /** @type {{ stop(): void } | null} */ this.soft = null; // soften layer while active
     this.softFailed = false; // soften fell back to block once: don't retry on this element
@@ -397,6 +417,7 @@ class Source {
       }
       this.resetDetector();
       this.lastPresented = -1;
+      this.callbacksSinceSample = 0;
       // Guarded start from the "play" event, before the first frame is shown.
       if (!this.guardedStartDone) this.beginGuardedStart(performance.now());
       this.scheduleVideo();
@@ -465,17 +486,52 @@ class Source {
       this.vfcHandle = v.requestVideoFrameCallback((now, meta) => {
         this.vfcHandle = 0;
         // Display time, not media time: playbackRate 2x flashes twice as fast for the viewer.
-        // Every presented frame sampled (presentedFrames moved by exactly 1)?
-        // Then a long gap is just the video's own frame rate, not missed frames.
+        const t = meta.expectedDisplayTime || now;
         const presented = typeof meta.presentedFrames === "number" ? meta.presentedFrames : -1;
-        const complete = presented >= 0 && this.lastPresented >= 0 && presented === this.lastPresented + 1;
-        this.lastPresented = presented;
-        this.sample(meta.expectedDisplayTime || now, complete);
+        this.callbacksSinceSample++;
+        // Every presented frame, except that a 60 fps video is sampled every
+        // other frame (MIN_SAMPLE_MS): sparser sampling aliases strobes away.
+        if (t - this.lastT >= MIN_SAMPLE_MS || this.lastT === 0) {
+          // "Complete": every presented frame since the last sample came with a
+          // callback (none were skipped by a blocked main thread). Then a long
+          // gap is the video's own frame rate, not missed frames.
+          const complete = presented >= 0 && this.lastPresented >= 0 && presented - this.lastPresented === this.callbacksSinceSample;
+          this.lastPresented = presented;
+          this.callbacksSinceSample = 0;
+          this.sample(t, complete);
+        } else if (this.lastPresented < 0) {
+          this.lastPresented = presented;
+          this.callbacksSinceSample = 0;
+        }
         if (!v.paused && !v.ended) this.scheduleVideo();
       });
     } else {
       startCanvasLoop(); // fall back to sampling on animation frames
     }
+  }
+
+  /**
+   * Effective opacity (the element's own times its ancestors') and the colour
+   * behind it, cached for BACKDROP_CACHE_MS. Used to composite samples the way
+   * the viewer sees them, and by the soften layer to look like the element.
+   * @param {number} now  performance.now()
+   * @returns {{ opacity: number, backdrop: [number, number, number] }}
+   */
+  appearance(now) {
+    if (this.look && now - this.lookAt < BACKDROP_CACHE_MS) return this.look;
+    this.lookAt = now;
+    let opacity = 1;
+    /** @type {[number, number, number]} */ let backdrop = [0, 0, 0];
+    try {
+      const cs = getComputedStyle(this.el);
+      opacity = Number(cs.opacity);
+      if (!Number.isFinite(opacity)) opacity = 1;
+      const bd = backdropOf(this.el);
+      opacity *= bd.opacity;
+      backdrop = /** @type {[number, number, number]} */ (bd.color);
+    } catch {}
+    this.look = { opacity: Math.min(1, Math.max(0, opacity)), backdrop };
+    return this.look;
   }
 
   /** Create or resize the detector for the element's current CSS size. */
@@ -566,6 +622,21 @@ class Source {
     }
 
     const readMs = performance.now() - t0;
+    // What the viewer sees is the element composited at its effective opacity
+    // over what's behind it (a 30%-opacity "ambient light" canvas flashes a
+    // third as much as its raw pixels), so blend the sample the same way
+    // before the detector sees it. Invisible elements are skipped.
+    const look = this.appearance(performance.now());
+    if (look.opacity < 0.02) return;
+    if (look.opacity < 0.98) {
+      const op = look.opacity;
+      const [br, bg, bb] = look.backdrop;
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = br + (data[i] - br) * op;
+        data[i + 1] = bg + (data[i + 1] - bg) * op;
+        data[i + 2] = bb + (data[i + 2] - bb) * op;
+      }
+    }
     let changed = true; // every video frame from requestVideoFrameCallback is new
 
     // Guarded start for canvases and images: dim as soon as the content moves.
@@ -619,7 +690,16 @@ class Source {
     if (area < GUARD_START_MIN_AREA) return;
     if (safemode.isGuarded(this.el) || safemode.wasShownByUser(this.el)) return;
     this.warmupUntil = now + VIDEO_CHECK_MS;
+    this.checkDeadline = now + VIDEO_CHECK_MAX_MS;
     safemode.guard(this.el, "dim", REASONS.checking, { canShow: false, light: true });
+    // The check is "a few seconds, see-through" (lead decision): it lifts at the
+    // deadline even if no clean report arrived (buffering, a busy page). The
+    // detector keeps watching and softens or covers anything that flashes.
+    setTimeout(() => {
+      if (this.persistentDim || safemode.guardMode(this.el) !== "dim" || this.soft) return;
+      if (safemode.wasShownByUser(this.el)) return;
+      safemode.release(this.el);
+    }, VIDEO_CHECK_MAX_MS);
   }
 
   /** @param {any} report @param {number} t */
@@ -694,13 +774,28 @@ class Source {
       report = { ...report, severity: "none", violation: false, undersampled: false };
     }
     // Busy pages: the compositor keeps showing video frames while the page's
-    // main thread is blocked, so we sometimes miss a few. One isolated gap
-    // can't hide a flash pattern (that needs 5-7 transitions in a second), so
-    // only repeated gaps keep the "checking" dim on.
-    if (this.kind === "video" && report.severity === "warn" && report.undersampled && !report.violation) {
+    // main thread is blocked, so we sometimes miss a few. A gap-only report
+    // (no flash reason) never covers a video: one isolated gap can't hide a
+    // flash pattern (that needs 5-7 transitions in a second), repeated gaps
+    // keep the short "checking" dim on, and if most samples in GAP_WINDOW_MS
+    // missed frames we can't keep up, so the video is dimmed as unverifiable (T5).
+    if (this.kind === "video") {
+      // Our own sampling rate is what matters, not whether every presented
+      // frame got a callback (a busy page misses callbacks all the time; we
+      // only sample ~12 Hz anyway). A long gap between SAMPLES is blindness.
+      const nowMs = performance.now();
+      const prev = this.sampleTimes[this.sampleTimes.length - 1];
+      this.sampleTimes.push(nowMs);
+      if (prev !== undefined && nowMs - prev > LONG_GAP_MS) this.missTimes.push(nowMs);
+      while (this.sampleTimes.length && this.sampleTimes[0] < nowMs - GAP_WINDOW_MS) this.sampleTimes.shift();
+      while (this.missTimes.length && this.missTimes[0] < nowMs - GAP_WINDOW_MS) this.missTimes.shift();
+      const full = this.sampleTimes.length >= GAP_MIN_SAMPLES;
+      if (full && this.missTimes.length > this.sampleTimes.length * GAP_MAX_SHARE) return this.markUnverifiable(REASONS.tooCostly);
+    }
+    if (this.kind === "video" && report.undersampled && !report.reason) {
       this.gapTimes = (this.gapTimes || []).filter((x) => x > t - 1000);
       this.gapTimes.push(t);
-      if (this.gapTimes.length < GAP_WARNS_TO_DIM) report = { ...report, severity: "none" };
+      report = { ...report, violation: false, severity: this.gapTimes.length < GAP_WARNS_TO_DIM ? "none" : "warn" };
     }
     const el = this.el;
     this.sendHud(report, t);
@@ -746,9 +841,15 @@ class Source {
     if (report.severity === "warn") {
       // Only videos get a (light) dim for a warn; other elements keep being
       // checked without a dim on every piece. A real violation still covers.
+      // A warn holds the light check a little longer, but the check never
+      // outlasts its deadline, and a video is never re-dimmed after it
+      // (lead decision: a few seconds, once). Real violations still soften or cover.
       if (this.kind === "video") {
-        this.warnUntil = performance.now() + WARN_HOLD_MS;
-        if (!safemode.isGuarded(el)) safemode.guard(el, "dim", REASONS.checking, { canShow: false, light: true });
+        const nowMs = performance.now();
+        if (nowMs < this.checkDeadline) {
+          this.warnUntil = Math.min(nowMs + WARN_HOLD_MS, this.checkDeadline);
+          if (!safemode.isGuarded(el)) safemode.guard(el, "dim", REASONS.checking, { canShow: false, light: true });
+        }
       }
       return;
     }
@@ -775,6 +876,7 @@ class Source {
     try {
       soft = startSoften(/** @type {any} */ (v), {
         onTamper: () => safemode.reportTamper(),
+        appearance: () => this.appearance(performance.now()),
         detect,
         preset: effectivePreset(), // strict on repeat-offender sites, like everything else
         onFail: (failReport) => {
@@ -859,7 +961,7 @@ class Source {
     this.unverifiable = reason;
     this.persistentDim = true;
     unverifiables.add(this);
-    if (UNVERIFIABLE_POLICY === "while-active" && this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
+    if (this.kind === "gif" && reason === REASONS.crossOrigin) this.probeAnimation();
     this.applyUnverifiableDim();
     startUnverifiableTimer();
   }
@@ -872,10 +974,15 @@ class Source {
     return true; // canvas and anything else we can't read: assume it may animate
   }
 
+  /** Could it flash at all? A cross-origin image the probe found to be a still can't. */
+  canAnimate() {
+    return this.kind !== "gif" || this.animated !== false;
+  }
+
   applyUnverifiableDim() {
     const el = this.el;
     if (!this.unverifiable || safemode.wasShownByUser(el)) return;
-    const dim = enabled && settings.failClosed && (UNVERIFIABLE_POLICY === "always" || repeatOffender || this.isActive());
+    const dim = enabled && settings.failClosed && this.canAnimate() && (UNVERIFIABLE_POLICY === "always" || repeatOffender || this.isActive());
     const mode = safemode.guardMode(el);
     if (dim) {
       if (mode !== "cover") safemode.guard(el, "dim", this.unverifiable, { canShow: true, announce: false });
@@ -963,13 +1070,26 @@ class DomSource extends Source {
     this.resetDetector();
   }
 
+  /**
+   * A page element we can't measure is DROPPED, never dimmed: these are the
+   * page's own layout (headers, sidebars, content columns whose classes a
+   * framework keeps toggling), and dimming them as "unverifiable" blacked out
+   * whole sites (YouTube, Sat 6:29 PM). Only an element measured flashing is
+   * softened or covered. Media (video, canvas, images) keeps failing closed.
+   */
+  drop() {
+    this.stopped = true;
+    this.resetDetector();
+    domSources.delete(this.el);
+  }
+
   /** @param {number} t @param {number} area */
   ensureDomDetector(t, area) {
     const resized = !this.detector || Math.abs(area - this.area) > this.area * 0.5;
     if (!resized) return true;
     if (this.detector && t - this.lastRebuild < RESIZE_MIN_GAP_MS) {
       if (++this.resizeChurn > RESIZE_CHURN_LIMIT) {
-        this.markUnverifiable(REASONS.error);
+        this.drop();
         return false;
       }
       return true;
@@ -979,7 +1099,7 @@ class DomSource extends Source {
     try {
       this.detector = detect.createDetector({ preset: effectivePreset(), sampleWidth: 1, sampleHeight: 1, realAreaScale: Math.sqrt(area) });
     } catch {
-      this.markUnverifiable(REASONS.error);
+      this.drop();
       return false;
     }
     return true;
@@ -1010,7 +1130,7 @@ class DomSource extends Source {
     } catch {
       eff = { color: this.backdrop.color, ok: false };
     }
-    if (!eff.ok) return this.markUnverifiable(REASONS.unknownStyle); // colours we can't read: fail closed
+    if (!eff.ok) return this.drop(); // colours we can't read: stop watching this element (see drop)
     this.pixel[0] = eff.color[0];
     this.pixel[1] = eff.color[1];
     this.pixel[2] = eff.color[2];
@@ -1020,7 +1140,7 @@ class DomSource extends Source {
     } catch {
       report = null;
     }
-    if (!report) return this.markUnverifiable(REASONS.error);
+    if (!report) return this.drop();
     this.handleReport(report, t);
   }
 }
@@ -1049,7 +1169,7 @@ function canvasTick(/** @type {number} */ now) {
       if (typeof v.requestVideoFrameCallback === "function" || v.paused) continue;
     }
     active++;
-    s.sample(now);
+    if (now - s.lastT >= MIN_SAMPLE_MS) s.sample(now);
   }
   if (active) canvasLoop = requestAnimationFrame(canvasTick);
 }
@@ -1107,11 +1227,7 @@ function makeDomSources(el) {
   for (const c of candidates) {
     let s = domSources.get(c);
     if (!s) {
-      if (domSources.size >= MAX_DOM_SOURCES) {
-        // Too many flickering elements to check (threat T5): fail closed on this one.
-        if (settings.failClosed && visibleArea(c).area >= DOM_MIN_AREA) safemode.guard(c, "dim", REASONS.tooMany, { canShow: true });
-        continue;
-      }
+      if (domSources.size >= MAX_DOM_SOURCES) continue; // CPU guard (T5): page elements beyond the cap are not watched, never dimmed (see DomSource.drop)
       s = new DomSource(c);
       domSources.set(c, s);
     }
@@ -1124,12 +1240,27 @@ function startDomLoop() {
   if (!domLoop) domLoop = requestAnimationFrame(domTick);
 }
 
+let lastDomTick = -Infinity;
+let domCursor = 0; // round-robin start, so a tick that runs out of budget doesn't starve the same sources
+
 /** @param {number} now */
 function domTick(now) {
   domLoop = 0;
   if (!enabled) return;
+  // Reading an element's computed colour forces a style recalc, which costs
+  // real time on a big page (a 10k-node video site), so this runs at most
+  // every DOM_TICK_MS and stops after DOM_TICK_BUDGET_MS, picking up where
+  // it left off on the next tick.
+  if (now - lastDomTick < DOM_TICK_MS) {
+    domLoop = requestAnimationFrame(domTick);
+    return;
+  }
+  lastDomTick = now;
   let hot = 0;
-  for (const [el, s] of domSources) {
+  const entries = [...domSources];
+  const start = performance.now();
+  for (let i = 0; i < entries.length; i++) {
+    const [el, s] = entries[(domCursor + i) % entries.length];
     if (!el.isConnected) {
       s.dispose();
       domSources.delete(el);
@@ -1142,6 +1273,10 @@ function domTick(now) {
       continue;
     }
     hot++;
+    if (performance.now() - start > DOM_TICK_BUDGET_MS) {
+      domCursor = (domCursor + i) % entries.length;
+      break;
+    }
     s.sample(now);
   }
   if (hot) domLoop = requestAnimationFrame(domTick);

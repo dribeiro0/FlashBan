@@ -62,19 +62,22 @@ const SHADOW_CSS = `
     color: #ffffff;
   }
   .panel[hidden] { display: none; }
-  /* Dim: the content stays visible but clearly darker, with a yellow frame and
-     a small label in the corner. Safety math: a 72% black layer leaves at most
-     28% of the sRGB value, so even a white/black strobe swings relative
-     luminance by under 0.07 (WCAG's flash threshold is 0.10), and grayscale
-     takes the colour out of red flashes. Cover: opaque, centred message. */
+  /* Dim: the content stays visible but clearly darker, with a small label in
+     the corner. Clicks go through to the page (only the "Show anyway" button
+     catches them), so a dimmed thumbnail or player still works. Safety math:
+     a 72% black layer leaves at most 28% of the sRGB value, so even a
+     white/black strobe swings relative luminance by under 0.07 (WCAG's flash
+     threshold is 0.10), and grayscale takes the colour out of red flashes.
+     Cover: opaque, centred message, blocks clicks. No frames (lead, Sat 6:33 PM). */
   .panel.dim {
     justify-content: flex-start; align-items: flex-start; text-align: left;
     gap: 6px; padding: 8px;
     background: rgba(0, 0, 0, 0.72);
     -webkit-backdrop-filter: grayscale(1);
     backdrop-filter: grayscale(1);
-    box-shadow: inset 0 0 0 3px #ffd84d;
+    pointer-events: none;
   }
+  .panel.dim button { pointer-events: auto; }
   .panel.dim .title, .panel.dim .reason {
     background: #121212; padding: 3px 8px; border-radius: 4px; max-width: calc(100% - 16px);
   }
@@ -92,7 +95,7 @@ const SHADOW_CSS = `
   .pagecheck {
     position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start;
     padding-top: 12px; background: rgba(0, 0, 0, 0.45); pointer-events: none;
-    box-shadow: inset 0 0 0 3px #ffd84d; opacity: 1; transition: opacity ${FADE_MS}ms linear;
+    opacity: 1; transition: opacity ${FADE_MS}ms linear;
   }
   .pagecheck.fading { opacity: 0; }
   .pagecheck p {
@@ -102,7 +105,7 @@ const SHADOW_CSS = `
   .pagecheck .brand { margin-right: 8px; display: inline-block; }
   @media (prefers-reduced-motion: reduce) { .pagecheck { transition: none; } }
   .panel.dim button { min-height: 32px; padding: 4px 12px; font-size: 13px; }
-  .panel.cover { background: #121212; box-shadow: inset 0 0 0 3px #ffd84d; }
+  .panel.cover { background: #121212; }
   .brand {
     margin: 0; padding: 2px 8px; border-radius: 4px;
     background: #ffd84d; color: #121212; font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
@@ -458,6 +461,12 @@ function position(g) {
   s.transform = `translate(${Math.round(r.left)}px, ${Math.round(r.top)}px)`;
   s.width = `${Math.ceil(r.width)}px`;
   s.height = `${Math.ceil(r.height)}px`;
+  // An element that starts above or left of the viewport (a scaled backdrop
+  // canvas, a tall container) would put the label off screen: pad it in.
+  const padTop = r.top < 0 ? Math.min(-r.top, Math.max(0, r.height - 60)) : 0;
+  const padLeft = r.left < 0 ? Math.min(-r.left, Math.max(0, r.width - 160)) : 0;
+  s.paddingTop = padTop ? `${Math.round(padTop + 8)}px` : "";
+  s.paddingLeft = padLeft ? `${Math.round(padLeft + 8)}px` : "";
   g.panel.classList.toggle("compact", r.width < COMPACT_W || r.height < COMPACT_H);
 }
 
