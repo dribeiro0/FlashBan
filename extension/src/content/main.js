@@ -668,7 +668,10 @@ class Source {
     let report;
     const t1 = performance.now();
     try {
-      report = this.detector.push({ t, pixels: data });
+      // Video only: FrameSample.dropped (CONTRACTS s1) comes from rVFC
+      // presentedFrames, which a page can't forge. false relaxes the gap rule
+      // for low-frame-rate video; canvases and images leave it absent (fail closed).
+      report = this.detector.push(this.kind === "video" ? { t, pixels: data, dropped: !complete } : { t, pixels: data });
     } catch {
       report = null;
     }
