@@ -10,14 +10,18 @@
 <body>
 <p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic attack fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
 <h1>Early-start strobe (threat T8)</h1>
-<p>The canvas strobe from canvas.html (4 cycles per second), but with <code>?autostart=1</code> it starts flashing the moment the page loads, before an extension has had time to start up. Without that parameter it waits for Start like every other page. This measures how long a page can flash right after loading before the shield reacts.</p>
+<p>The canvas strobe from canvas.html (4 cycles per second), but with <code>?autostart=1</code> on a local test server (127.0.0.1 or localhost only, never on a public host) it starts flashing the moment the page loads, before an extension has had time to start up. Without that parameter it waits for Start like every other page. This measures how long a page can flash right after loading before the shield reacts.</p>
 <p class="meta">Expected shield verdict: <strong>block</strong>. Colors #222222 and #777777, 320 by 180 CSS px. Default run 4 s; add <code>?seconds=N</code> (1 to 10). <a href="../index.html">All fixtures</a></p>
 <div class="controls">
 <button id="start" type="button">Start</button>
 <button id="stop" type="button" disabled>Stop</button>
 </div>
 <p id="status" role="status" aria-live="polite"></p>
-<canvas id="stage" class="stage" data-kind="canvas" data-hz="4" data-seconds="4" data-autostart="allowed" width="320" height="180" aria-label="Test canvas"></canvas>
+<canvas id="stage" class="stage" data-kind="canvas" data-hz="4" data-seconds="4" width="320" height="180" aria-label="Test canvas"></canvas>
+<script>
+  // Autostart (strobe from page load) is for the local harness only: never on a public host.
+  if (["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)) document.getElementById("stage").dataset.autostart = "allowed";
+</script>
 <script src="../fixture.js"></script>
 </body>
 </html>
