@@ -1,13 +1,13 @@
 // Demo HUD: an extension page that subscribes to one tab's detector reports (CONTRACTS 3a).
 // Renders with textContent only. Announces only state changes, never per-frame values.
-import { parseHudMessage, formatRow } from "./view.js";
+import { parseHudMessage, formatRow, parseHudTab } from "./view.js";
 
 const statusEl = document.getElementById("status");
 const pageEl = document.getElementById("page");
 const rowsEl = document.getElementById("rows");
 const emptyEl = document.getElementById("empty");
 
-const tabId = Number(new URLSearchParams(location.search).get("tab"));
+const tabId = parseHudTab(location.search);
 /** @type {Map<string, {row: object, at: number, tr: HTMLTableRowElement, severity: string}>} */
 const sources = new Map();
 let page = null;
@@ -82,7 +82,7 @@ function render() {
   }
 }
 
-if (!Number.isInteger(tabId) || tabId < 0) {
+if (tabId === null) {
   say("No tab selected. Open the HUD from the Seizure Shield popup.");
 } else {
   connect();
