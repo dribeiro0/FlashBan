@@ -115,7 +115,9 @@ async function pagesToRun() {
         const title = (/<title>([^<]*)<\/title>/i.exec(html)?.[1] || e.name).split("|")[0].trim();
         // Optional <meta name="harness-seconds" content="N"> for pages whose pattern needs a longer run.
         const secs = Number(/<meta\s+name="harness-seconds"\s+content="(\d+)"/i.exec(html)?.[1]);
-        const seconds = secs >= 1 && secs <= 15 ? secs : RUN_SECONDS;
+        // video.html keeps a 3 s default for live demos (Jun); the harness runs it 6 s so the
+        // softened part of playback is clearly inside the window.
+        const seconds = secs >= 1 && secs <= 15 ? secs : /video.html$/.test(e.name) ? 6 : RUN_SECONDS;
         // Optional <meta name="harness-forbid" content="soften,..."> outcomes that fail even though they
         // count as block elsewhere (on soften-killer pages "soften" means the attack won).
         const forbid = (/<meta\s+name="harness-forbid"\s+content="([a-z,\s]+)"/i.exec(html)?.[1] || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -274,7 +276,7 @@ async function main() {
       let firstCoverMs = null;
       let lastPanels = [];
       let shot = null;
-      const extra = page.rel.includes("video") ? 4000 : 0; // video page records first
+      const extra = page.rel.includes("video") ? page.seconds * 1000 + 1000 : 0; // video page records first, as long as it plays
       const runEnd = startedAt + page.seconds * 1000 + extra;
       const shoot = async (suffix) => {
         const { data } = await cdp.send("Page.captureScreenshot", { format: "png" }, sessionId);
