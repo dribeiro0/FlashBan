@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<title>Raise the media (threat T6) | Seizure Shield adversarial test</title>
+<link rel="stylesheet" href="../demo.css">
+<style>
+  /* The popover keeps the canvas where it was: no backdrop, no frame. */
+  #box { margin: 0; padding: 0; border: 0; background: transparent; inset: auto; position: fixed; left: 16px; top: 420px; overflow: visible; }
+  #box::backdrop { display: none; }
+</style>
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic attack fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>Raise the media (threat T6)</h1>
+<p>The canvas strobe from canvas.html (4 cycles per second). Instead of deleting the shield's cover, this page lifts the flashing canvas above it: the highest z-index, and the canvas's container shown as the page's own top-layer popover, re-opened on every frame so it is always on top.</p>
+<p><strong>Pass:</strong> the strobe stays hidden or softened on screen, or the page is locked down. <strong>Fail:</strong> you can see the strobe at full strength after the first second.</p>
+<p class="meta">Expected shield verdict: <strong>block</strong>. Colors #222222 and #777777, 320 by 180 CSS px. Default run 3 s; add <code>?seconds=N</code> (1 to 10). <a href="../index.html">All fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<p id="attacks">Raised above everything 0 times.</p>
+<div id="box" popover="manual"><canvas id="stage" class="stage" data-kind="canvas" data-hz="4" width="320" height="180" aria-label="Test canvas"></canvas></div>
+<script src="../fixture.js"></script>
+<script src="raise-media.js"></script>
+</body>
+</html>
