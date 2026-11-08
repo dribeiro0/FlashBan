@@ -37,7 +37,7 @@ const VERIFY_PX = 160 * 90; // the verifier's readback size
 const VERIFY_HZ = 30; // readbacks per second: every frame of a 30 fps video (sparser verification aliases strobes away)
 const SHADOW_MAX_FAILS = 3; // give up the shadow limiter trial after this many failures (it costs a raw readback per frame)
 const MAX_DISPLAY_PX = 2560 * 1440; // output canvas cap (device pixels)
-const MAX_STEP = 0.25; // largest share of the way to a new frame any one update may move
+const MAX_STEP = 0.15; // largest share of the way to a new frame any one update may move (less pulse after a main-thread hitch)
 // Stage "limit": the current frame, full detail, with its overall brightness
 // scaled to follow a slow running level, so a full-field flash is flattened
 // without the averaging filter's ghosting. It is never shown untested: the
