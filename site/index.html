@@ -41,7 +41,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-BtK1jC1WhmcJMpFkdkn0VYtkTnM47uQ+cAcUe+wyNJY=' 'sha256-lProygG3ojD7slNVXOvbOnuveVXTckSLLT6cJxpu/CQ='; style-src 'self' 'sha256-iHlq55qYwXOq7U6Wgs/1uaKNEK71ywMEo1G3FEKdaOo=' 'sha256-Jh2wh0G23qfr/Q5bEM2sYEkdSyi/TjzpFXlW/fj7ZJk='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-lIOX4s2nEqEx1gW0gEEtcaYjGdHD9jRM4kXGCoXCGqk=' 'sha256-y7jnANXIVIUuYgPYcTL2oZNWdshWGmM2rr2ezNBzPwI='; style-src 'self' 'sha256-8vaj2ZhcAxcXhwL6K5yZ7wkY7rzfnEDrZbn7AQyVTGU=' 'sha256-zN5JlC5t3YydcyzfmPy6G+nNc18qmwTqpcWvemd9ojc='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — flashing content, softened before it reaches you</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
@@ -234,8 +234,6 @@ body.menu-open .menu-btn .w2{top:0}
 .cta{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:20px;padding:96px 24px 64px;text-align:center}
 .cta .fit{text-align:center}
 .cta .acts{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-.sha{max-width:100%;overflow-wrap:anywhere;font:400 12px/1.6 var(--mono);color:var(--fg)}
-.sha .label{display:block;margin-bottom:4px}
 .cta .note{max-width:560px;color:var(--mute)}
 
 /* footer */
@@ -528,9 +526,6 @@ body.menu-open .menu-btn .w2{top:0}
         <span class="slot" aria-hidden="true"><svg class="ic ain"><use href="#arw"/></svg><svg class="ic aout"><use href="#arw"/></svg></span>
       </a>
     </div>
-    <p class="sha" id="sha" hidden><span class="label">SHA-256 ▪ reproducible build</span><span id="sha-v"></span></p>
-    <p class="body">SHA-256 is the download’s digital fingerprint. Compare it with the fingerprint of your downloaded ZIP to check that the files match. “Reproducible build” means the same source code and build steps produce an identical ZIP with the same fingerprint. A match verifies the file; it does not prove the software is safe. <a href="download.html#verify">How to check your download →</a></p>
-    <p class="label note" data-reveal data-d=".16">Chrome 116+ ▪ Load unpacked ▪ Not in the Chrome Web Store yet ▪ Not a medical device</p>
   </section>
 
   <!-- 04 MARQUEE -->
@@ -1010,8 +1005,6 @@ if(info&&/^flashban-[\d.]+\.zip$/.test(info.file)&&/^[0-9a-f]{64}$/.test(info.sh
   const dl=document.getElementById("dl");
   dl.href="download/"+info.file; dl.setAttribute("download",info.file);
   document.getElementById("dl-label").textContent="Download FlashBan "+info.version;
-  document.getElementById("sha-v").textContent=info.sha256;
-  document.getElementById("sha").hidden=false;
 }
 
 /* ---------- phone menu ---------- */
