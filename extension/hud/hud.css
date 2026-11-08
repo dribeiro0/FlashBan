@@ -1,32 +1,53 @@
-/* Static UI: no animations or transitions (our own UI must never flash). Colors match the popup. */
+/* HUD in the "dithering" look, matching the Grain demo site. Static UI: no animations or transitions
+   (our own UI must never flash). Dither swatches are low contrast (close tones) so they stay safe for
+   pattern sensitivity. Text never sits on a dither swatch. */
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --fg: #1a1a1a;
-  --muted: #4a4a4a;
-  --border: #767676;
-  --focus: #1a5fd0;
-  --block: #a40000; /* 8.3:1 on white */
+  --bg: #f3f1ea;
+  --fg: #111111;
+  --muted: #45443f; /* 9.4:1 on --bg */
+  --rule: #111111;
+  --soft-rule: #b9b6aa;
+  --accent: #4a5726; /* 7.6:1 on --bg */
+  --focus: #4a5726;
+  --block-bg: #ffd84d;
+  --block-fg: #111111; /* 13.6:1 on --block-bg */
+  --grain: repeating-conic-gradient(#c9ceb3 0 25%, #b7bd9c 0 50%) 0 0 / 4px 4px;
+  --mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161616;
-    --fg: #f2f2f2;
-    --muted: #c8c8c8;
-    --border: #8a8a8a;
-    --focus: #8ab4ff;
-    --block: #ff9b9b; /* 8.6:1 on #161616 */
+    --bg: #161614;
+    --fg: #e4e1d6; /* 14:1 */
+    --muted: #b9b6aa; /* 8.6:1 */
+    --rule: #e4e1d6;
+    --soft-rule: #4a4943;
+    --accent: #b5c48a; /* 10:1 */
+    --focus: #ffd84d;
+    --grain: repeating-conic-gradient(#5e6844 0 25%, #4f583a 0 50%) 0 0 / 4px 4px;
   }
 }
 * { box-sizing: border-box; transition: none !important; animation: none !important; }
-body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+body { margin: 0; padding: 20px 24px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+::selection { background: var(--accent); color: var(--bg); }
 main { max-width: 64rem; }
-h1 { font-size: 1.5rem; margin: 0 0 8px; }
-h2 { font-size: 1.125rem; margin: 24px 0 8px; }
-.note { color: var(--muted); }
-.scroll { overflow-x: auto; }
+h1 { display: flex; align-items: center; gap: 10px; font-size: 1.375rem; font-weight: 800; letter-spacing: -0.01em; margin: 0; padding-bottom: 10px; border-bottom: 1.5px solid var(--rule); }
+h1::before { content: ""; width: 20px; height: 20px; flex: none; border: 1.5px solid var(--rule); background: var(--grain); }
+h2 { font: 600 0.8125rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 24px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--soft-rule); }
+#status { margin: 12px 0 0; font: 600 0.9375rem/1.5 var(--mono); color: var(--accent); }
+.note { color: var(--muted); font-size: 0.875rem; max-width: 70ch; }
+#page { margin: 0; padding: 10px 12px; border: 1.5px solid var(--rule); font-variant-numeric: tabular-nums; }
+#page.block { background: var(--block-bg); color: var(--block-fg); border-color: var(--block-fg); font-weight: 700; }
+.scroll { overflow-x: auto; border: 1.5px solid var(--rule); }
 table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.block { color: var(--block); font-weight: 700; }
+th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--soft-rule); white-space: nowrap; font: 0.9375rem/1.4 var(--mono); font-variant-numeric: tabular-nums; }
+thead th { font: 600 0.75rem/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border-bottom: 1.5px solid var(--rule); }
+tbody th { font-weight: 600; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+td.block { background: var(--block-bg); color: var(--block-fg); font-weight: 700; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (forced-colors: active) {
+  h1::before { background: CanvasText; }
+  #page.block, td.block { forced-color-adjust: auto; border: 2px solid CanvasText; }
+}
