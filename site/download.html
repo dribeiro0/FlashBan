@@ -38,6 +38,7 @@
             <dt>Built from</dt><dd>commit <span id="dl-commit" class="num"></span></dd>
             <dt>Permissions</dt><dd id="dl-perms" class="num"></dd>
           </dl>
+          <p class="fine">SHA-256 is this ZIP’s digital fingerprint. Calculate the fingerprint of your downloaded file using the steps below, then compare it with this value. Every character must match. A match verifies that you have the published file; it does not prove the software is safe.</p>
           <p id="copy-status" class="fine" role="status" aria-live="polite"></p>
         </div>
       </div>
@@ -73,7 +74,7 @@
     <section class="split" aria-labelledby="rebuild">
       <div>
         <h2 id="rebuild">Or rebuild it yourself</h2>
-        <p class="muted">The zip is reproducible: the same source always gives the same bytes. Build it from the commit shown above and the checksum must equal the one above. No dependencies, just Node.</p>
+        <p class="muted">“Reproducible build” means the same source code and build steps produce an identical ZIP, byte for byte, with the same SHA-256 fingerprint. Build from the commit shown above and compare the result with the published fingerprint. No dependencies, just Node.</p>
       </div>
       <div>
         <pre><code id="rebuild-cmd">git clone https://github.com/dribeiro0/FlashBan.git
