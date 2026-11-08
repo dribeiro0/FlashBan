@@ -51,7 +51,7 @@ Checked with axe-core 4.10 (WCAG 2.0, 2.1, 2.2 A and AA plus best practices) usi
 
 - Popup: 0 violations in light and dark mode, on a fresh install and with the log open.
 - Overlay (cover, "can't verify" dim, video check): 0 violations. Contrast was checked by hand because axe can't read the top layer: overlay text sits on opaque chips, white on #121212 (18:1) and dark on yellow (13.5:1).
-- Keyboard: "Show anyway" is a real button, 44 px tall with a 3 px focus ring, reached with Tab and activated with Enter. Pages can't press it for you.
+- Keyboard: the one bypass control, "Show original on this site" in the FlashBan bar at the top right, is a real button (32 px tall, 3 px focus ring) reached with Tab and activated with Enter. Pages can't press it for you (trusted clicks only, closed shadow root). It remembers the site; the popup's per-site switch turns protection back on.
 - The overlay announces itself to screen readers (`aria-live`), never flashes, turns its fades off under `prefers-reduced-motion`, and switches to system colours in forced-colours mode.
 
 The overlay's shadow root is closed in the shipped build; the axe run used a test build with it open.

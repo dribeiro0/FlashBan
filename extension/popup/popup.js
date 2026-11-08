@@ -100,7 +100,7 @@ async function refreshStatus() {
   render();
 
   if (!status.enabled) {
-    statusEl.textContent = `Off for ${domain}.`;
+    statusEl.textContent = `Off for ${domain}: you chose "Show original" here, or turned it off. Turn the switch on to protect this site again.`;
     return;
   }
   if (status.repeatOffender && status.enabled && !status.lockdown) {
