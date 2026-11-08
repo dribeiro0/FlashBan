@@ -1,6 +1,6 @@
 # FlashBan
 
-A Chrome extension that finds flashing content on web pages (the WCAG 2.3.1 "three flashes per second" rule) and softens, slows, covers or dims it before it reaches the viewer. It also treats deliberate strobing ("epilepsy trolling") as a security threat: a page that fights FlashBan gets locked down.
+A Chrome extension that finds flashing content on web pages (the WCAG 2.3.1 "three flashes per second" rule) and tones it down with dimming, greyscale, slowing or covers to reduce exposure. It also treats deliberate strobing ("epilepsy trolling") as a security threat: a page that fights FlashBan gets locked down.
 
 Built by team FlashBan at Hackcessability (Tech Access track; entered in the Built To Be Trusted security award).
 
@@ -9,10 +9,10 @@ Built by team FlashBan at Hackcessability (Tech Access track; entered in the Bui
 ## What it does
 
 - **Detects** flashing on `<video>`, `<canvas>`, animated images, CSS animations and script-driven flicker, using the WCAG relative-luminance, general-flash and red-flash rules in a sliding one-second window, with real timestamps. WCAG is the default preset; Strict is in the popup.
-- **Softens first**, so people aren't interrupted: flashing video, canvas and animated images keep playing through a smoothing filter (checked again by a second detector), CSS animations are slowed to about one cycle per second, and flickering elements get a slow fade. If softening can't get the flashing under the limit, FlashBan pauses the content and **covers** it with a static panel ("Show original on this site" in FlashBan's bar brings the site back, by your choice only).
+- **Tones it down first:** flashing video, canvas and animated images keep playing but are dimmed and turned grey. CSS animations are slowed and script-driven flicker gets a slow fade. Users can choose to hide flashing content instead. A static cover or lockdown protects content when needed; "Show original on this site" is an explicit user choice.
 - **Fails closed:** media FlashBan can't check is always dimmed and labelled "can't verify".
 - **Locks down hostile pages:** if a page keeps deleting or restyling FlashBan's protection, FlashBan hides the page's media with browser-level styles the page can't see or remove, shows a banner, and marks the toolbar icon with "!".
-- **Keeps a local log** of sites that flashed (domain and date only), shown in the popup with **Clear my data**. Entries older than 30 days are deleted. Nothing about you is sent to us or anyone else; there is no server. The one network request FlashBan makes: for a cross-origin .webp or .apng image the page is already loading, the extension fetches the file's first bytes without cookies to tell a still image from an animated one, and only a yes/no comes back. GIFs are never probed; they always count as animated.
+- **Keeps a local log** of sites that flashed (domain, dates, count, peak flash estimate and source types), shown in the popup with **Clear my data**. Entries older than 30 days are deleted. The log is not uploaded; there is no FlashBan reporting server. The one network request FlashBan makes: for a cross-origin .webp or .apng image the page is already loading, the extension fetches the file's first bytes without cookies to tell a still image from an animated one, and only a yes/no comes back. GIFs are never probed; they always count as animated.
 
 ## Install (unpacked)
 
@@ -46,15 +46,13 @@ The zip is reproducible: building the same commit always gives the same SHA-256,
 
 ## Security
 
-Using a seizure shield reveals a health condition, so FlashBan collects almost nothing: no accounts, no identifiers, no keys, and only the site's domain in a local log. Threats and mitigations are in the [threat model](security/THREAT_MODEL.md). Judging baseline: `node harness/run.mjs`, three runs on tag `demo` (`47d9023`) on the team's slowest Windows laptop, headless. Each run matched 26 of 27 expected verdicts; all 14 attack pages were protected in all three runs. These results describe that tagged build, not later changes to main. [Full results on the board](https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718646482).
+Using a seizure shield reveals a health condition, so FlashBan collects almost nothing: no accounts, no identifiers, no keys, and a local log of domains and basic detector metrics. Threats and mitigations are in the [threat model](security/THREAT_MODEL.md). Current canonical test evidence: `node harness/run.mjs`, three runs on main `0c610e2` after dim + greyscale shipped, on the team's slower Windows laptop. Each run matched **29 of 29** expected verdicts: **16 attack pages protected**, **8 benign/control pages allowed**. [Full results on the board](https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718973934). These are results for that build and test set, not proof for every website. The final demo tag still needs its own verification.
 
-- Page that deletes FlashBan's cover on every frame (`demo/adversarial/overlay-killer.html`): locked down in 1.24 to 1.28 s.
-- Pages that undo the softening on every frame: covered or locked down every time, never left softened.
-- Red-only flashes with almost no brightness change: softened in 1.24 to 1.25 s.
-- A 12.5 Hz strobe timed between samples: softened in 0.45 to 0.46 s. CPU-flood page: softened or blocked in 1.7 to 2.3 s.
-- A strobe that starts after 10 calm seconds: caught about 1.2 s after it starts.
-- All 8 benign/static pages allowed in all three runs (24 allow verdicts, no false positives in this test set).
-- Known test failure: `video.html` was allowed instead of protected in all three runs on that machine. The synthetic recording/video path is machine-dependent; these results do not establish reliable video protection.
+- Page that deletes the cover every frame: locked down in 1.24–1.25 s.
+- Pages that undo protection: CSS attack covered in 0.42–0.43 s; DOM attack locked down in 1.7–4.5 s.
+- Aliasing, red-only, delayed-start, source-flip/swap, CPU-flood and tainted-canvas attacks: protected by dimming. That three-run table records their end state, not time to first dim.
+- Video and canvas demos: dimmed. CSS demo: slowed in 0.42–0.43 s; DOM demo: softened in 1.23–1.24 s.
+- All 8 benign/control pages allowed in all three runs (24 allow verdicts, no false positives in this test set).
 
 ## Accessibility
 
@@ -71,7 +69,7 @@ The overlay's shadow root is closed in the shipped build; the axe run used a tes
 
 - DRM and cross-origin video (no CORS) can't be measured, only dimmed.
 - Websites can detect that FlashBan is installed by probing its extension files, which can reveal a health condition. The fix is bundling the content scripts; not done yet.
-- The first frames of a new flash can reach the screen before detection reacts (typically well under a second; times above).
+- The first frames of a new flash can reach the screen before detection reacts (response time depends on the page, source and machine).
 - Content outside the browser isn't covered.
 - The WebP/APNG still-or-animated probe can be fooled by the image's server (it can tell the probe from the page's own request), and image hosts can see that this browser runs FlashBan. GIFs are never probed, so an animated GIF is always dimmed.
 - Flashes split across iframes aren't added together: each frame is judged on its own (the cross-element area sum works within one frame).
