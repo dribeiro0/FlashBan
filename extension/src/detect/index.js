@@ -22,6 +22,7 @@ import { maxInField, maxOverlap } from "./area.js";
 export { createAggregator } from "./aggregate.js";
 export { analyzeAnimation } from "./css.js";
 export { createCostMeter } from "./cost.js";
+export { createClampSoftener } from "./clamp.js";
 
 /**
  * Highest flash count f such that at least `floor` pixels have f or more.
@@ -42,7 +43,8 @@ const MAX_COUNT = RING / 2;
 /**
  * @typedef {import("./presets.js").PresetName} PresetName
  * @typedef {{ preset: PresetName, sampleWidth: number, sampleHeight: number, realAreaScale: number }} DetectorOptions
- * @typedef {{ t: number, pixels: Uint8ClampedArray }} FrameSample
+ * @typedef {{ t: number, pixels: Uint8ClampedArray, dropped?: boolean }} FrameSample
+ *   dropped: false = no presented frame was missed since the last sample (relaxes the gap rule)
  * @typedef {{
  *   v: 1,
  *   flashesPerSecond: number,
@@ -57,7 +59,7 @@ const MAX_COUNT = RING / 2;
  *   undersampled?: boolean,
  *   redAreaPx?: number,
  * }} FlashReport
- * @typedef {{ push(sample: FrameSample): FlashReport, peek(): FlashReport, reset(): void }} Detector
+ * @typedef {{ push(sample: FrameSample): FlashReport, peek(): FlashReport, mask(): Uint8Array | null, reset(): void }} Detector
  */
 
 /** @returns {FlashReport} */
@@ -106,6 +108,8 @@ function alwaysBlock() {
   return {
     push: () => blockReport(),
     peek: () => blockReport(),
+    // No sample grid: the caller gets no mask and clamps the whole frame (fail closed).
+    mask: () => null,
     reset() {},
   };
 }
@@ -198,6 +202,11 @@ export function createDetector(opts) {
   /** @param {FrameSample} sample @returns {FlashReport} */
   function analyze(sample) {
     const { t, pixels } = sample;
+    // Optional FrameSample.dropped (CONTRACTS s1, additive): false means the
+    // caller saw every presented frame (e.g. an 8 fps video), so a long gap is
+    // the content's own frame rate, not missed flashes. Absent or true keeps
+    // the old fail-closed gap rule.
+    const noDrops = sample.dropped === false;
     if (typeof t !== "number" || !Number.isFinite(t)) return blockReport();
     if (!(pixels instanceof Uint8ClampedArray) || pixels.length !== expectedLength) return blockReport();
 
@@ -207,7 +216,10 @@ export function createDetector(opts) {
       // Seek or loop: continue the internal clock one normal step later and
       // hold "warn" for one window.
       offset = lastNow + lastStep - t;
-      warnUntil = t + offset + WINDOW_MS;
+      // Hold "warn" across the jump only if something was flashing before it:
+      // a calm video that loops or seeks shouldn't be dimmed for a second.
+      // (Flash history survives the jump either way, so T7 loops still violate.)
+      if (last && last.flashesPerSecond + last.redFlashesPerSecond > 0) warnUntil = t + offset + WINDOW_MS;
     }
 
     const now = t + offset;
@@ -218,7 +230,7 @@ export function createDetector(opts) {
     // Gap rule: a gap over GAP_MS may hide flashes. Mark undersampled and warn
     // for one window; gaps that persist for a whole window block (fail closed).
     let gapBlock = false;
-    if (dt > GAP_MS) {
+    if (dt > GAP_MS && !noDrops) {
       if (gapRunStart === null) gapRunStart = now - dt;
       undersampledUntil = now + WINDOW_MS;
       if (now - gapRunStart >= WINDOW_MS) gapBlock = true;
@@ -259,7 +271,9 @@ export function createDetector(opts) {
       } else {
         redMask[i] = 0;
       }
-      if (m >= 2) redPairs++;
+      // Strict red: more than one red flash (3+ transitions) in the window, so a
+      // single red badge blink or title card doesn't trip it.
+      if (m >= 3) redPairs++;
       redHistogram[Math.min(MAX_COUNT, Math.ceil(m / 2))]++;
     }
 
@@ -308,9 +322,21 @@ export function createDetector(opts) {
     peek() {
       return { ...last };
     },
+    /**
+     * Which sample pixels are over the flash limit (general or red) right now,
+     * as a fresh copy: 1 = flashing. For the clamp softener (clamp.js).
+     * @returns {Uint8Array}
+     */
+    mask() {
+      const m = new Uint8Array(count);
+      for (let i = 0; i < count; i++) m[i] = overMask[i] | redMask[i];
+      return m;
+    },
     reset() {
       last = calmReport();
       clearState();
+      overMask.fill(0);
+      redMask.fill(0);
     },
   };
 }

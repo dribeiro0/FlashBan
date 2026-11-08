@@ -88,6 +88,15 @@ Note: the browser-side canvas does not have to call this function per pixel. A c
 - SO6: a dark-to-light cut reaches 90% after **767 ms** (the simulation said ~780 ms).
 - Speed of the JS reference (`push`, Node, this laptop): 320x180 is 0.9 ms median (2.3 ms p95); 640x360 is 5.2 ms (7.5 ms p95); 1280x720 is 22 ms (29 ms p95). That's too slow for full-resolution video at 60 fps, so **the browser should use the canvas `globalAlpha` path** (section 4 note), or run this function at 640x360 or below and scale up. Either way, the verify detector decides.
 
+## 6b. Second filter: masked brightness clamp (`clamp.js`, Nov 7)
+
+The two-stage EMA above still lets some slow strobes through under `strict` at 24 fps (about 2.05–2.7 Hz: 10 cases in the unit test sweep), and it blurs the whole frame. `createClampSoftener` fixes both:
+- **Only inside the mask.** The detector's `mask()` (pixels over the flash limit) is dilated by one sample pixel, held for 3 s after a pixel stops flashing, and blended in over 300 ms, so the mask never switches abruptly (T13). Pixels outside pass through untouched: sharp and real time. With no mask, the whole frame is clamped.
+- **Clamp, not blur.** Per pixel, a two-stage 0.5 s average (linear light) is kept. Inside the mask the output keeps the average's chromaticity and its luminance is clamped to ±0.03 around the average's luminance. Its swing can never reach 0.10 (no general flash), and its colour moves only as slowly as the average (no red flash).
+- **Results** (`extension/test/clamp.test.js`): **0 of 456** full-swing strobes (2–20 Hz, 24/30/60 fps, strict and wcag) violate after clamping; red-only 4 Hz has no red flash; outside a 40% strobe region the output equals the input exactly; a dark-to-light cut inside the mask reaches 90% within about 2 s (the cost); bad input returns grey with `failed` set.
+- A first prototype with a ±0.045 band and a single 1 s stage failed (the average rippled with the strobe), so keep these constants.
+- Plan: make the clamp the soften default with `createSoftener` as the fallback. Wiring (passing `detector.mask()` each frame) is extension core.
+
 ## 7. Split and timing
 
 | Who | What | Estimate |

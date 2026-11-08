@@ -129,26 +129,39 @@ test("Re6: red area is judged on its own threshold (341 px passes, 342 fails)", 
   assert.equal(over.reason, "red");
 });
 
-test("Re7: strict flags a single red flash pair", () => {
-  // Gray, red at 400 ms, gray again at 500 ms, then gray: 2 red transitions.
-  const paint = (px, t) => {
-    const c = t >= 400 && t < 500 ? RED : G128;
-    for (let i = 0; i < px.length; i += 4) {
-      px[i] = c[0];
-      px[i + 1] = c[1];
-      px[i + 2] = c[2];
-      px[i + 3] = 255;
-    }
-  };
-  const strict = run(paint, { preset: "strict" }, W, H, 900);
+/** Full-frame painter: RED while redAt(t) is true, else G128. */
+const redWhen = (redAt) => (px, t) => {
+  const c = redAt(t) ? RED : G128;
+  for (let i = 0; i < px.length; i += 4) {
+    px[i] = c[0];
+    px[i + 1] = c[1];
+    px[i + 2] = c[2];
+    px[i + 3] = 255;
+  }
+};
+
+test("Re7: strict flags more than one red flash in a second (a slow 1.5 Hz red strobe)", () => {
+  // Changed Nov 7 (false-positive fix): strict needs 3+ red transitions in the
+  // window, i.e. more than one red flash. 1.5 Hz = 3 transitions per second.
+  const paint = redWhen((t) => Math.floor(t / 333) % 2 === 1);
+  const strict = run(paint, { preset: "strict" }, W, H, 3000);
   const hit = strict.find(({ r }) => r.violation);
   assert.ok(hit, "strict violates");
   assert.equal(hit.r.reason, "red");
-  const wcag = run(paint, { preset: "wcag" }, W, H, 900);
+  const wcag = run(paint, { preset: "wcag" }, W, H, 3000);
   assert.equal(
     wcag.some(({ r }) => r.violation),
     false,
   );
+});
+
+test("Re7b: one red blink (a badge or a red title card) is not a violation, even in strict", () => {
+  // Gray, red at 400 ms, gray again at 500 ms: one red flash pair (2 transitions).
+  const blink = run(redWhen((t) => t >= 400 && t < 500), { preset: "strict" }, W, H, 2000);
+  assert.equal(blink.some(({ r }) => r.violation), false);
+  // A red title card: gray -> red, held 1.5 s -> gray.
+  const card = run(redWhen((t) => t >= 300 && t < 1800), { preset: "strict" }, W, H, 3000);
+  assert.equal(card.some(({ r }) => r.violation), false);
 });
 
 test("Re8: all-black then all-red frames (one change) give no flash and no NaN", () => {
