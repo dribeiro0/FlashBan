@@ -81,6 +81,7 @@ const PAUSE_RESET_MS = 1000; // a video's flash history resets only after a paus
 const RECHECK_CALM_MS = 1500; // a covered video's new source must be calm this long before the cover lifts
 const MEDIA_OVERLAP_SHARE = 0.5; // a DOM layer this much over a measured video/canvas is player chrome
 const MEDIA_OVERLAP_CACHE_MS = 500;
+const LAYER_ALPHA_WATCH = 0.2; // a layer over media seen this opaque even once is always watched
 
 const REASONS = {
   general: "It was flashing faster than is safe.",
@@ -96,6 +97,7 @@ const REASONS = {
   detectorError: "The flash detector failed to load, so media is dimmed to be safe.",
   css: "A rapidly flashing animation was paused.",
   unknownStyle: "It changes too fast to check, so it's dimmed to be safe.",
+  glow: "A decorative glow was faded.",
 };
 
 // ---------------------------------------------------------------- state
@@ -675,8 +677,7 @@ class Source {
       if (!Number.isFinite(opacity)) opacity = 1;
       if (this.glowFaded) {
         // Our own fade is in the computed value; use what the page asked for.
-        const prev = this.glowPrev && this.glowPrev[0] ? Number(this.glowPrev[0]) : NaN;
-        opacity = Number.isFinite(prev) ? prev : this.lookBeforeFade ?? 1;
+        opacity = this.lookBeforeFade ?? 1;
       } else {
         this.lookBeforeFade = opacity;
       }
@@ -761,6 +762,11 @@ class Source {
     }
     if (el instanceof HTMLCanvasElement && (el.width === 0 || el.height === 0)) return;
     if (el instanceof HTMLImageElement && (!el.complete || el.naturalWidth === 0)) return;
+    // An ambient glow (a tiny canvas blown up 4x or more, like YouTube's
+    // ambient mode) is faded, never measured: its crossfades between two
+    // stretched canvases read as flashing and covered half the page (Sat
+    // 11:55 PM). The fade caps anything it could show at 0.08 of its swing.
+    if (isStretchedCanvas(el)) return this.markUnverifiable(REASONS.glow);
     if (t <= this.lastT) return;
     this.lastT = t;
     if (!this.ensureDetector(t) || !this.ctx) return;
@@ -1208,9 +1214,7 @@ class Source {
     // canvases drawn from cross-origin thumbnails, stretched to 979x734 and
     // crossfaded, so one is fully opaque: a tiny bitmap blown up 4x or more is
     // a glow too. The fade caps any flash it could carry at 0.08 of its swing.
-    const r = el.getBoundingClientRect();
-    const stretched = el instanceof HTMLCanvasElement && el.width > 0 && el.height > 0 && el.width <= 256 && el.height <= 256 && r.width >= 4 * el.width && r.height >= 4 * el.height;
-    const glow = (stretched || this.appearance(performance.now()).opacity < CLEAR_GLOW_OPACITY) && el instanceof HTMLElement;
+    const glow = (isStretchedCanvas(el) || this.appearance(performance.now()).opacity < CLEAR_GLOW_OPACITY) && el instanceof HTMLElement;
     if (dim && glow) {
       if (mode === "dim") safemode.release(el, { immediate: true });
       this.fadeGlow(true);
@@ -1224,23 +1228,26 @@ class Source {
     }
   }
 
-  /** Inline !important opacity on a decorative glow we can't read (re-applied by the unverifiable timer). @param {boolean} on */
+  /**
+   * Fade a decorative glow we don't measure: a marker attribute plus one
+   * stylesheet rule with !important, which beats the page's own inline
+   * opacity (YouTube's ambient crossfade rewrites it several times a second,
+   * Sat 11:58 PM). The unverifiable timer re-applies both if the page strips them.
+   * @param {boolean} on
+   */
   fadeGlow(on) {
     const el = /** @type {HTMLElement} */ (this.el);
     if (!(el instanceof HTMLElement)) return;
     if (on) {
-      if (el.style.getPropertyValue("opacity") !== "0.08" || el.style.getPropertyPriority("opacity") !== "important") {
-        if (!this.glowFaded) this.glowPrev = [el.style.getPropertyValue("opacity"), el.style.getPropertyPriority("opacity")];
-        el.style.setProperty("opacity", "0.08", "important");
-      }
+      ensureGlowStyle();
+      if (!el.hasAttribute(GLOW_ATTR)) el.setAttribute(GLOW_ATTR, "");
       this.glowFaded = true;
     } else if (this.glowFaded) {
       this.glowFaded = false;
-      const [v, pr] = this.glowPrev || ["", ""];
-      if (v) el.style.setProperty("opacity", v, pr);
-      else el.style.removeProperty("opacity");
+      el.removeAttribute(GLOW_ATTR);
     }
   }
+
 
   /**
    * Ask the background whether a cross-origin WebP/APNG file is animated.
@@ -1311,6 +1318,7 @@ class DomSource extends Source {
     this.area = 0;
     this.overMediaAt = -Infinity;
     this.overMediaVal = false;
+    this.layerSeenOpaque = false;
   }
 
   /** @param {number} now */
@@ -1360,34 +1368,41 @@ class DomSource extends Source {
   }
 
   /**
-   * Is this element mostly a see-through layer over (or the box around) a
-   * video or canvas we're already measuring? Cached for MEDIA_OVERLAP_CACHE_MS.
-   * An opaque layer (background alpha >= 0.9) still counts as page content:
-   * a page can't hide a strobe by placing it over a video.
+   * Is this element a see-through layer over (or the box around) a video or
+   * canvas we're already measuring? The overlap is cached for
+   * MEDIA_OVERLAP_CACHE_MS; the background is checked on every sample, and a
+   * layer seen with a background at least LAYER_ALPHA_WATCH opaque even once
+   * is page content for good: toggling a layer between see-through and solid
+   * can't hide a strobe over a video (demo/adversarial/overlay-strobe*.html).
    * @param {number} t
    */
   overMedia(t) {
+    const el = this.el;
+    if (this.layerSeenOpaque) return false;
+    try {
+      const bg = parseComputedColor(getComputedStyle(el).backgroundColor);
+      if (!bg || bg[3] >= LAYER_ALPHA_WATCH) {
+        this.layerSeenOpaque = true;
+        return false;
+      }
+    } catch {
+      this.layerSeenOpaque = true;
+      return false;
+    }
     if (t - this.overMediaAt < MEDIA_OVERLAP_CACHE_MS) return this.overMediaVal;
     this.overMediaAt = t;
     this.overMediaVal = false;
     try {
-      const el = this.el;
       const r = el.getBoundingClientRect();
       const a = r.width * r.height;
       if (!(a > 0)) return false;
-      let bgAlpha = 0;
-      const bg = parseComputedColor(getComputedStyle(el).backgroundColor);
-      if (bg) bgAlpha = bg[3];
       for (const m of sources.values()) {
         if (m.kind !== "video" && m.kind !== "canvas") continue;
         if (!m.el.isConnected) continue;
         const mr = m.el.getBoundingClientRect();
         const ow = Math.min(r.right, mr.right) - Math.max(r.left, mr.left);
         const oh = Math.min(r.bottom, mr.bottom) - Math.max(r.top, mr.top);
-        if (ow <= 0 || oh <= 0) continue;
-        const share = (ow * oh) / a;
-        if (share < MEDIA_OVERLAP_SHARE) continue;
-        if (el.contains(m.el) || bgAlpha < 0.9) {
+        if (ow > 0 && oh > 0 && (ow * oh) / a >= MEDIA_OVERLAP_SHARE) {
           this.overMediaVal = true;
           break;
         }
@@ -1448,6 +1463,22 @@ class DomSource extends Source {
     if (!report) return this.drop();
     this.handleReport(report, t);
   }
+}
+
+const GLOW_ATTR = `data-fb-glow-${Math.random().toString(36).slice(2, 8)}`;
+/** @type {HTMLStyleElement | null} */ let glowStyle = null;
+function ensureGlowStyle() {
+  if (glowStyle && glowStyle.isConnected) return;
+  glowStyle = document.createElement("style");
+  glowStyle.textContent = `[${GLOW_ATTR}] { opacity: 0.08 !important; transition: none !important; }`;
+  (document.head || document.documentElement).append(glowStyle);
+}
+
+/** A tiny bitmap shown 4x or more its size on both axes: a blurred ambient glow. @param {Element} el */
+function isStretchedCanvas(el) {
+  if (!(el instanceof HTMLCanvasElement) || el.width <= 0 || el.height <= 0 || el.width > 256 || el.height > 256) return false;
+  const r = el.getBoundingClientRect();
+  return r.width >= 4 * el.width && r.height >= 4 * el.height;
 }
 
 /** Cheap change detector for guarded start (not a security check). @param {Uint8ClampedArray} d */
