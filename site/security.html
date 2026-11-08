@@ -7,13 +7,14 @@
 <meta name="referrer" content="no-referrer">
 <title>FlashBan privacy and security</title>
 <meta name="description" content="What FlashBan keeps (almost nothing), the attacks it is tested against, and its known limits.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap">
-  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>FlashBan</a>
-  <nav aria-label="Site"><a href="index.html">Home</a><a href="how.html">How it works</a><a href="security.html" aria-current="page">Privacy &amp; security</a><a href="download.html">Download</a></nav>
+  <a class="brand" href="index.html"><img src="icon.svg" alt="" width="30" height="30">FlashBan</a>
+  <nav aria-label="Site"><a href="index.html">Home</a><a href="how.html">How it works</a><a href="../demo/showcase/index.html">Grain demo</a><a href="security.html" aria-current="page">Privacy &amp; security</a><a href="download.html">Download</a></nav>
   <a class="btn small get" href="download.html">Get FlashBan</a>
 </div></header>
 
@@ -29,7 +30,7 @@
       <div class="table"><table>
         <thead><tr><th scope="col">Data</th><th scope="col">Where</th><th scope="col">How long</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Your settings (sensitivity, soften or hide, per-site switch)</th><td>this computer</td><td>until you change them</td></tr>
+          <tr><th scope="row">Your settings (sensitivity, protection strength, per-site switch)</th><td>this computer</td><td>until you change them</td></tr>
           <tr><th scope="row">Domains, dates, counts, peak flash estimates and source types</th><td>this computer</td><td>30 days, or until "Clear my data"</td></tr>
           <tr><th scope="row">Accounts, identifiers, full URLs, page content, screenshots</th><td>never collected</td><td>–</td></tr>
         </tbody>
@@ -38,7 +39,7 @@
 
     <section aria-labelledby="net">
       <h2 id="net">The one network request</h2>
-      <p class="muted">For a cross-origin .webp or .apng image the page is already loading, FlashBan fetches the file's first bytes without cookies to tell a still image from an animated one; only a yes or no comes back. GIFs are never probed: they always count as animated. There is no FlashBan server.</p>
+      <p class="muted">For a cross-origin .webp or .apng image the page is already loading, FlashBan fetches the file's first bytes without cookies to tell a still image from an animated one; only a yes or no comes back. It never reaches your own computer or local network: addresses like localhost, 192.168.x.x or 10.x.x.x are refused, and such images simply stay dimmed. GIFs are never probed: they always count as animated. There is no FlashBan server.</p>
     </section>
 
     <section aria-labelledby="threats">
@@ -50,14 +51,16 @@
         <tbody>
           <tr><th scope="row">A strobe timed between samples</th><td>Sampling with real timestamps</td><td><span class="status tested">tested</span> 12.5 Hz dimmed and in greyscale</td></tr>
           <tr><th scope="row">A big flash split into small tiles</th><td>Add flashing area up across elements</td><td><span class="status tested">tested</span> unit test</td></tr>
-          <tr><th scope="row">Red-only flashes that pass the brightness check</th><td>Separate red-flash detector</td><td><span class="status tested">tested</span> dimmed and in greyscale</td></tr>
+          <tr><th scope="row">Red-only flashes that pass the brightness check</th><td>Separate red-flash detector; red flashing is always blocked</td><td><span class="status tested">tested</span> blocked (paused and covered)</td></tr>
           <tr><th scope="row">Pixels hidden from analysis (tainted canvas, DRM)</th><td>Fail closed: dim and label</td><td><span class="status tested">tested</span> tainted canvas dimmed</td></tr>
           <tr><th scope="row">Many strobes to exhaust the CPU</th><td>Per-page budget, then fail closed</td><td><span class="status tested">tested</span> protected by dimming</td></tr>
           <tr><th scope="row">Page deletes or restyles the overlay</th><td>Closed shadow root, top layer, re-applied guard, then lockdown</td><td><span class="status tested">tested</span> locked down in 1.24–1.25 s</td></tr>
           <tr><th scope="row">Page spoofs messages to the extension</th><td>Only our own extension id is trusted; every message shape-checked</td><td><span class="status tested">tested</span> unit tests</td></tr>
           <tr><th scope="row">Flashing that starts after a calm intro</th><td>Detection never stops</td><td><span class="status tested">tested</span> dimmed after the calm intro</td></tr>
           <tr><th scope="row">Remote code in the extension</th><td>No remote scripts, no eval, strict CSP</td><td><span class="status">built</span> by review</td></tr>
-          <tr><th scope="row">Our own overlay flickering</th><td>Static overlay; no motion under reduced motion</td><td><span class="status">built</span></td></tr>
+          <tr><th scope="row">Our own overlay flickering</th><td>Nothing blinks; labels ease in once; anything that hides content appears at once; no motion under reduced motion</td><td><span class="status">built</span></td></tr>
+          <tr><th scope="row">Dim set too light to protect</th><td>Every Protection strength step keeps the brightest pixel under the 0.10 change a flash needs (72% floor)</td><td><span class="status tested">tested</span> unit test</td></tr>
+          <tr><th scope="row">A page aims the image probe at your router or computer</th><td>Private and local addresses refused before any request</td><td><span class="status tested">tested</span> unit test</td></tr>
         </tbody>
       </table></div>
     </section>
