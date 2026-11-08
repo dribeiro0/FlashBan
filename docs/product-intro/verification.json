@@ -1,0 +1,23 @@
+{
+  "sha256": "e57c535364a0149279bb5b444c74ce52b69759ce8d93938bdcf5232221d67ab2",
+  "sampleWidth": 160,
+  "sampleHeight": 90,
+  "fps": 30,
+  "realAreaScale": 12,
+  "results": [
+    {
+      "preset": "wcag",
+      "frames": 300,
+      "violations": 0,
+      "maxGeneralFlashesPerSecond": 2,
+      "maxRedFlashesPerSecond": 0
+    },
+    {
+      "preset": "strict",
+      "frames": 300,
+      "violations": 0,
+      "maxGeneralFlashesPerSecond": 2,
+      "maxRedFlashesPerSecond": 0
+    }
+  ]
+}
