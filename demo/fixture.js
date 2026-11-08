@@ -165,6 +165,8 @@
   }
   reduce.addEventListener("change", applyReduce);
   applyReduce();
-  // ?autostart=1 starts the run at page load (early-start attack page, harness only); reduced motion still wins.
-  if (params.get("autostart") === "1" && !startBtn.disabled) start();
+  // ?autostart=1 starts the run at page load, but only on pages that opt in with data-autostart="allowed"
+  // (the early-start attack page, for the harness), so no other page can be made to flash before its warning
+  // is read. Reduced motion still wins.
+  if (params.get("autostart") === "1" && stage.dataset.autostart === "allowed" && !startBtn.disabled) start();
 })();
