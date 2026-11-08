@@ -1,29 +1,43 @@
-/* Static UI: no animations or transitions anywhere (our own UI must never flash). */
+/* FlashBan popup in the dithering look (matches site/, demo/showcase and hud.css).
+   Motion: slow (150-300 ms), one-shot, opacity/transform/colour only, never a blink,
+   pulse or loop, and all of it off under prefers-reduced-motion (our UI must never flash).
+   Dither appears only on the small brand swatch, low contrast, never behind text. */
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --fg: #1a1a1a;
-  --muted: #4a4a4a; /* 8.9:1 on white */
-  --border: #767676;
-  --focus: #1a5fd0;
-  --accent-bg: #1a5fd0;
-  --accent-fg: #ffffff;
+  --bg: #f3f1ea;
+  --fg: #111111;
+  --muted: #45443f;   /* 9.4:1 on --bg */
+  --rule: #111111;
+  --soft: #b9b6aa;
+  --accent: #4a5726;  /* 7.6:1 on --bg */
+  --accent-fg: #f3f1ea;
+  --focus: #4a5726;
+  --grain: repeating-conic-gradient(#b7bd9c 0 25%, #a7ae8a 0 50%) 0 0 / 4px 4px;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161616;
-    --fg: #f2f2f2;
-    --muted: #c8c8c8; /* 11:1 on #161616 */
-    --border: #8a8a8a;
-    --focus: #8ab4ff;
-    --accent-bg: #8ab4ff;
-    --accent-fg: #0b1b33;
+    --bg: #161614;
+    --fg: #e4e1d6;    /* 14:1 */
+    --muted: #b9b6aa; /* 8.6:1 */
+    --rule: #e4e1d6;
+    --soft: #44433d;
+    --accent: #b5c48a; /* 10:1 */
+    --accent-fg: #161614;
+    --focus: #ffd84d;
+    --grain: repeating-conic-gradient(#5e6844 0 25%, #4f583a 0 50%) 0 0 / 4px 4px;
   }
 }
-* {
-  box-sizing: border-box;
-  transition: none !important;
-  animation: none !important;
+* { box-sizing: border-box; }
+@keyframes fb-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  main { animation: fb-enter 250ms ease-out both; }
+  details[open] > :not(summary) { animation: fb-enter 200ms ease-out both; }
+  button { transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out; }
+  :focus-visible { transition: outline-offset 150ms ease-out; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 body {
   margin: 0;
@@ -32,95 +46,121 @@ body {
   color: var(--fg);
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-main {
-  padding: 14px 16px 16px;
-}
+::selection { background: var(--accent); color: var(--accent-fg); }
+main { padding: 0 0 14px; }
 h1 {
-  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px 8px;
+  border-bottom: 1.5px solid var(--rule);
   font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+h1::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 1.5px solid var(--rule);
+  background: var(--grain);
 }
 .status {
-  margin: 0 0 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-fieldset {
-  margin: 12px 0 0;
-  padding: 8px 10px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-legend {
-  padding: 0 4px;
+  margin: 0;
+  padding: 8px 14px;
+  border-bottom: 1.5px solid var(--rule);
   font-weight: 600;
 }
 .row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin: 6px 0 0;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 14px 0;
 }
 .row input {
   width: 18px;
   height: 18px;
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   flex: none;
+  accent-color: var(--accent);
 }
-.hint {
-  margin: 2px 0 6px 26px;
+main > .row { padding: 10px 14px; border-bottom: 1px solid var(--soft); }
+fieldset {
+  margin: 0;
+  padding: 8px 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--soft);
+}
+legend {
+  float: left;
+  width: 100%;
+  padding: 0 14px 2px;
+  font: 600 11px/1.4 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
-  font-size: 13px;
 }
-details {
-  margin: 12px 0 0;
+legend + * { clear: left; }
+.hint {
+  margin: 1px 14px 3px 42px;
+  color: var(--muted);
+  font-size: 12.5px;
 }
+details { margin: 0; padding: 10px 16px 0; }
+fieldset details { padding: 6px 16px 0; }
 summary {
   cursor: pointer;
-  font-weight: 600;
+  font: 600 11px/1.6 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
   padding: 4px 0;
 }
 button {
-  margin: 8px 0 0;
-  min-height: 36px;
-  padding: 6px 12px;
-  border: 2px solid var(--accent-bg);
-  border-radius: 6px;
-  background: var(--accent-bg);
-  color: var(--accent-fg);
-  font: inherit;
+  margin: 8px 14px 0;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1.5px solid var(--fg);
+  border-radius: 0;
+  background: var(--fg);
+  color: var(--bg);
+  font: 600 14px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   cursor: pointer;
 }
+details button { margin-left: 0; }
+button:hover:not(:disabled) { background: var(--bg); color: var(--fg); }
 button:disabled {
   opacity: 1;
   background: transparent;
   color: var(--muted);
-  border-color: var(--border);
+  border-color: var(--soft);
   cursor: not-allowed;
 }
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
-.data-note {
-  margin-left: 0;
-}
-.data-summary {
-  margin: 4px 0 6px;
-}
+.data-note { margin-left: 16px; }
+.data-summary { margin: 4px 16px 6px; }
 .data-list {
   margin: 6px 0 0;
   padding-left: 18px;
+  font: 12.5px/1.5 var(--mono);
 }
 .data-list li {
   margin: 2px 0;
   overflow-wrap: anywhere;
 }
-.hint[role="status"]:empty {
-  display: none;
-}
+.hint[role="status"]:empty { display: none; }
 .note {
-  margin: 14px 0 0;
+  margin: 12px 16px 0;
   color: var(--muted);
   font-size: 12px;
+}
+@media (forced-colors: active) {
+  h1::before { background: CanvasText; }
+  button { border: 1px solid ButtonText; }
 }
