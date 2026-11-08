@@ -41,7 +41,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-BtK1jC1WhmcJMpFkdkn0VYtkTnM47uQ+cAcUe+wyNJY=' 'sha256-lProygG3ojD7slNVXOvbOnuveVXTckSLLT6cJxpu/CQ='; style-src 'self' 'sha256-GIAdncIFpi2QPbpzK4kZUH3ItAnSGEFOqHcTxhaVbXI=' 'sha256-gv1Osx1ajlrcumcBnadM4e24oU8hUYk1YnSJpN1Z1vM='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-BtK1jC1WhmcJMpFkdkn0VYtkTnM47uQ+cAcUe+wyNJY=' 'sha256-lProygG3ojD7slNVXOvbOnuveVXTckSLLT6cJxpu/CQ='; style-src 'self' 'sha256-iHlq55qYwXOq7U6Wgs/1uaKNEK71ywMEo1G3FEKdaOo=' 'sha256-Jh2wh0G23qfr/Q5bEM2sYEkdSyi/TjzpFXlW/fj7ZJk='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — flashing content, softened before it reaches you</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
@@ -53,7 +53,7 @@
   --bg:#0e0e0e;--card:#161616;--fg:#edeae3;--mute:#a3a29c;
   --line:#edeae324;--line2:#2a2a2a;
   --ink:#0e0e0e;--ink-mute:#0e0e0eb8;--ink-line:#0e0e0e29;--paper:#edeae3;
-  --warn:#ffd84d;--panel:#121212;
+  --warn:#ffd84d;--panel:#121212;--olive:#b5c48a;
   --nav:56px;
   --display:"Sofia Sans Extra Condensed","Arial Narrow",sans-serif;
   --mono:"Martian Mono",ui-monospace,monospace;
@@ -172,9 +172,9 @@ body.menu-open .menu-btn .w2{top:0}
 .cap h3{font:900 36px/.9 var(--display);text-transform:uppercase;background:var(--panel);padding:6px 8px 2px}
 .meta{display:flex;gap:6px;background:var(--panel);padding:4px 8px}
 .meta .label{color:var(--fg)}
-/* the extension's own overlay look (white on #121212, dark on yellow) */
+/* the extension's own overlay look (white on #121212, dark on olive #b5c48a: 10.0:1, since #122) */
 .ov-chip{position:absolute;left:14px;top:14px;z-index:2;display:flex;gap:8px;align-items:center;background:var(--panel);color:#fff;padding:6px 10px;font:700 13px/1.35 var(--mono)}
-.ov-chip b{background:var(--warn);color:var(--ink);padding:0 6px;font-weight:700}
+.ov-chip b{background:var(--olive);color:var(--ink);padding:0 6px;font-weight:700}
 .ov-cover{position:absolute;left:14px;right:14px;top:52px;bottom:76px;z-index:1;background:var(--panel);color:#fff;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:14px}
 .ov-cover strong{font:900 26px/.95 var(--display);text-transform:uppercase}
 .ov-cover p{font:400 11px/1.5 var(--mono);color:#e8e8e8;max-width:40ch}
