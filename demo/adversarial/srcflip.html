@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<meta name="harness-seconds" content="10">
+<title>Source flip every 600 ms (attack) | Seizure Shield adversarial test</title>
+<link rel="stylesheet" href="../demo.css">
+<style> #clip { display: block; width: 320px; height: 180px; background: #222; } #stage { display: none; } </style>
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic test fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>Source flip every 600 ms (attack)</h1>
+<p>One video element switches its source between a strobe source and a calm source every 600 ms, so a shield that resets its check whenever the source changes never collects a full second of the strobe.</p>
+<p><strong>Pass:</strong> the strobe stays protected (softened, covered or locked down) for the whole run. <strong>Fail:</strong> it plays at full strength between flips.</p>
+<p class="meta">Expected shield verdict: <strong>block</strong>. Strobe source #222222 / #777777 at 8 cycles per second (so each 600 ms burst alone holds more than 3 flashes), calm source steady #444444, 320 by 180 CSS px. Run 10 s; add <code>?seconds=N</code> (1 to 10). <a href="../index.html">All fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<p id="phase"></p>
+<video id="clip" data-mode="flip" data-hz="8" muted playsinline aria-label="Synthetic test video"></video>
+<div id="stage" class="stage" data-kind="static" data-seconds="10" data-label="source flipping between strobe and calm every 600 ms"></div>
+<script src="../fixture.js"></script>
+<script src="srcvideo.js"></script>
+</body>
+</html>
