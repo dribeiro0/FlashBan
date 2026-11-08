@@ -9,6 +9,7 @@ import * as safemode from "./safemode.js";
 import { loadDetector } from "./detector.js";
 import { backdropOf, effectiveColor, visibleArea, relativeLuminance } from "./domflicker.js";
 import { startSoften, softenable } from "./soften.js";
+import { readAsync } from "./glread.js";
 import { normalizeSettings, registrableDomain } from "../shared/settings.js";
 
 // ---------------------------------------------------------------- tuning
@@ -687,6 +688,32 @@ class Source {
     if (!this.ensureDetector(t) || !this.ctx) return;
 
     const t0 = performance.now();
+    // Video: read the frame back asynchronously on the GPU (glread.js). The
+    // 2D path below stalls the main thread 16-20 ms per frame on real laptops,
+    // which made the cost guard cover ordinary videos (Sat 10:53 PM).
+    if (this.kind === "video" && !this.noAsyncRead) {
+      let p = null;
+      try {
+        p = readAsync(/** @type {CanvasImageSource} */ (/** @type {unknown} */ (el)), this.sw, this.sh);
+      } catch (err) {
+        const name = /** @type {any} */ (err)?.name;
+        return this.markUnverifiable(name === "SecurityError" ? REASONS.crossOrigin : REASONS.error);
+      }
+      if (p) {
+        const issueMs = performance.now() - t0;
+        const det = this.detector;
+        p.then(
+          (data) => {
+            if (this.stopped || this.detector !== det || !enabled || data.length !== this.sw * this.sh * 4) return;
+            this.consume(data, t, complete, issueMs);
+          },
+          () => {
+            this.noAsyncRead = true; // context lost or readback failed: use the 2D path from now on
+          },
+        );
+        return;
+      }
+    }
     let data;
     try {
       this.ctx.drawImage(/** @type {CanvasImageSource} */ (/** @type {unknown} */ (el)), 0, 0, this.sw, this.sh);
@@ -695,8 +722,18 @@ class Source {
       const name = /** @type {any} */ (err)?.name;
       return this.markUnverifiable(name === "SecurityError" ? REASONS.crossOrigin : REASONS.error);
     }
+    this.consume(data, t, complete, performance.now() - t0);
+  }
 
-    const readMs = performance.now() - t0;
+  /**
+   * Composite a sample the way the viewer sees it, run the detector, act.
+   * @param {Uint8ClampedArray} data @param {number} t @param {boolean} complete
+   * @param {number} readMs main-thread time spent reading the frame
+   */
+  consume(data, t, complete, readMs) {
+    if (this.stopped || !enabled) return;
+    if (this.soft && !this.soft.checking) return;
+    this.completeFrames = complete; // the async read may land after the next sample() set it
     // What the viewer sees is the element composited at its effective opacity
     // over what's behind it (a 30%-opacity "ambient light" canvas flashes a
     // third as much as its raw pixels), so blend the sample the same way
@@ -1076,7 +1113,13 @@ class Source {
     // drawn from a video we can't read) is decorative: a panel the size of its
     // scaled-up box blacked out most of the page. Fade it instead (0.08 of its
     // own opacity leaves at most ~0.04 of a strobe's swing on screen).
-    const glow = this.appearance(performance.now()).opacity < CLEAR_GLOW_OPACITY && el instanceof HTMLElement;
+    // YouTube's ambient mode (Sat 11:05 PM, Avery's laptop) is two 110x75
+    // canvases drawn from cross-origin thumbnails, stretched to 979x734 and
+    // crossfaded, so one is fully opaque: a tiny bitmap blown up 4x or more is
+    // a glow too. The fade caps any flash it could carry at 0.08 of its swing.
+    const r = el.getBoundingClientRect();
+    const stretched = el instanceof HTMLCanvasElement && el.width > 0 && el.height > 0 && el.width <= 256 && el.height <= 256 && r.width >= 4 * el.width && r.height >= 4 * el.height;
+    const glow = (stretched || this.appearance(performance.now()).opacity < CLEAR_GLOW_OPACITY) && el instanceof HTMLElement;
     if (dim && glow) {
       if (mode === "dim") safemode.release(el, { immediate: true });
       this.fadeGlow(true);
