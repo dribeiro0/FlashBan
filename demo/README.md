@@ -22,6 +22,7 @@ Then open http://localhost:8080/ with the unpacked extension loaded. (Opening th
 | adversarial/red-only.html | canvas, #c80000 vs #616161 (luminance change 0.004, UCS distance 0.26) (T3) | 4 cycles/s | block |
 | adversarial/late-start.html | canvas, 10 s calm then strobe (T8) | 4 cycles/s for 3 s | block |
 | adversarial/aliasing.html | canvas at 12.5 cycles/s; a fixed 80 ms sampling grid sees one state (T1) | 12.5 cycles/s | block |
+| adversarial/aliasing-30hz.html | canvas changing on every animation frame; every-other-frame sampling sees one state (T1) | half the display rate | block |
 | adversarial/soften-killer-css.html | CSS strobe; page resets playbackRate to 1 every frame (T6) | 4 cycles/s, 6 s | block (cover or lockdown, not soften) |
 | adversarial/soften-killer-dom.html | class-toggle strobe; page strips the soften transition every frame (T6) | 4 cycles/s, 6 s | block (cover or lockdown, not soften) |
 
