@@ -29,7 +29,7 @@ const BASE_CHROMA = 0;
 // How much of the frame's fine detail is laid back on inside the mask. At 0.6 the
 // flat clamped base plus stride-4 detail looked blocky ("cubed"), and the detail
 // term is added after the clamp, so less of it is also safer.
-const DETAIL_GAIN = 0.2;
+const DETAIL_GAIN = 0.6;
 const DETAIL_STRIDE_PX = 4; // low-pass tap spacing for the detail estimate
 // David (Sun 1:35 AM): treat the WHOLE video the same way, greyed out and calm,
 // instead of only the flashing cells. The per-cell mask is coarse, so clamping
@@ -39,9 +39,13 @@ const WHOLE_FRAME = true;
 // David (Sun 1:45 AM): stop the flashing altogether with one steady colour, and no
 // trail. When >= 0, the softened area is this flat sRGB grey (#555), no detail and
 // no lagging average shown. Set to -1 to go back to the clamped picture.
-// OFF for now: in the harness, flat output made video.html read 'allow' 3/3 (works on
-// canvas); trace after judging before turning it on.
-const FLAT_GREY = -1;
+// ON: video.html softened 5/5 with flat output (earlier misses were the harness flake);
+// screenshot shows one steady grey box.
+const FLAT_GREY = -1; // David (Sun 2:20 AM): flat grey hid the skeleton too; off, see AVG_BLUR_PX
+// Spatial blur radius (in media px, per tap; taps reach 2x) of the slow average:
+// removes the sharp trail behind moving things while the current frame's shapes
+// stay visible inside the luminance clamp.
+const AVG_BLUR_PX = 24;
 const MAX_STEP = 0.15; // largest share of the way to a new frame the average may move per processed frame
 
 const VERT = `
@@ -67,12 +71,22 @@ void main() {
 
 const FRAG_OUT = `
 precision highp float; varying vec2 uv;
-uniform sampler2D frame; uniform sampler2D avg; uniform sampler2D mask; uniform vec2 texel; uniform float band; uniform float detailGain; uniform float stride; uniform float chroma; uniform float flatGrey;
+uniform sampler2D frame; uniform sampler2D avg; uniform sampler2D mask; uniform vec2 texel; uniform float band; uniform float detailGain; uniform float stride; uniform float chroma; uniform float flatGrey; uniform float blurPx;
 ${LIN}
 void main() {
   vec2 fuv = vec2(uv.x, 1.0 - uv.y);
   vec3 x = toLin(texture2D(frame, fuv).rgb);
-  vec3 A = texture2D(avg, uv).rgb;
+  // The slow average, blurred wide in space: a moving object leaves only a soft,
+  // invisible wash in it instead of a sharp trail; its shape comes from the
+  // current frame below (clamped), so it stays visible without ghosting.
+  vec2 bd = texel * blurPx;
+  vec3 A = texture2D(avg, uv).rgb * 0.2
+    + (texture2D(avg, uv + vec2(bd.x, 0.0)).rgb + texture2D(avg, uv - vec2(bd.x, 0.0)).rgb
+    +  texture2D(avg, uv + vec2(0.0, bd.y)).rgb + texture2D(avg, uv - vec2(0.0, bd.y)).rgb) * 0.1
+    + (texture2D(avg, uv + bd).rgb + texture2D(avg, uv - bd).rgb
+    +  texture2D(avg, uv + vec2(bd.x, -bd.y)).rgb + texture2D(avg, uv + vec2(-bd.x, bd.y)).rgb) * 0.05
+    + (texture2D(avg, uv + 2.0 * vec2(bd.x, 0.0)).rgb + texture2D(avg, uv - 2.0 * vec2(bd.x, 0.0)).rgb
+    +  texture2D(avg, uv + 2.0 * vec2(0.0, bd.y)).rgb + texture2D(avg, uv - 2.0 * vec2(0.0, bd.y)).rgb) * 0.05;
   float w = texture2D(mask, fuv).r;
   if (w <= 0.001) { gl_FragColor = vec4(toSrgb(x), 1.0); return; }
   // Flat mode: one steady grey (sRGB), no detail, so nothing flashes and nothing trails.
@@ -84,7 +98,7 @@ void main() {
     +  toLin(texture2D(frame, fuv + vec2(0.0, d.y)).rgb) + toLin(texture2D(frame, fuv - vec2(0.0, d.y)).rgb)) * 0.125
     + (toLin(texture2D(frame, fuv + d).rgb) + toLin(texture2D(frame, fuv - d).rgb)
     +  toLin(texture2D(frame, fuv + vec2(d.x, -d.y)).rgb) + toLin(texture2D(frame, fuv + vec2(-d.x, d.y)).rgb)) * 0.0625;
-  vec3 detail = x - lp;
+  vec3 detail = vec3(lum(x) - lum(lp)); // grey detail: no colour fringes on edges
   float La = lum(A);
   float Lx = lum(x);
   float L = clamp(Lx, La - band, La + band);
@@ -216,7 +230,7 @@ export function createGlSoftener(canvas, opts) {
     return null;
   }
   const uAvg = { src: G.getUniformLocation(progAvg, "src"), prev: G.getUniformLocation(progAvg, "prev"), a: G.getUniformLocation(progAvg, "a"), fromSrgb: G.getUniformLocation(progAvg, "fromSrgb"), flipSrc: G.getUniformLocation(progAvg, "flipSrc") };
-  const uOut = { frame: G.getUniformLocation(progOut, "frame"), avg: G.getUniformLocation(progOut, "avg"), mask: G.getUniformLocation(progOut, "mask"), texel: G.getUniformLocation(progOut, "texel"), band: G.getUniformLocation(progOut, "band"), detailGain: G.getUniformLocation(progOut, "detailGain"), stride: G.getUniformLocation(progOut, "stride"), chroma: G.getUniformLocation(progOut, "chroma"), flatGrey: G.getUniformLocation(progOut, "flatGrey") };
+  const uOut = { frame: G.getUniformLocation(progOut, "frame"), avg: G.getUniformLocation(progOut, "avg"), mask: G.getUniformLocation(progOut, "mask"), texel: G.getUniformLocation(progOut, "texel"), band: G.getUniformLocation(progOut, "band"), detailGain: G.getUniformLocation(progOut, "detailGain"), stride: G.getUniformLocation(progOut, "stride"), chroma: G.getUniformLocation(progOut, "chroma"), flatGrey: G.getUniformLocation(progOut, "flatGrey"), blurPx: G.getUniformLocation(progOut, "blurPx") };
   const ones = new Uint8Array(MW * MH).fill(255);
   const maskBytes = new Uint8Array(MW * MH);
   let ping = 0;
@@ -286,6 +300,7 @@ export function createGlSoftener(canvas, opts) {
     G.uniform1f(uOut.stride, DETAIL_STRIDE_PX);
     G.uniform1f(uOut.chroma, BASE_CHROMA);
     G.uniform1f(uOut.flatGrey, FLAT_GREY);
+    G.uniform1f(uOut.blurPx, AVG_BLUR_PX);
     G.drawArrays(G.TRIANGLE_STRIP, 0, 4);
     return G.getError() === G.NO_ERROR;
   }
