@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>FlashBan: flashing content, softened before it reaches you</title>
+<meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap">
+  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>FlashBan</a>
+  <nav aria-label="Site"><a href="index.html" aria-current="page">Home</a><a href="how.html">How it works</a><a href="security.html">Privacy &amp; security</a><a href="download.html">Download</a></nav>
+  <a class="btn small get" href="download.html">Get FlashBan</a>
+</div></header>
+
+<main id="main">
+  <div class="wrap">
+    <section class="hero" aria-labelledby="t">
+      <div>
+        <h1 id="t">Flashing, reduced to <em>an even grain.</em></h1>
+        <p class="lede">FlashBan is a free Chrome extension for people with photosensitive epilepsy. It finds flashing video, GIFs, canvas and animation and softens just that part. The rest of the page stays sharp.</p>
+        <div class="actions">
+          <a class="btn" href="download.html">Download for Chrome</a>
+          <a class="btn ghost" href="../demo/showcase/index.html">Try it on the demo site</a>
+        </div>
+        <p class="fine">No account. No server. Not a medical device: FlashBan reduces exposure to flashing content, it can't guarantee protection.</p>
+      </div>
+      <figure class="plate">
+        <canvas data-scene="softened" width="720" height="405" role="img" aria-label="A video frame whose flashing area has been flattened to an even field while the rest of the scene stays visible"></canvas>
+        <figcaption>Illustration: the flashing area becomes a flat field; the video keeps playing.</figcaption>
+      </figure>
+    </section>
+
+    <section aria-labelledby="what">
+      <h2 id="what">What FlashBan does</h2>
+      <ul class="rows">
+        <li><span>Finds the flashing</span><p>Video, canvas, animated images, CSS animation and script-driven flicker, measured against WCAG 2.3.1 (more than three flashes a second over a large area) and the separate red-flash rule, by real time.</p></li>
+        <li><span>Softens first</span><p>Flashing video keeps playing through a smoothing filter, and a second detector checks the result. CSS animations slow to about one cycle a second. You keep watching.</p></li>
+        <li><span>Covers if it won't calm</span><p>If softening can't get the flashing under the limit, FlashBan pauses it behind a plain panel. Only you can bring it back, with Show anyway.</p></li>
+        <li><span>Fails closed</span><p>Media it can't read (protected or cross-origin video) is dimmed and labelled "can't verify", never silently let through.</p></li>
+        <li><span>Fights back</span><p>A page that keeps deleting or undoing FlashBan's protection gets locked down: its media is hidden with styles the page can't see or remove.</p></li>
+      </ul>
+    </section>
+
+    <section class="split" aria-labelledby="proof">
+      <div>
+        <h2 id="proof">Tested against <em>pages built to beat it</em></h2>
+        <p class="muted">Every number here comes from our automated test harness, which loads the real extension in Chrome and runs synthetic, dim test pages. Nothing flashes on anyone's screen while it runs.</p>
+        <div class="actions"><a class="btn ghost" href="security.html">See the threat model</a></div>
+      </div>
+      <div class="table">
+        <table>
+          <caption class="label">Results from <code>node harness/run.mjs</code></caption>
+          <thead><tr><th scope="col">Attack page</th><th scope="col">Result</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Deletes FlashBan's cover every frame</th><td class="num">locked down in 0.82–0.90 s</td></tr>
+            <tr><th scope="row">Red-only flashes, almost no brightness change</th><td class="num">softened in 0.42 s</td></tr>
+            <tr><th scope="row">Strobe after 10 calm seconds</th><td class="num">caught ~1.2 s after it starts</td></tr>
+            <tr><th scope="row">Strobe timed between samples (12.5 Hz)</th><td class="num">softened in 0.44 s</td></tr>
+            <tr><th scope="row">7 everyday pages (scene cuts, a camera flash, a sunset…)</th><td class="num">never flagged</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="split" aria-labelledby="privacy">
+      <div>
+        <h2 id="privacy">Built to reveal <em>as little as possible.</em></h2>
+        <p class="muted">A seizure shield reveals a health condition, so FlashBan collects almost nothing. One honest gap: websites can still tell it is installed (see <a href="security.html#limits">Known limits</a>).</p>
+      </div>
+      <ul class="rows">
+        <li><span>No account</span><p>No sign-up, no identifiers, no keys.</p></li>
+        <li><span>No server</span><p>Nothing about you is sent to us or anyone else.</p></li>
+        <li><span>A domain, 30 days</span><p>The only record is a site's domain and a date, on your computer, deleted after 30 days. Clear it any time from the popup.</p></li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="try">
+      <h2 id="try">See it work on <em>Grain</em></h2>
+      <p class="muted">Grain is our pretend video site. Every clip on it flashes four times a second, and FlashBan flattens each one. The clips are synthetic, dim and three seconds long, and nothing plays until you press Play. Read its warning first.</p>
+      <div class="actions"><a class="btn" href="../demo/showcase/index.html">Open the Grain demo</a><a class="btn ghost" href="how.html">How it decides</a></div>
+    </section>
+  </div>
+</main>
+
+<footer><div class="wrap">
+  <p>FlashBan, by team FlashBan at Hackcessability. Not a medical device: it reduces exposure to flashing content and can't guarantee protection. Don't rely on it as your only protection.</p>
+  <p><a href="security.html#limits">Known limits</a> · <a href="download.html">Download</a></p>
+</div></footer>
+<script src="site.js"></script>
+</body>
+</html>

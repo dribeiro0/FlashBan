@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>How FlashBan works</title>
+<meta name="description" content="How FlashBan finds flashing content, counts it against WCAG 2.3.1 and decides whether to soften, cover or dim it.">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap">
+  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>FlashBan</a>
+  <nav aria-label="Site"><a href="index.html">Home</a><a href="how.html" aria-current="page">How it works</a><a href="security.html">Privacy &amp; security</a><a href="download.html">Download</a></nav>
+  <a class="btn small get" href="download.html">Get FlashBan</a>
+</div></header>
+
+<main id="main">
+  <div class="wrap">
+    <section class="hero" aria-labelledby="t">
+      <div>
+        <h1 id="t">From every frame to <em>a flat field.</em></h1>
+        <p class="lede">FlashBan reads the pixels and animations already on the page, counts flashes by the clock, and usually acts in under a second.</p>
+      </div>
+      <figure class="plate">
+        <canvas data-scene="window" width="720" height="300" role="img" aria-label="Eight bars standing for one second of samples; alternating tall and short bars show light and dark states"></canvas>
+        <figcaption>One second of samples: each light-dark-light swing is a flash.</figcaption>
+      </figure>
+    </section>
+
+    <section aria-labelledby="steps">
+      <h2 id="steps">The pipeline</h2>
+      <ol class="steps">
+        <li><div><h3>Sample every rendered frame</h3><p>Video frames, canvas pixels, animated images and CSS animations are read as they're drawn, never on a slow timer that a strobe could slip between.</p></div></li>
+        <li><div><h3>Measure brightness and red</h3><p>Relative luminance per WCAG, plus a separate check for saturated red, which can trigger seizures at lower brightness. Near-black noise is treated as having no colour.</p></div></li>
+        <li><div><h3>Count flashes in a one-second window</h3><p>By real time, not frame counts, so a slow machine can't make a strobe look slower than it is. Flashing area is added up across elements, so a big flash split into small tiles still counts.</p></div></li>
+        <li><div><h3>Decide</h3><p>Over the limit (WCAG by default; Strict and Relaxed are in the popup) means act. Can't read it at all means fail closed.</p></div></li>
+        <li><div><h3>Soften, cover or dim</h3><p>Soften keeps it playing with the flashing smoothed, checked again by a second detector. Cover pauses it behind a plain panel if softening isn't enough. Dim labels what couldn't be checked.</p></div></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="states">
+      <h2 id="states">What you see on the page</h2>
+      <div class="split">
+        <figure class="plate"><canvas data-scene="softened" width="560" height="315" role="img" aria-label="Softened: the flashing area flattened, the scene still visible"></canvas><figcaption>Softened: still playing, flashing smoothed.</figcaption></figure>
+        <ul class="rows">
+          <li><span>Softened</span><p>The default. A label says "Flashing softened"; the video, game or GIF keeps going.</p></li>
+          <li><span>Covered</span><p>"Flashing content hidden" with a Show anyway button. Pages can't press it for you: only trusted clicks count.</p></li>
+          <li><span>Can't verify</span><p>Dimmed and labelled. Protected or cross-origin video can only be dimmed, not checked.</p></li>
+          <li><span>Locked down</span><p>When a page keeps fighting the protection, its media is hidden and the toolbar icon shows "!".</p></li>
+        </ul>
+      </div>
+      <div class="split">
+        <figure class="plate"><canvas data-scene="covered" width="560" height="315" role="img" aria-label="Covered: a plain panel over the flashing video"></canvas><figcaption>Covered: paused behind a plain panel.</figcaption></figure>
+        <figure class="plate"><canvas data-scene="dimmed" width="560" height="315" role="img" aria-label="Can't verify: the whole video dimmed"></canvas><figcaption>Can't verify: dimmed and labelled.</figcaption></figure>
+      </div>
+    </section>
+
+    <section aria-labelledby="ui">
+      <h2 id="ui">Our own interface never flashes</h2>
+      <p class="muted">No animations, no quick transitions, nothing that blinks. FlashBan's labels and panels respect reduced motion and forced colours, work by keyboard alone with a visible focus ring, and announce themselves to screen readers. Overlay text sits on solid chips: white on near-black (18:1) and dark on yellow (13.5:1).</p>
+      <div class="actions"><a class="btn" href="../demo/showcase/index.html">Try the Grain demo</a><a class="btn ghost" href="download.html">Download</a></div>
+    </section>
+  </div>
+</main>
+
+<footer><div class="wrap">
+  <p>FlashBan, by team FlashBan at Hackcessability. Not a medical device: it reduces exposure to flashing content and can't guarantee protection.</p>
+  <p><a href="security.html#limits">Known limits</a> · <a href="download.html">Download</a></p>
+</div></footer>
+<script src="site.js"></script>
+</body>
+</html>

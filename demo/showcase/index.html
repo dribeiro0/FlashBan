@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<title>Grain | FlashBan demo site</title>
+<link rel="stylesheet" href="showcase.css">
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> Grain is a pretend video site built for the FlashBan demo. Its clips are synthetic, dim (#222222 and #777777) and short (3 s), and nothing moves until you press Play. Stop, Escape or switching tabs ends every clip. If you are sensitive to flashing light, don't press Play. Never show this page to anyone without warning them first.</p>
+
+<header class="top">
+  <a class="brand" href="#main"><span class="mark" aria-hidden="true"></span>Grain</a>
+  <nav aria-label="Site"><a href="#main">Watch</a><a href="#feed">Feed</a><a href="#about">About this demo</a></nav>
+  <span class="tag">synthetic demo site</span>
+</header>
+
+<main id="main">
+  <section class="hero" aria-labelledby="hero-title">
+    <h1 id="hero-title">Everything on Grain flashes. <span>FlashBan turns it to grain.</span></h1>
+    <div class="hero-side">
+      <p class="lede">Each clip strobes four times a second when you press Play. With FlashBan on, the flashing area is softened to a flat, even field, or covered if it won't calm down.</p>
+      <div class="controls">
+        <button id="start" type="button">Play the feed</button>
+        <button id="stop" type="button" disabled>Stop all</button>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="feed" aria-labelledby="feed-title">
+    <h2 id="feed-title">Feed</h2>
+    <div class="feed">
+      <figure class="card">
+        <div class="frame"><video id="v" class="clip" width="640" height="360" muted playsinline aria-label="Night set: synthetic strobe video"></video></div>
+        <figcaption><span><b>Night set</b> · video</span><button type="button" class="play" data-clip="video">Play</button></figcaption>
+      </figure>
+      <figure class="card">
+        <div class="frame"><canvas id="c" class="clip" width="400" height="225" role="img" aria-label="Game trailer: synthetic canvas strobe"></canvas></div>
+        <figcaption><span><b>Game trailer</b> · canvas</span><button type="button" class="play" data-clip="canvas">Play</button></figcaption>
+      </figure>
+      <figure class="card">
+        <div class="frame"><div id="s" class="clip sticker" role="img" aria-label="Sticker: synthetic CSS keyframe strobe"></div></div>
+        <figcaption><span><b>Sticker</b> · CSS animation</span><button type="button" class="play" data-clip="css">Play</button></figcaption>
+      </figure>
+      <figure class="card">
+        <div class="frame"><div id="d" class="clip banner" role="img" aria-label="Live banner: synthetic script-toggled strobe"></div></div>
+        <figcaption><span><b>Live banner</b> · script toggle</span><button type="button" class="play" data-clip="dom">Play</button></figcaption>
+      </figure>
+    </div>
+    <p class="fine">"Play the feed" runs the canvas, sticker and banner together. The video has its own Play: it is recorded off screen first, so it starts a moment later. Every clip: 4 flashes a second, 3 s (<code>?seconds=N</code>, 1 to 10).</p>
+  </section>
+
+  <section id="about" class="about" aria-labelledby="about-title">
+    <h2 id="about-title">About this demo</h2>
+    <div class="cols">
+      <p>Every picture on Grain is drawn in the page as low-contrast dither: two close greys, never black on white, because fine high-contrast patterns can trigger pattern sensitivity too. The clips themselves are flat dark and mid grey, the same dim stimulus as the other FlashBan test pages.</p>
+      <p>FlashBan isn't told anything by this page. It finds the flashing by reading the pixels and the animations, counts flashes against the WCAG 2.3.1 limit by real time, and softens, covers or dims. Grain keeps no data and loads nothing from other sites.</p>
+      <p>FlashBan is not a medical device. It reduces exposure to flashing content; it can't guarantee protection.</p>
+    </div>
+  </section>
+</main>
+<script src="showcase.js"></script>
+</body>
+</html>

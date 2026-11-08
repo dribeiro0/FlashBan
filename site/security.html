@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>FlashBan privacy and security</title>
+<meta name="description" content="What FlashBan keeps (almost nothing), the attacks it is tested against, and its known limits.">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="wrap">
+  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>FlashBan</a>
+  <nav aria-label="Site"><a href="index.html">Home</a><a href="how.html">How it works</a><a href="security.html" aria-current="page">Privacy &amp; security</a><a href="download.html">Download</a></nav>
+  <a class="btn small get" href="download.html">Get FlashBan</a>
+</div></header>
+
+<main id="main">
+  <div class="wrap">
+    <section aria-labelledby="t">
+      <h1 id="t">Built to be trusted, <em>by collecting almost nothing.</em></h1>
+      <p class="lede">Using a seizure shield reveals a health condition, and a browsing log shows where someone goes. So FlashBan's main protection is that it keeps almost nothing, and what it keeps never leaves your computer.</p>
+    </section>
+
+    <section class="split" aria-labelledby="keep">
+      <div><h2 id="keep">What FlashBan keeps</h2><p class="muted">Everything is stored with Chrome's local extension storage, on your computer.</p></div>
+      <div class="table"><table>
+        <thead><tr><th scope="col">Data</th><th scope="col">Where</th><th scope="col">How long</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Your settings (sensitivity, soften or hide, per-site switch)</th><td>this computer</td><td>until you change them</td></tr>
+          <tr><th scope="row">Domain and date of sites that flashed</th><td>this computer</td><td>30 days, or until "Clear my data"</td></tr>
+          <tr><th scope="row">Accounts, identifiers, full URLs, page content, screenshots</th><td>never collected</td><td>–</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section aria-labelledby="net">
+      <h2 id="net">The one network request</h2>
+      <p class="muted">For a cross-origin .webp or .apng image the page is already loading, FlashBan fetches the file's first bytes without cookies to tell a still image from an animated one; only a yes or no comes back. GIFs are never probed: they always count as animated. There is no FlashBan server.</p>
+    </section>
+
+    <section aria-labelledby="threats">
+      <h2 id="threats">Attacks we test against</h2>
+      <p class="muted">From our threat model. "Tested" means a passing unit test or an attack page in <code>demo/adversarial/</code> that passes <code>node harness/run.mjs</code> against the real extension.</p>
+      <div class="table"><table>
+        <thead><tr><th scope="col">Threat</th><th scope="col">Defence</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">A strobe timed between samples</th><td>Sample every rendered frame, by timestamp</td><td><span class="status tested">tested</span> 12.5 Hz softened in 437 ms</td></tr>
+          <tr><th scope="row">A big flash split into small tiles</th><td>Add flashing area up across elements</td><td><span class="status tested">tested</span> unit test</td></tr>
+          <tr><th scope="row">Red-only flashes that pass the brightness check</th><td>Separate red-flash detector</td><td><span class="status tested">tested</span> softened in 0.42 s</td></tr>
+          <tr><th scope="row">Pixels hidden from analysis (tainted canvas, DRM)</th><td>Fail closed: dim and label</td><td><span class="status tested">tested</span> tainted canvas dimmed</td></tr>
+          <tr><th scope="row">Hundreds of strobes to exhaust the CPU</th><td>Per-page budget, then fail closed</td><td><span class="status tested">tested</span> softened in 1.5 s, never a silent allow</td></tr>
+          <tr><th scope="row">Page deletes or restyles the overlay</th><td>Closed shadow root, top layer, re-applied guard, then lockdown</td><td><span class="status tested">tested</span> locked down in 0.82–0.90 s</td></tr>
+          <tr><th scope="row">Page spoofs messages to the extension</th><td>Only our own extension id is trusted; every message shape-checked</td><td><span class="status tested">tested</span> unit tests</td></tr>
+          <tr><th scope="row">Flashing that starts after a calm intro</th><td>Detection never stops</td><td><span class="status tested">tested</span> caught ~1.2 s after it starts</td></tr>
+          <tr><th scope="row">Remote code in the extension</th><td>No remote scripts, no eval, strict CSP</td><td><span class="status">built</span> by review</td></tr>
+          <tr><th scope="row">Our own overlay flickering</th><td>Static overlay; no motion under reduced motion</td><td><span class="status">built</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section aria-labelledby="limits-t" id="limits">
+      <h2 id="limits-t">Known limits</h2>
+      <p class="notice warn"><strong>Not a medical device.</strong> FlashBan reduces exposure to flashing content. It can't guarantee protection: detection takes a fraction of a second, and media it can't read can only be dimmed. Don't rely on it as your only protection.</p>
+      <ul class="rows">
+        <li><span>Unreadable video</span><p>DRM and cross-origin video without CORS can't be measured, only dimmed.</p></li>
+        <li><span>Detectable</span><p>Websites can tell FlashBan is installed by probing its extension files, which can reveal a health condition. Fix (bundling the content scripts) not done yet.</p></li>
+        <li><span>First frames</span><p>The first frames of a new flash can reach the screen before FlashBan reacts, typically well under a second.</p></li>
+        <li><span>Outside the browser</span><p>Apps, games and video outside Chrome aren't covered.</p></li>
+        <li><span>Image probe</span><p>The still-or-animated probe for WebP/APNG can be fooled by the image's server, and image hosts can see that this browser runs FlashBan.</p></li>
+        <li><span>Iframes</span><p>Flashes split across iframes aren't added together; each frame is judged on its own.</p></li>
+        <li><span>Displays</span><p>Brightness is computed from sRGB values. HDR, colour profiles and screen brightness aren't modelled.</p></li>
+      </ul>
+    </section>
+  </div>
+</main>
+
+<footer><div class="wrap">
+  <p>FlashBan, by team FlashBan at Hackcessability. Full threat model and test results are in the project repository (security/THREAT_MODEL.md).</p>
+  <p><a href="index.html">Home</a> · <a href="download.html">Download</a></p>
+</div></footer>
+<script src="site.js"></script>
+</body>
+</html>
