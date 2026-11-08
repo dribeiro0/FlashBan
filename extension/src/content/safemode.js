@@ -157,6 +157,8 @@ const SHADOW_CSS = `
  * @property {HTMLDivElement} panel
  * @property {number} fadeTimer   0 when not fading
  * @property {boolean} rendered
+ * @property {number} [coverCheckAt]
+ * @property {boolean} [coveredByLayer]
  */
 
 /** @type {Map<Element, Guard>} */
@@ -541,7 +543,19 @@ function position(g) {
     return;
   }
   const r = el.getBoundingClientRect();
-  const visible = r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+  let visible = r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+  // An element under a modal or lightbox (a fixed layer from another branch
+  // of the page) isn't what the viewer sees: no panel for it while covered.
+  // Checked a few times a second; video controls and captions inside the
+  // same player are absolute, not fixed, and keep the panel.
+  if (visible) {
+    const now = performance.now();
+    if (now - (g.coverCheckAt || 0) > 250) {
+      g.coverCheckAt = now;
+      g.coveredByLayer = coveredByFixedLayer(el, r);
+    }
+    if (g.coveredByLayer) visible = false;
+  }
   if (!visible) {
     if (!g.panel.hidden) g.panel.hidden = true;
     return;
@@ -558,6 +572,33 @@ function position(g) {
   s.paddingTop = padTop ? `${Math.round(padTop + 8)}px` : "";
   s.paddingLeft = padLeft ? `${Math.round(padLeft + 8)}px` : "";
   g.panel.classList.toggle("compact", r.width < COMPACT_W || r.height < COMPACT_H);
+}
+
+/**
+ * Is the point at the centre of `r` (clipped to the viewport) painted by a
+ * position: fixed element, a <dialog> or an aria-modal layer that is neither
+ * inside `el` nor an ancestor of it?
+ * @param {Element} el @param {DOMRect} r
+ */
+function coveredByFixedLayer(el, r) {
+  const cx = (Math.max(r.left, 0) + Math.min(r.right, innerWidth)) / 2;
+  const cy = (Math.max(r.top, 0) + Math.min(r.bottom, innerHeight)) / 2;
+  let hit;
+  try {
+    hit = document.elementFromPoint(cx, cy);
+  } catch {
+    return false;
+  }
+  if (!hit || hit === el || el.contains(hit) || hit.contains(el)) return false;
+  if (hit.localName.startsWith("ss-")) return false; // our own layers take no pointer events anyway
+  for (let p = /** @type {Element | null} */ (hit), depth = 0; p && p !== document.body && depth < 24; p = p.parentElement, depth++) {
+    if (p.contains(el)) return false; // shared ancestor reached: same branch (player chrome)
+    if (p.localName === "dialog" || p.getAttribute("aria-modal") === "true") return true;
+    try {
+      if (getComputedStyle(p).position === "fixed") return true;
+    } catch {}
+  }
+  return false;
 }
 
 /** @param {Guard} g */

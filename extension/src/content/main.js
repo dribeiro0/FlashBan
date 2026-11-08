@@ -50,6 +50,16 @@ const STATIC_IMAGE_MS = 3000; // stop sampling images that never change
 const RESIZE_MIN_GAP_MS = 2000; // rebuild the detector at most this often
 const RESIZE_CHURN_LIMIT = 10; // more skipped resizes than this: fail closed
 const ANIM_EXT = /\.(gif|webp|apng)(\?|#|$)/i;
+// Sites whose media CDN answers CORS requests (their own players fetch it with
+// CORS): we ask for their videos with crossorigin="anonymous" so the pixels are
+// readable and the video can be SOFTENED instead of dimmed as "another site".
+// YouTube serves some uploads as a plain file from googlevideo.com; the usual
+// streaming path (blob:) is readable anyway. If a CORS request fails, the
+// attribute is removed so the player can recover (lead priority: soften first).
+const CORS_VIDEO_HOSTS = /(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be)$/i;
+const CLEAR_GLOW_OPACITY = 0.5; // unverifiable elements this see-through get faded, not covered
+const BOOT_DIM_MAX_MS = 1500; // the loader's load-time media dim lifts by this long after start, verdict or not
+const BOOT_VERDICT_MS = 600; // ...or once a source has this much calm sampling behind it (a 3 Hz strobe shows in 600 ms)
 // Script-driven DOM flicker (class / style / hidden toggles)
 const DOM_HOT_MUTATIONS = 2; // mutations within 1 s before we start sampling an element
 const DOM_HOT_MS = 1500; // keep sampling this long after the last mutation
@@ -141,6 +151,21 @@ async function init() {
     }
   }
   applyEnabled();
+  // The loader's static media dim covers the load window. It lifts at the
+  // first detector verdict on this page (a strobe that started at load is
+  // softened or covered by then), or after BOOT_DIM_MAX_MS, or at once when
+  // the site is allowlisted.
+  if (!enabled) liftBootDim();
+  else setTimeout(liftBootDim, BOOT_DIM_MAX_MS);
+}
+
+let bootLifted = false;
+function liftBootDim() {
+  if (bootLifted) return;
+  bootLifted = true;
+  try {
+    /** @type {any} */ (globalThis).__flashbanBoot?.remove();
+  } catch {}
 }
 
 function topSiteDomain() {
@@ -331,6 +356,15 @@ function consider(el) {
     // The detector failed to load: we can't analyse anything, so fail closed.
     if (settings.failClosed) safemode.guard(el, "dim", REASONS.detectorError, { canShow: true });
     return;
+  }
+  if (el instanceof HTMLVideoElement && !el.crossOrigin && CORS_VIDEO_HOSTS.test(location.hostname)) {
+    try {
+      el.crossOrigin = "anonymous";
+      el.addEventListener("error", () => {
+        // A CORS-refused source: drop the request so the player can retry plainly.
+        if (el.crossOrigin === "anonymous" && el.error && (el.error.code === 2 || el.error.code === 4)) el.removeAttribute("crossorigin");
+      }, true);
+    } catch {}
   }
   const s = new Source(el, /** @type {"video" | "canvas" | "gif"} */ (kind));
   sources.set(el, s);
@@ -536,6 +570,13 @@ class Source {
       const cs = getComputedStyle(this.el);
       opacity = Number(cs.opacity);
       if (!Number.isFinite(opacity)) opacity = 1;
+      if (this.glowFaded) {
+        // Our own fade is in the computed value; use what the page asked for.
+        const prev = this.glowPrev && this.glowPrev[0] ? Number(this.glowPrev[0]) : NaN;
+        opacity = Number.isFinite(prev) ? prev : this.lookBeforeFade ?? 1;
+      } else {
+        this.lookBeforeFade = opacity;
+      }
       const bd = backdropOf(this.el);
       opacity *= bd.opacity;
       backdrop = /** @type {[number, number, number]} */ (bd.color);
@@ -811,6 +852,12 @@ class Source {
       report = { ...report, violation: false, severity: this.gapTimes.length < GAP_WARNS_TO_DIM ? "none" : "warn" };
     }
     const el = this.el;
+    // The load-time media dim lifts once this page has a real verdict: a
+    // violation (handled below) or BOOT_VERDICT_MS of calm samples.
+    if (!bootLifted) {
+      if (!this.firstReportAt) this.firstReportAt = t;
+      if (report.violation || report.severity === "block" || t - this.firstReportAt >= BOOT_VERDICT_MS) liftBootDim();
+    }
     this.sendHud(report, t);
     if (aggregator) this.updateAggregate(report, t);
 
@@ -997,10 +1044,39 @@ class Source {
     if (!this.unverifiable || safemode.wasShownByUser(el)) return;
     const dim = enabled && settings.failClosed && this.canAnimate() && (UNVERIFIABLE_POLICY === "always" || repeatOffender || this.isActive());
     const mode = safemode.guardMode(el);
+    // A see-through element we can't read (a site's "ambient light" canvas
+    // drawn from a video we can't read) is decorative: a panel the size of its
+    // scaled-up box blacked out most of the page. Fade it instead (0.08 of its
+    // own opacity leaves at most ~0.04 of a strobe's swing on screen).
+    const glow = this.appearance(performance.now()).opacity < CLEAR_GLOW_OPACITY && el instanceof HTMLElement;
+    if (dim && glow) {
+      if (mode === "dim") safemode.release(el, { immediate: true });
+      this.fadeGlow(true);
+      return;
+    }
+    this.fadeGlow(false);
     if (dim) {
       if (mode !== "cover") safemode.guard(el, "dim", this.unverifiable, { canShow: true, announce: false });
     } else if (mode === "dim") {
       safemode.release(el);
+    }
+  }
+
+  /** Inline !important opacity on a decorative glow we can't read (re-applied by the unverifiable timer). @param {boolean} on */
+  fadeGlow(on) {
+    const el = /** @type {HTMLElement} */ (this.el);
+    if (!(el instanceof HTMLElement)) return;
+    if (on) {
+      if (el.style.getPropertyValue("opacity") !== "0.08" || el.style.getPropertyPriority("opacity") !== "important") {
+        if (!this.glowFaded) this.glowPrev = [el.style.getPropertyValue("opacity"), el.style.getPropertyPriority("opacity")];
+        el.style.setProperty("opacity", "0.08", "important");
+      }
+      this.glowFaded = true;
+    } else if (this.glowFaded) {
+      this.glowFaded = false;
+      const [v, pr] = this.glowPrev || ["", ""];
+      if (v) el.style.setProperty("opacity", v, pr);
+      else el.style.removeProperty("opacity");
     }
   }
 
@@ -1040,6 +1116,7 @@ class Source {
     this.stopped = true;
     this.soft?.stop();
     this.soft = null;
+    this.fadeGlow(false);
     const v = this.el;
     if (v instanceof HTMLVideoElement) {
       if (this.vfcHandle) v.cancelVideoFrameCallback?.(this.vfcHandle);
