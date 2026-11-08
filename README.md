@@ -46,13 +46,15 @@ The zip is reproducible: building the same commit always gives the same SHA-256,
 
 ## Security
 
-Using a seizure shield reveals a health condition, so FlashBan collects almost nothing: no accounts, no identifiers, no keys, and only the site's domain in a local log. Threats and mitigations are in the [threat model](security/THREAT_MODEL.md). Results from `node harness/run.mjs`, three runs in a row on the default build (16 of 16 pages each run, before the aliasing page was added):
+Using a seizure shield reveals a health condition, so FlashBan collects almost nothing: no accounts, no identifiers, no keys, and only the site's domain in a local log. Threats and mitigations are in the [threat model](security/THREAT_MODEL.md). Judging baseline: `node harness/run.mjs`, three runs on tag `demo` (`47d9023`) on the team's slowest Windows laptop, headless. Each run matched 26 of 27 expected verdicts; all 14 attack pages were protected in all three runs. These results describe that tagged build, not later changes to main. [Full results on the board](https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718646482).
 
-- Page that deletes FlashBan's cover on every frame (`demo/adversarial/overlay-killer.html`): locked down in 0.82 to 0.90 s.
+- Page that deletes FlashBan's cover on every frame (`demo/adversarial/overlay-killer.html`): locked down in 1.24 to 1.28 s.
 - Pages that undo the softening on every frame: covered or locked down every time, never left softened.
-- Red-only flashes with almost no brightness change: softened in 0.42 s.
+- Red-only flashes with almost no brightness change: softened in 1.24 to 1.25 s.
+- A 12.5 Hz strobe timed between samples: softened in 0.45 to 0.46 s. CPU-flood page: softened or blocked in 1.7 to 2.3 s.
 - A strobe that starts after 10 calm seconds: caught about 1.2 s after it starts.
-- 7 everyday pages (scene cuts, a camera flash, slow fades, a dark-mode toggle, a sunset): never flagged.
+- All 8 benign/static pages allowed in all three runs (24 allow verdicts, no false positives in this test set).
+- Known test failure: `video.html` was allowed instead of protected in all three runs on that machine. The synthetic recording/video path is machine-dependent; these results do not establish reliable video protection.
 
 ## Accessibility
 

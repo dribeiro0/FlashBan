@@ -44,15 +44,16 @@
     <section aria-labelledby="threats">
       <h2 id="threats">Attacks we test against</h2>
       <p class="muted">From our threat model. "Tested" means a passing unit test or an attack page in <code>demo/adversarial/</code> that passes <code>node harness/run.mjs</code> against the real extension.</p>
+      <p class="muted">Harness timings below are from tag <code>demo</code> (<code>47d9023</code>), three headless runs on our slowest Windows laptop: 26/27 expected verdicts each run, all 14 attacks protected 3/3, all 8 benign/static pages allowed 3/3. The synthetic <code>video.html</code> page was missed in all three runs on that machine; reliable video protection is not established by this run. <a href="https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718646482">Full results</a>. Later builds need their own checks.</p>
       <div class="table"><table>
         <thead><tr><th scope="col">Threat</th><th scope="col">Defence</th><th scope="col">Status</th></tr></thead>
         <tbody>
-          <tr><th scope="row">A strobe timed between samples</th><td>Sample every rendered frame, by timestamp</td><td><span class="status tested">tested</span> 12.5 Hz softened in 437 ms</td></tr>
+          <tr><th scope="row">A strobe timed between samples</th><td>Sampling with real timestamps</td><td><span class="status tested">tested</span> 12.5 Hz softened in 0.45–0.46 s</td></tr>
           <tr><th scope="row">A big flash split into small tiles</th><td>Add flashing area up across elements</td><td><span class="status tested">tested</span> unit test</td></tr>
-          <tr><th scope="row">Red-only flashes that pass the brightness check</th><td>Separate red-flash detector</td><td><span class="status tested">tested</span> softened in 0.42 s</td></tr>
+          <tr><th scope="row">Red-only flashes that pass the brightness check</th><td>Separate red-flash detector</td><td><span class="status tested">tested</span> softened in 1.24–1.25 s</td></tr>
           <tr><th scope="row">Pixels hidden from analysis (tainted canvas, DRM)</th><td>Fail closed: dim and label</td><td><span class="status tested">tested</span> tainted canvas dimmed</td></tr>
-          <tr><th scope="row">Hundreds of strobes to exhaust the CPU</th><td>Per-page budget, then fail closed</td><td><span class="status tested">tested</span> softened in 1.5 s, never a silent allow</td></tr>
-          <tr><th scope="row">Page deletes or restyles the overlay</th><td>Closed shadow root, top layer, re-applied guard, then lockdown</td><td><span class="status tested">tested</span> locked down in 0.82–0.90 s</td></tr>
+          <tr><th scope="row">Many strobes to exhaust the CPU</th><td>Per-page budget, then fail closed</td><td><span class="status tested">tested</span> softened or blocked in 1.7–2.3 s</td></tr>
+          <tr><th scope="row">Page deletes or restyles the overlay</th><td>Closed shadow root, top layer, re-applied guard, then lockdown</td><td><span class="status tested">tested</span> locked down in 1.24–1.28 s</td></tr>
           <tr><th scope="row">Page spoofs messages to the extension</th><td>Only our own extension id is trusted; every message shape-checked</td><td><span class="status tested">tested</span> unit tests</td></tr>
           <tr><th scope="row">Flashing that starts after a calm intro</th><td>Detection never stops</td><td><span class="status tested">tested</span> caught ~1.2 s after it starts</td></tr>
           <tr><th scope="row">Remote code in the extension</th><td>No remote scripts, no eval, strict CSP</td><td><span class="status">built</span> by review</td></tr>
