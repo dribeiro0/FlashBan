@@ -32,6 +32,7 @@
 
 import { DEFAULT_TAU } from "../detect/soften.js";
 import { createGlSoftener } from "./glsoften.js";
+import { readAsync, asyncReadAvailable } from "./glread.js";
 
 // GPU clamp (glsoften.js, David's masked brightness clamp): regions the raw
 // detector marks as flashing are clamped; the rest passes through sharp.
@@ -231,6 +232,9 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
   const holdUntil = glf ? new Float64Array(w * h).fill(Infinity) : null;
   let rawSince = NaN;
   let lastMaskT = NaN;
+  let useAsync = asyncReadAvailable(); // GPU readback without stalling the page (glread.js)
+  let rawPending = 0;
+  let outPending = 0;
   /** @type {any} */ let rawDetect = null;
   if (glf) {
     try {
@@ -446,6 +450,27 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     onFail(report);
   }
 
+  /** @param {Uint8ClampedArray} rd raw small frame @param {number} t */
+  function rawFrame(rd, t) {
+    if (!rawDetect || rd.length !== w * h * 4) return; // resized while the read was in flight
+    const rrep = rawDetect.push({ t, pixels: rd });
+    if (!Number.isFinite(rawSince) || (rrep && rrep.undersampled)) rawSince = t; // gaps restart the warm-up: no release on a blind detector
+    let m = null;
+    try {
+      m = rrep && typeof rawDetect.mask === "function" ? rawDetect.mask() : null;
+    } catch {
+      m = null;
+    }
+    updateMask(m, t);
+  }
+
+  /** @param {Uint8ClampedArray} data small copy of our output @param {number} t */
+  function outFrame(data, t) {
+    if (data.length !== w * h * 4) return;
+    const rep = verify.push({ t, pixels: data });
+    if ((rep.violation || rep.severity === "block") && rep.reason) fail(rep);
+  }
+
   /**
    * One filter update, timed by the frame's own display timestamp (the
    * interval between presented frames), so the filter integrates the picture
@@ -467,22 +492,40 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
       // GPU clamp. The mask comes from a detector on the RAW small frames
       // (where the input flashes), updated here before the frame is drawn.
       if (rawDetect) {
-        let rd;
-        try {
-          rctx.drawImage(el, 0, 0, w, h);
-          rd = rctx.getImageData(0, 0, w, h).data;
-        } catch {
-          return fail();
+        // Async GPU readback (glread.js): the 2D read stalls 16-20 ms per
+        // frame on real laptops. The mask then lands one frame later.
+        if (useAsync) {
+          if (rawPending < 2) {
+            let p = null;
+            try {
+              p = readAsync(el, w, h);
+            } catch {
+              return fail();
+            }
+            if (p) {
+              rawPending++;
+              p.then(
+                (rd) => {
+                  rawPending--;
+                  if (!stopped) rawFrame(rd, t);
+                },
+                () => {
+                  rawPending--;
+                  useAsync = false;
+                },
+              );
+            }
+          }
+        } else {
+          let rd;
+          try {
+            rctx.drawImage(el, 0, 0, w, h);
+            rd = rctx.getImageData(0, 0, w, h).data;
+          } catch {
+            return fail();
+          }
+          rawFrame(rd, t);
         }
-        const rrep = rawDetect.push({ t, pixels: rd });
-        if (!Number.isFinite(rawSince) || (rrep && rrep.undersampled)) rawSince = t; // gaps restart the warm-up: no release on a blind detector
-        let m = null;
-        try {
-          m = rrep && typeof rawDetect.mask === "function" ? rawDetect.mask() : null;
-        } catch {
-          m = null;
-        }
-        updateMask(m, t);
       }
       if (!glf.frame(el, dt === Infinity ? 0 : dt, weights)) return fail();
     } else try {
@@ -517,6 +560,30 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
     }
     if (glf) {
       // Output verification only (the mask stage above has its own detector).
+      if (useAsync) {
+        if (outPending < 2) {
+          let p = null;
+          try {
+            p = readAsync(canvas, w, h); // uploads the drawing buffer now, in this task
+          } catch {
+            return fail();
+          }
+          if (p) {
+            outPending++;
+            p.then(
+              (data) => {
+                outPending--;
+                if (!stopped) outFrame(data, t);
+              },
+              () => {
+                outPending--;
+                useAsync = false;
+              },
+            );
+          }
+        }
+        return;
+      }
       let data;
       try {
         wctx.drawImage(canvas, 0, 0, w, h);
@@ -524,8 +591,7 @@ export function startSoften(el, { detect, preset, onFail, checking = false, onTa
       } catch {
         return fail();
       }
-      const rep = verify.push({ t, pixels: data });
-      if ((rep.violation || rep.severity === "block") && rep.reason) return fail(rep);
+      outFrame(data, t);
       return;
     }
     // Verify what is on screen: read the OUTPUT back at a small size and run
