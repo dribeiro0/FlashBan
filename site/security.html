@@ -39,7 +39,7 @@
 
     <section aria-labelledby="net">
       <h2 id="net">The one network request</h2>
-      <p class="muted">For a cross-origin .webp or .apng image the page is already loading, FlashBan fetches the file's first bytes without cookies to tell a still image from an animated one; only a yes or no comes back. It never reaches your own computer or local network: addresses like localhost, 192.168.x.x or 10.x.x.x are refused, and such images simply stay dimmed. GIFs are never probed: they always count as animated. There is no FlashBan server.</p>
+      <p class="muted">For a cross-origin .webp or .apng image the page is already loading, FlashBan fetches the file's first bytes without cookies to tell a still image from an animated one; only a yes or no comes back. Links that point at your own computer or local network (localhost, 192.168.x.x, 10.x.x.x and similar) are refused, and such images simply stay dimmed. A public link that redirects to one is not yet stopped; see the limits below. GIFs are never probed: they always count as animated. There is no FlashBan server.</p>
     </section>
 
     <section aria-labelledby="threats">
@@ -60,7 +60,7 @@
           <tr><th scope="row">Remote code in the extension</th><td>No remote scripts, no eval, strict CSP</td><td><span class="status">built</span> by review</td></tr>
           <tr><th scope="row">Our own overlay flickering</th><td>Nothing blinks; labels ease in once; anything that hides content appears at once; no motion under reduced motion</td><td><span class="status">built</span></td></tr>
           <tr><th scope="row">Dim set too light to protect</th><td>Every Protection strength step keeps the brightest pixel under the 0.10 change a flash needs (72% floor)</td><td><span class="status tested">tested</span> unit test</td></tr>
-          <tr><th scope="row">A page aims the image probe at your router or computer</th><td>Private and local addresses refused before any request</td><td><span class="status tested">tested</span> unit test</td></tr>
+          <tr><th scope="row">A page aims the image probe at your router or computer</th><td>Private and local addresses in the link refused before any request; redirects not yet checked</td><td><span class="status tested">tested</span> unit test</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -73,7 +73,7 @@
         <li><span>Detectable</span><p>Websites can tell FlashBan is installed by probing its extension files, which can reveal a health condition. Fix (bundling the content scripts) not done yet.</p></li>
         <li><span>First frames</span><p>The first frames of a new flash can reach the screen before FlashBan reacts; response time depends on the page, source and machine.</p></li>
         <li><span>Outside the browser</span><p>Apps, games and video outside Chrome aren't covered.</p></li>
-        <li><span>Image probe</span><p>The still-or-animated probe for WebP/APNG can be fooled by the image's server, and image hosts can see that this browser runs FlashBan.</p></li>
+        <li><span>Image probe</span><p>The still-or-animated probe for WebP/APNG can be fooled by the image's server, image hosts can see that this browser runs FlashBan, and a public image link that redirects to a local address is still followed.</p></li>
         <li><span>Iframes</span><p>Flashes split across iframes aren't added together; each frame is judged on its own.</p></li>
         <li><span>Displays</span><p>Brightness is computed from sRGB values. HDR, colour profiles and screen brightness aren't modelled.</p></li>
       </ul>
