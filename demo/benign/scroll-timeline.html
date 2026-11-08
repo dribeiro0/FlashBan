@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="allow">
+<title>Scroll-driven no-op animation | FlashBan benign fixture</title>
+<link rel="stylesheet" href="../demo.css">
+<link rel="stylesheet" href="benign.css">
+<style>
+  /* Same pattern as GitHub's repo tab bar (Primer UnderlineNav "detect-overflow"):
+     an animation whose keyframes change nothing, driven by a scroll timeline
+     instead of time, so its duration isn't a number of milliseconds. */
+  @keyframes detect-overflow { from {} to {} }
+  .tabs {
+    display: flex; gap: 1.5rem; overflow-x: auto; white-space: nowrap;
+    width: 320px; padding: 0.75rem 0.5rem; border-bottom: 1px solid #777;
+    animation: detect-overflow linear both;
+    animation-timeline: scroll(self inline);
+  }
+  .tabs a { color: inherit; }
+</style>
+</head>
+<body>
+<p class="warning" role="note"><strong>No moving content.</strong> This page is a synthetic fixture for the FlashBan extension. Nothing on it moves or changes brightness, and there is no Start button.</p>
+<h1>Scroll-driven no-op animation</h1>
+<p>A tab bar like the one on GitHub's repository pages. It runs a CSS animation that changes nothing and is driven by scrolling rather than by time. FlashBan used to cover this as "a rapidly flashing animation" (found on github.com).</p>
+<p class="meta">Expected shield verdict: <strong>allow</strong> (a false positive if the shield hides, dims or softens it). <a href="index.html">All benign fixtures</a></p>
+<nav class="tabs" id="stage" aria-label="Example tabs">
+  <a href="#code">Code</a><a href="#issues">Issues</a><a href="#pulls">Pull requests</a><a href="#actions">Actions</a><a href="#projects">Projects</a><a href="#wiki">Wiki</a><a href="#security">Security</a><a href="#insights">Insights</a><a href="#settings">Settings</a>
+</nav>
+</body>
+</html>
