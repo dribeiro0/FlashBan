@@ -14,6 +14,36 @@
   (document.documentElement || document).append(boot);
   /** @type {any} */ (globalThis).__flashbanBoot = boot;
 
+  // On hosts whose media CDN answers CORS requests (YouTube), ask for videos
+  // with crossorigin="anonymous" from the moment they are created, before the
+  // player assigns a source, so their pixels are readable and they can be
+  // softened instead of dimmed as "another site". main.js does the same for
+  // elements it meets later and handles a refused request (CONTRACTS s2).
+  if (/(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be)$/i.test(location.hostname)) {
+    const mark = (/** @type {Element} */ el) => {
+      if (!(el instanceof HTMLVideoElement) || el.getAttribute("crossorigin")) return;
+      el.setAttribute("crossorigin", "anonymous");
+      el.addEventListener("error", () => {
+        // The CDN refused the CORS request: drop it and restart the load plainly,
+        // so the video still plays (it is then dimmed as unverifiable).
+        if (el.getAttribute("crossorigin") === "anonymous" && el.error && (el.error.code === 2 || el.error.code === 4)) {
+          el.removeAttribute("crossorigin");
+          try {
+            el.load();
+            el.play().catch(() => {});
+          } catch {}
+        }
+      }, true);
+    };
+    new MutationObserver((records) => {
+      for (const r of records) r.addedNodes.forEach((n) => {
+        if (!(n instanceof Element)) return;
+        mark(n);
+        n.querySelectorAll?.("video").forEach(mark);
+      });
+    }).observe(document.documentElement || document, { childList: true, subtree: true });
+  }
+
   const url = chrome.runtime.getURL("src/content/main.js");
   import(url).catch((err) => {
     console.warn("[FlashBan] could not start; dimming media on this page.", err);

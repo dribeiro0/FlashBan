@@ -86,7 +86,7 @@ const SHADOW_CSS = `
   /* Light dim: a short, see-through check on a video that just started.
      Clicks go through to the video's own controls. */
   .panel.dim.light {
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.35);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     pointer-events: none;
@@ -159,6 +159,7 @@ const SHADOW_CSS = `
  * @property {boolean} rendered
  * @property {number} [coverCheckAt]
  * @property {boolean} [coveredByLayer]
+ * @property {DOMRect[] | null} [clipRects]
  */
 
 /** @type {Map<Element, Guard>} */
@@ -552,7 +553,9 @@ function position(g) {
     const now = performance.now();
     if (now - (g.coverCheckAt || 0) > 250) {
       g.coverCheckAt = now;
-      g.coveredByLayer = coveredByFixedLayer(el, r);
+      const layers = coveringLayers(el, r);
+      g.coveredByLayer = layers === "all";
+      g.clipRects = layers === "all" ? null : layers;
     }
     if (g.coveredByLayer) visible = false;
   }
@@ -567,6 +570,18 @@ function position(g) {
   s.height = `${Math.ceil(r.height)}px`;
   // An element that starts above or left of the viewport (a scaled backdrop
   // canvas, a tall container) would put the label off screen: pad it in.
+  // Parts of the media under a sticky header or other fixed layer are cut out
+  // of the panel, so the page's own chrome stays on top of it (David, 8:27 PM).
+  const holes = g.clipRects;
+  if (holes && holes.length) {
+    let d = `M0 0H${Math.ceil(r.width)}V${Math.ceil(r.height)}H0Z`;
+    for (const h of holes) {
+      const x1 = Math.max(0, h.left - r.left), y1 = Math.max(0, h.top - r.top);
+      const x2 = Math.min(r.width, h.right - r.left), y2 = Math.min(r.height, h.bottom - r.top);
+      if (x2 > x1 && y2 > y1) d += `M${x1} ${y1}H${x2}V${y2}H${x1}Z`;
+    }
+    s.clipPath = `path(evenodd, "${d}")`;
+  } else if (s.clipPath) s.clipPath = "";
   const padTop = r.top < 0 ? Math.min(-r.top, Math.max(0, r.height - 60)) : 0;
   const padLeft = r.left < 0 ? Math.min(-r.left, Math.max(0, r.width - 160)) : 0;
   s.paddingTop = padTop ? `${Math.round(padTop + 8)}px` : "";
@@ -575,30 +590,51 @@ function position(g) {
 }
 
 /**
- * Is the point at the centre of `r` (clipped to the viewport) painted by a
- * position: fixed element, a <dialog> or an aria-modal layer that is neither
- * inside `el` nor an ancestor of it?
+ * Which fixed/sticky layers, dialogs or aria-modal layers from another branch
+ * of the page (neither inside `el` nor an ancestor of it) paint over `el`'s
+ * visible rect? Sampled on a 3x3 grid. Returns "all" when the centre is
+ * covered (a modal or lightbox: no panel at all), else the covering layers'
+ * rects (cut out of the panel), possibly empty.
  * @param {Element} el @param {DOMRect} r
+ * @returns {"all" | DOMRect[]}
  */
-function coveredByFixedLayer(el, r) {
-  const cx = (Math.max(r.left, 0) + Math.min(r.right, innerWidth)) / 2;
-  const cy = (Math.max(r.top, 0) + Math.min(r.bottom, innerHeight)) / 2;
+function coveringLayers(el, r) {
+  const x0 = Math.max(r.left, 0), x1 = Math.min(r.right, innerWidth);
+  const y0 = Math.max(r.top, 0), y1 = Math.min(r.bottom, innerHeight);
+  /** @type {DOMRect[]} */ const rects = [];
+  /** @type {Set<Element>} */ const seen = new Set();
+  for (let iy = 0; iy < 3; iy++) for (let ix = 0; ix < 3; ix++) {
+    const px = x0 + ((ix + 0.5) / 3) * (x1 - x0);
+    const py = y0 + ((iy + 0.5) / 3) * (y1 - y0);
+    const layer = fixedLayerAt(el, px, py);
+    if (!layer) continue;
+    if (ix === 1 && iy === 1) return "all";
+    if (seen.has(layer)) continue;
+    seen.add(layer);
+    rects.push(layer.getBoundingClientRect());
+  }
+  return rects;
+}
+
+/** The fixed/sticky/dialog layer painting at (x, y) that is unrelated to `el`, or null. @param {Element} el @param {number} x @param {number} y */
+function fixedLayerAt(el, x, y) {
   let hit;
   try {
-    hit = document.elementFromPoint(cx, cy);
+    hit = document.elementFromPoint(x, y);
   } catch {
-    return false;
+    return null;
   }
-  if (!hit || hit === el || el.contains(hit) || hit.contains(el)) return false;
-  if (hit.localName.startsWith("ss-")) return false; // our own layers take no pointer events anyway
+  if (!hit || hit === el || el.contains(hit) || hit.contains(el)) return null;
+  if (hit.localName.startsWith("ss-")) return null; // our own layers take no pointer events anyway
   for (let p = /** @type {Element | null} */ (hit), depth = 0; p && p !== document.body && depth < 24; p = p.parentElement, depth++) {
-    if (p.contains(el)) return false; // shared ancestor reached: same branch (player chrome)
-    if (p.localName === "dialog" || p.getAttribute("aria-modal") === "true") return true;
+    if (p.contains(el)) return null; // shared ancestor reached: same branch (player chrome)
+    if (p.localName === "dialog" || p.getAttribute("aria-modal") === "true") return p;
     try {
-      if (getComputedStyle(p).position === "fixed") return true;
+      const pos = getComputedStyle(p).position;
+      if (pos === "fixed" || pos === "sticky") return p;
     } catch {}
   }
-  return false;
+  return null;
 }
 
 /** @param {Guard} g */
