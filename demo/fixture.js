@@ -13,6 +13,7 @@
   var status = document.getElementById("status");
   var kind = stage.dataset.kind;
   var hz = Number(stage.dataset.hz) || 0; // full on/off cycles per second
+  var rateText = stage.dataset.hz === "frame" ? "a state change every frame" : hz + " cycles per second";
   if (stage.dataset.dark) DARK = stage.dataset.dark; // per-page colors (canvas only)
   if (stage.dataset.light) LIGHT = stage.dataset.light;
   var delay = Math.max(0, Number(stage.dataset.delay) || 0); // calm seconds before the strobe starts (canvas only)
@@ -41,12 +42,14 @@
 
   function loop(paint) {
     var t0 = performance.now();
+    var frames = 0;
+    var everyFrame = stage.dataset.hz === "frame"; // flip on every animation frame (half the display rate)
     function frame(now) {
       var elapsed = now - t0;
       if (elapsed >= seconds * 1000) { stop("Run finished after " + seconds + " s. Static again."); return; }
       var calm = delay * 1000 - elapsed;
       if (countdown) countdown.textContent = calm > 0 ? "Flashing starts in " + Math.ceil(calm / 1000) + " s." : "Flashing now.";
-      paint(calm > 0 ? false : isLight(-calm));
+      paint(calm > 0 ? false : everyFrame ? (frames++ % 2 === 1) : isLight(-calm));
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
@@ -95,13 +98,13 @@
     if (running) return;
     setRunning(true);
     if (kind === "canvas") {
-      say("Running: canvas, " + hz + " cycles per second, " + seconds + " s.");
+      say("Running: canvas, " + rateText + ", " + seconds + " s.");
       loop(paintCanvas);
     } else if (kind === "dom") {
-      say("Running: JavaScript class toggle, " + hz + " cycles per second, " + seconds + " s.");
+      say("Running: JavaScript class toggle, " + rateText + ", " + seconds + " s.");
       loop(function (light) { stage.classList.toggle("on", light); });
     } else if (kind === "css") {
-      say("Running: CSS keyframes, " + hz + " cycles per second, " + seconds + " s.");
+      say("Running: CSS keyframes, " + rateText + ", " + seconds + " s.");
       stage.style.setProperty("--period", 1000 / hz + "ms");
       stage.style.setProperty("--cycles", String(hz * seconds));
       stage.classList.add("css-run");
@@ -114,7 +117,7 @@
         if (!running) return;
         if (stage.src !== url) stage.src = url;
         stage.currentTime = 0;
-        say("Running: video, " + hz + " cycles per second, " + seconds + " s.");
+        say("Running: video, " + rateText + ", " + seconds + " s.");
         return stage.play();
       }).catch(function () {
         videoReady = null;
