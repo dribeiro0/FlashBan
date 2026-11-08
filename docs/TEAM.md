@@ -55,7 +55,8 @@ Team FlashBan at Hackcessability (Nov 7–8, 2026): four people, each working wi
 - **Adversarial pages** (`demo/adversarial/`), each mapped to a threat:
   - page attacks: overlay-killer, soften-killers (CSS and DOM), raise-media, scroll-strobe;
   - timing tricks: aliasing at 12.5 Hz and every frame, early start and late start;
-  - other evasions: red-only, cpu-flood, tainted canvas, opaque and see-through strobe layers, source swap and flip.
+  - other evasions: red-only, opaque and see-through strobe layers, source swap and flip (cpu-flood and the tainted canvas are David's, #73).
+- **Security reviews** of other owners' PRs, which found real holes: the fail-open detector stub and fingerprinting (#8), overlay-killer beating the overlay before lockdown (#27, fixed in #33), the cloakable image probe (#41), the stale-report fail-open on video, the post-#102 strobe-layer gap (#103), click-timing on the bypass bar (#64), no fade-in on protective layers (#121), and the public autostart page (#136).
 - **Docs:** README (what shipped, how to try it, security results, accessibility evidence), the Devpost draft, and the final numbers from 3x harness runs on the frozen build.
 - Early work: demo fixtures and the demo HUD page. Covered Jun's whole area while Jun was offline Saturday afternoon.
 - Presents at judging.
