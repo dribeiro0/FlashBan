@@ -66,9 +66,9 @@ const DOM_HOT_MS = 1500; // keep sampling this long after the last mutation
 const DOM_FORGET_MS = 10_000; // drop a quiet element's sampler after this
 // Soften for DOM flicker: the browser fades class/style toggles over 2 s.
 const DOM_SOFT_TRANSITION = ["background-color", "color", "opacity", "filter", "border-color", "outline-color", "fill", "stroke", "box-shadow"]
-  .map((p) => `${p} 2s linear`)
+  .map((p) => `${p} 3s ease-out`)
   .join(", ");
-const DOM_SOFT_GRACE_MS = 1500; // the detector window still holds pre-soften flashes this long
+const DOM_SOFT_GRACE_MS = 3000; // David's go (Sat 8:23 PM): longer, stronger transition before a cover; the window still holds pre-soften flashes
 const CSS_SOFT_CYCLES = 1; // slowed CSS animations run at about 1 cycle per second
 const DOM_MIN_AREA = 32 * 32; // CSS px; smaller boxes can't reach the area threshold alone
 const MAX_DOM_SOURCES = 24; // CPU guard (threat T5)
@@ -358,11 +358,21 @@ function consider(el) {
     return;
   }
   if (el instanceof HTMLVideoElement && !el.crossOrigin && CORS_VIDEO_HOSTS.test(location.hostname)) {
+    // Set as soon as we see the element (YouTube reuses one <video> across
+    // videos, so waiting for an empty one would never happen). Changing the
+    // attribute doesn't restart a load in progress; it applies to the next one.
     try {
       el.crossOrigin = "anonymous";
       el.addEventListener("error", () => {
-        // A CORS-refused source: drop the request so the player can retry plainly.
-        if (el.crossOrigin === "anonymous" && el.error && (el.error.code === 2 || el.error.code === 4)) el.removeAttribute("crossorigin");
+        // A CORS-refused source: drop the request and restart the load plainly.
+        if (el.crossOrigin === "anonymous" && el.error && (el.error.code === 2 || el.error.code === 4)) {
+          el.removeAttribute("crossorigin");
+          try {
+            const wasPlaying = !el.paused;
+            el.load();
+            if (wasPlaying) el.play().catch(() => {});
+          } catch {}
+        }
       }, true);
     } catch {}
   }
@@ -782,13 +792,15 @@ class Source {
       return false;
     }
     const ours = el.style.getPropertyValue("transition");
+    // Checked often: with a 3 s transition before any cover, a page that
+    // strips it must reach the lockdown quickly (5 tampers within 2 s).
     const guardTimer = setInterval(() => {
       if (!el.isConnected) return;
       if (el.style.getPropertyValue("transition") !== ours || el.style.getPropertyPriority("transition") !== "important") {
         safemode.reportTamper();
         el.style.setProperty("transition", DOM_SOFT_TRANSITION, "important");
       }
-    }, 250);
+    }, 100);
     const stop = () => {
       clearInterval(guardTimer);
       if (el.style.getPropertyValue("transition") === ours) {
