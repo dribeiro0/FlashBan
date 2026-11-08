@@ -8,29 +8,36 @@
 <link rel="stylesheet" href="showcase.css">
 </head>
 <body>
-<p class="warning" role="note"><strong>Warning: flashing test content.</strong> Grain is a pretend video site built for the FlashBan demo. Its clips are synthetic, dim (#222222 and #777777) and short (3 s), and nothing moves until you press Play. Stop, Escape or switching tabs ends every clip. If you are sensitive to flashing light, don't press Play. Never show this page to anyone without warning them first.</p>
+<a class="skip" href="#main">Skip to content</a>
 
 <header class="top">
-  <a class="brand" href="#main"><span class="mark" aria-hidden="true"></span>Grain</a>
+  <a class="brand" href="../../index.html">FlashBan</a>
   <nav aria-label="Site"><a href="#main">Watch</a><a href="#feed">Feed</a><a href="#about">About this demo</a></nav>
-  <span class="tag">synthetic demo site</span>
+  <span class="tag">Grain / interactive demo</span>
 </header>
 
 <main id="main">
   <section class="hero" aria-labelledby="hero-title">
-    <h1 id="hero-title">Everything on Grain flashes. <span>FlashBan turns it to grain.</span></h1>
+    <p class="eyebrow">A FlashBan demo / synthetic content only</p>
+    <h1 id="hero-title">Grain</h1>
+    <div class="warning" role="note"><strong>Warning: flashing test content.</strong><p>These synthetic clips use dim grey (#222222 and #777777) and run for 3 seconds by default. Stop, Escape or switching tabs ends every clip. If you are sensitive to flashing light, don’t press Play. Never show this page to anyone without warning them first.</p></div>
+    <div class="hero-bottom">
+    <h2 class="hero-title">The feed is a test.<br><span>You’re in control.</span></h2>
     <div class="hero-side">
-      <p class="lede">Each clip strobes four times a second when you press Play. With FlashBan on, the flashing area is softened to a flat, even field, or covered if it won't calm down.</p>
+      <p class="lede">A pretend video feed. Real FlashBan protection. Each synthetic clip flashes four times a second after you press Play. FlashBan dims and greys out flashing media, slows CSS animation, and covers content when needed.</p>
+      <p class="lede">Read the warning before playing. Nothing moves on its own.</p>
       <div class="controls">
         <button id="start" type="button">Play the feed</button>
         <button id="stop" type="button" disabled>Stop all</button>
       </div>
       <p id="status" role="status" aria-live="polite"></p>
     </div>
+    </div>
+
   </section>
 
   <section id="feed" aria-labelledby="feed-title">
-    <h2 id="feed-title">Feed</h2>
+    <div class="section-head"><h2 id="feed-title">The test feed</h2><p>Four sources / one shield</p></div>
     <div class="feed">
       <figure class="card">
         <div class="frame"><video id="v" class="clip" width="640" height="360" muted playsinline aria-label="Night set: synthetic strobe video"></video></div>
@@ -61,6 +68,7 @@
     </div>
   </section>
 </main>
+<footer class="footer"><span>Grain / a FlashBan demo</span><a href="../../index.html">Back to FlashBan ↗</a><a href="../../security.html">Privacy &amp; known limits ↗</a></footer>
 <script src="showcase.js"></script>
 </body>
 </html>

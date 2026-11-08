@@ -26,6 +26,10 @@ await mkdir(showcase,{recursive:true});
 for(const name of ['index.html','showcase.css','showcase.js']) {
   await copyFile(join(site,'..','demo','showcase',name),join(showcase,name));
 }
+await mkdir(join(showcase,'fonts'),{recursive:true});
+for(const name of ['LICENSE.md','martian-mono.woff2','sofia-sans-extra-condensed-900.woff2']) {
+  await copyFile(join(site,'..','demo','showcase','fonts',name),join(showcase,'fonts',name));
+}
 await writeFile(join(stage,'vercel.json'),JSON.stringify({
   version:2,framework:null,
   headers:[{source:'/(.*)',headers:[
