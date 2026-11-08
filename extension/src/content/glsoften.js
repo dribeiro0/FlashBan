@@ -31,6 +31,11 @@ const BASE_CHROMA = 0;
 // term is added after the clamp, so less of it is also safer.
 const DETAIL_GAIN = 0.2;
 const DETAIL_STRIDE_PX = 4; // low-pass tap spacing for the detail estimate
+// David (Sun 1:35 AM): treat the WHOLE video the same way, greyed out and calm,
+// instead of only the flashing cells. The per-cell mask is coarse, so clamping
+// only those cells read as blocky patches next to sharp, coloured video. Whole
+// frame = no block edges, and nothing in the frame can swing past the clamp.
+const WHOLE_FRAME = true;
 const MAX_STEP = 0.15; // largest share of the way to a new frame the average may move per processed frame
 
 const VERT = `
@@ -211,6 +216,7 @@ export function createGlSoftener(canvas, opts) {
   /** One frame. Returns false when the frame couldn't be uploaded (caller fails closed). */
   function frame(source, dt, maskWeights) {
     if (lost) return false;
+    if (WHOLE_FRAME) maskWeights = null; // null = clamp everything (see the mask upload below)
     try {
       G.activeTexture(G.TEXTURE0);
       G.bindTexture(G.TEXTURE_2D, frameTex);
