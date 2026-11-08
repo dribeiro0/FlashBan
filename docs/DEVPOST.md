@@ -1,10 +1,10 @@
 # Devpost draft (paste after the 11:00 PM freeze)
 
-Owner: @unseentrader007 (covering Jun). Numbers come from `node harness/run.mjs` run three times on the frozen build (tag `demo`, 47d9023) on our slowest test laptop; the full table is on the board. Delete anything that didn't ship. Every security claim here must match a passing harness page or test (AGENTS.md section 6).
+Owner: @unseentrader007 (covering Jun). Numbers come from `node harness/run.mjs` run three times on the final build (main 0c610e2, after the dim + greyscale change) on our slowest test laptop; the full table is on the board. Delete anything that didn't ship. Every security claim here must match a passing harness page or test (AGENTS.md section 6).
 
 ## Tagline
 
-FlashBan catches flashing web content and softens it before it reaches you, keeping the page usable.
+FlashBan catches flashing web content and tones it down before it reaches you, keeping the page usable.
 
 ## Inspiration
 
@@ -14,8 +14,8 @@ About 1 in 4,000 people have photosensitive epilepsy (Fisher et al., Epilepsia 2
 
 FlashBan is a Chrome extension that watches video, canvas, animated images, CSS animations and script-driven flicker on every page, and measures them against the WCAG general-flash and red-flash rules.
 
-- **Softens first.** When something flashes too fast, FlashBan smooths it so it can keep playing: video, canvas and animated images run through a filter (checked again by a second detector), CSS animations slow to about one cycle a second, and flickering elements fade slowly. People aren't interrupted.
-- **Covers when it has to.** If softening can't bring the flashing under the limit, FlashBan pauses the content and puts a static panel over it. One bar at the top of the page says what FlashBan is doing ("Softening 2 items on this page") and has a single "Show original on this site" button, remembered per site and undone in the popup.
+- **Tones it down first.** When something flashes too fast, FlashBan keeps it playing but makes it safe: flashing video, canvas and animated images are dimmed and turned greyscale (the brightest pixel left is under the luminance change a flash needs, and with no colour there's no red flash), CSS animations slow to about one cycle a second, and flickering elements fade slowly. Motion stays sharp, and people aren't interrupted.
+- **Covers when it has to.** If that can't bring the flashing under the limit, FlashBan pauses the content and puts a static panel over it. One bar at the top of the page says what FlashBan is doing ("Softening 2 items on this page") and has a single "Show original on this site" button, remembered per site and undone in the popup.
 - **Fails closed.** Media it can't read, like DRM or cross-origin video, is dimmed and labelled "can't verify".
 - **Fights back.** If a page keeps deleting FlashBan's protection, FlashBan locks the page down with browser-level styles the page can't see or remove, and explains why.
 - **Respects privacy.** It keeps a local list of sites that flashed (site and date only), with a Clear my data button and 30-day deletion. There's no account and no server.
@@ -23,20 +23,20 @@ FlashBan is a Chrome extension that watches video, canvas, animated images, CSS 
 ## How we built it
 
 - Plain JavaScript, Chrome Manifest V3, no build step and no dependencies.
-- A pure detection engine (no DOM) with Node unit tests (176 across the project): a relative-luminance lookup table, per-pixel transition tracking, a one-second sliding window on real timestamps, a red-flash detector in CIE 1976 colour space, and flashing area judged within a 10-degree field of view, as WCAG defines it.
+- A pure detection engine (no DOM) with Node unit tests (177 across the project): a relative-luminance lookup table, per-pixel transition tracking, a one-second sliding window on real timestamps, a red-flash detector in CIE 1976 colour space, and flashing area judged within a 10-degree field of view, as WCAG defines it.
 - A content script that samples every rendered frame (`requestVideoFrameCallback`, `requestAnimationFrame`) within a measured CPU budget, a closed-shadow-root overlay in the browser's top layer, and a service worker that validates every message.
-- Protection starts about 0.4 to 1.3 s after a strobe begins and costs 0.14 to 0.35 ms per frame. The tests pin the WCAG edges (2.99 Hz passes, 3.01 Hz fails; a tie on the area threshold passes) and known attacks (split-area tiles, phase-shifted checkerboards, red-only flashes, looping strobes).
+- Protection starts within about 0.4 to 1.7 s of a strobe beginning on the pages we time and costs 0.14 to 0.35 ms per frame. The tests pin the WCAG edges (2.99 Hz passes, 3.01 Hz fails; a tie on the area threshold passes) and known attacks (split-area tiles, phase-shifted checkerboards, red-only flashes, looping strobes).
 - An automated attack harness: it loads the real extension into headless Chrome, runs every demo and attack page, and scores only what the user would actually see. Nothing flashes on anyone's screen while it runs.
 
 ## Challenges we ran into
 
 - Pages can delete our overlay faster than the browser paints it. We caught that with our own attack page, and answered with a page lockdown the page can't touch.
-- Covering everything made real sites unusable. We moved to "soften first", then had to make sure a page couldn't simply undo the softening (it now counts as tampering).
+- Covering everything made real sites unusable, so we tried smoothing flashing video frame by frame. On real videos a fast-moving bright object looks exactly like a flash, so every filter left trails, blocks or ghosts. We switched to dim + greyscale, which is safe by arithmetic and keeps motion sharp. We also had to make sure a page couldn't simply undo the slowing or smoothing (it now counts as tampering).
 - Real Chrome stalls on GPU readback. A strict CPU budget dimmed harmless canvases until we measured readback and detection separately.
 
 ## Accomplishments we're proud of
 
-- Our harness blocks all 14 attack pages on three runs in a row, and never flags the 8 everyday and control pages (scene cuts, a camera flash, slow fades, a dark-mode toggle, a sunset, a scroll-linked animation, a slow blink, a still page).
+- Our harness protects against all 16 attack pages on three runs in a row (29 of 29 pages each run), and never flags the 8 everyday and control pages (scene cuts, a camera flash, slow fades, a dark-mode toggle, a sunset, a scroll-linked animation, a slow blink, a still page).
 - Every evasion we found became a permanent test page.
 - Popup and overlay: 0 axe-core violations (WCAG 2.2 AA), full keyboard use, screen-reader announcements, reduced-motion and forced-colours support.
 
@@ -56,10 +56,10 @@ JavaScript, Chrome Extensions (Manifest V3), Web Animations API, Canvas 2D, Node
 
 **What did we protect, and how?** Using a seizure shield reveals a health condition, and a list of flashing sites shows where someone browses. So FlashBan collects almost nothing: there are no accounts, identifiers or keys, and no server. The only record is a list of site domains and dates on the user's own computer, with a Clear my data button and automatic deletion after 30 days. Three things keep users safe:
 
-1. Protection a page can't switch off. Our cover lives in a closed shadow root. If a page keeps deleting it, FlashBan locks the page down with browser-level styles the page can't see or remove. Our attack page is locked down within about 1.3 s, and pages that undo our softening are covered or locked down every time.
+1. Protection a page can't switch off. Our cover lives in a closed shadow root. If a page keeps deleting it, FlashBan locks the page down with browser-level styles the page can't see or remove. Our attack page is locked down within about 1.25 s, and pages that undo our slowing or smoothing are covered or locked down every time.
 2. Fail closed. Media we can't check, like DRM or cross-origin video, is dimmed and labelled "can't verify" instead of let through.
 3. Untrusted input stays data. We render text with textContent, run no remote code, and validate the sender and shape of every message.
 
-Our automated harness blocks all 14 attack pages and flags none of 8 everyday pages, three runs in a row.
+Our automated harness protects against all 16 attack pages and flags none of 8 everyday pages, three runs in a row.
 
 **What would we improve next?** Websites can detect that FlashBan is installed by probing its extension files, which could reveal that someone has photosensitive epilepsy. We'd fix this by bundling our scripts into one file so none of them is visible to web pages.
