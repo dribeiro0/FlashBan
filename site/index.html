@@ -455,15 +455,16 @@ body.menu-open .menu-btn .w2{top:0}
       <article class="hz-panel" id="tested" aria-labelledby="pt-t">
         <div class="hz-row"><h3 class="hz-t" id="pt-t">Tested</h3><a class="label fg" href="security.html">Threat model →</a></div>
         <p class="label">Attack pages it beats ▪ node harness/run.mjs</p>
+        <p class="body ink-mute">Judging baseline: tag demo (47d9023), three headless runs on our slowest Windows laptop. 26 of 27 pages matched each run; all 14 attacks were protected 3/3. The synthetic video page was missed 3/3 on that machine. <a href="https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718646482">Full results</a>. Later builds need their own checks.</p>
         <ul class="wall">
-      <li class="cell"><span class="num">0.82 s</span><span class="what">A page deletes FlashBan's cover every frame: locked down.</span><span class="label">Overlay killer ▪ T6</span></li>
-      <li class="cell"><span class="num">0.42 s</span><span class="what">Red-only flashes with almost no brightness change: softened.</span><span class="label">Red only ▪ T3</span></li>
-      <li class="cell"><span class="num">0.44 s</span><span class="what">A 12.5 Hz strobe timed between samples: softened.</span><span class="label">Aliasing ▪ T1</span></li>
+      <li class="cell"><span class="num">1.3 s</span><span class="what">A page deletes FlashBan's cover every frame: locked down in 1.24–1.28 s.</span><span class="label">Overlay killer ▪ T6</span></li>
+      <li class="cell"><span class="num">1.3 s</span><span class="what">Red-only flashes with almost no brightness change: softened in 1.24–1.25 s.</span><span class="label">Red only ▪ T3</span></li>
+      <li class="cell"><span class="num">0.46 s</span><span class="what">A 12.5 Hz strobe timed between samples: softened in 0.45–0.46 s.</span><span class="label">Aliasing ▪ T1</span></li>
       <li class="cell"><span class="num">1.2 s</span><span class="what">Flashing after 10 calm seconds: caught after it starts.</span><span class="label">Late start ▪ T8</span></li>
-      <li class="cell"><span class="num">1.5 s</span><span class="what">40 strobes plus busy work: softened, never a silent allow.</span><span class="label">CPU flood ▪ T5</span></li>
+      <li class="cell"><span class="num">2.3 s</span><span class="what">40 strobes plus busy work: softened or blocked in 1.7–2.3 s.</span><span class="label">CPU flood ▪ T5</span></li>
       <li class="cell"><span class="num">Dim</span><span class="what">A strobe on a canvas it can't read: dimmed and labelled.</span><span class="label">Tainted canvas ▪ T4</span></li>
       <li class="cell"><span class="num">16 tiles</span><span class="what">One big flash split into small tiles: still blocked.</span><span class="label">Split area ▪ T2</span></li>
-      <li class="cell"><span class="num">0 of 7</span><span class="what">Everyday pages (scene cuts, a camera flash, a sunset) flagged.</span><span class="label">False positives</span></li>
+      <li class="cell"><span class="num">0 of 8</span><span class="what">Benign/static pages flagged across three runs (24 allow verdicts).</span><span class="label">False positives in this test set</span></li>
     </ul>
       </article>
       <article class="hz-panel paper" id="changelog" aria-labelledby="pc-t">
