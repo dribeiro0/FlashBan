@@ -87,6 +87,14 @@ const SHADOW_CSS = `
   .panel.dim.checking .reason { display: none; }
   /* Light dim: a short, see-through check on a video that just started.
      Clicks go through to the video's own controls. */
+  /* Flat dim: one steady, opaque colour for media whose WHOLE picture flashes
+     colours (mood lights, colour cycles): nothing is lost and nothing changes.
+     Click-through like every dim, so the player's controls still work. */
+  .panel.dim.flat {
+    background: #1c1c1a;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
   .panel.dim.light {
     background: rgba(0, 0, 0, 0.35);
     -webkit-backdrop-filter: none;
@@ -215,9 +223,10 @@ let lastRaiseCheck = 0;
  * @param {Element} el
  * @param {"dim" | "cover"} mode
  * @param {string} reason   plain-language text shown and announced to the user
- * @param {{ canShow?: boolean, announce?: boolean, light?: boolean }} [opts]
+ * @param {{ canShow?: boolean, announce?: boolean, light?: boolean, flat?: boolean }} [opts]
  *   canShow: offer a "Show anyway" button (default: true for cover, false for dim)
  *   light: a see-through dim that doesn't block clicks (a video's short check)
+ *   flat: an opaque, steady-colour dim that doesn't block clicks (whole-picture colour flashing)
  */
 export function guard(el, mode, reason, opts = {}) {
   if (!(el instanceof Element) || userShown.has(el)) return;
@@ -227,7 +236,7 @@ export function guard(el, mode, reason, opts = {}) {
   if (!g) {
     const panel = document.createElement("div");
     panel.className = "panel";
-    g = { el, mode, reason, canShow: false, panel, fadeTimer: 0, rendered: false, light: false };
+    g = { el, mode, reason, canShow: false, panel, fadeTimer: 0, rendered: false, light: false, flat: false };
     guards.set(el, g);
     /** @type {HTMLDivElement} */ (layer).append(panel);
   }
@@ -238,8 +247,9 @@ export function guard(el, mode, reason, opts = {}) {
   }
   const canShow = opts.canShow ?? mode === "cover";
   const light = mode === "dim" && !!opts.light;
+  const flat = mode === "dim" && !!opts.flat;
   const isNew = !g.rendered;
-  const changed = isNew || wasFading || g.mode !== mode || g.reason !== reason || g.canShow !== canShow || g.light !== light;
+  const changed = isNew || wasFading || g.mode !== mode || g.reason !== reason || g.canShow !== canShow || g.light !== light || g.flat !== flat;
   // Callers may guard the same element on every frame; only rebuild the panel
   // when something changed, or keyboard focus on its button would be lost.
   if (!changed) return;
@@ -248,6 +258,7 @@ export function guard(el, mode, reason, opts = {}) {
   g.reason = reason;
   g.canShow = canShow;
   g.light = light;
+  g.flat = flat;
   g.rendered = true;
   render(g);
   position(g);
@@ -532,7 +543,7 @@ function raise() {
 /** @param {Guard} g */
 function render(g) {
   const { panel } = g;
-  panel.className = `panel ${g.mode}${g.mode === "dim" && !g.canShow ? " checking" : ""}${g.light ? " light" : ""}`;
+  panel.className = `panel ${g.mode}${g.mode === "dim" && !g.canShow ? " checking" : ""}${g.light ? " light" : ""}${g.flat ? " flat" : ""}`;
   panel.replaceChildren();
   panel.setAttribute("role", "group");
   panel.setAttribute("aria-label", g.mode === "cover" ? "Flashing content hidden by FlashBan" : "Content dimmed by FlashBan");

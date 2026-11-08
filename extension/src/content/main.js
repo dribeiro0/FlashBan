@@ -91,6 +91,13 @@ const LAYER_ALPHA_WATCH = 0.2; // a layer over media seen this opaque even once 
 // (the GPU soften) can't tell a moving bright object from a flash, so it always
 // smeared or hid moving content; it is kept behind "gpu" for reference.
 const SOFTEN_STYLE = "dim";
+// Whole-picture vs local flashing (David, Sun 3:15 AM). When at least this share
+// of the sampled picture is flashing (report.areaPct), the flashing is a
+// whole-screen colour/brightness change (mood lights, colour cycles), not
+// something moving: show one steady colour instead (flat dim). Local flashing or
+// motion (a skeleton dancing under club lights) keeps dim + greyscale, so it
+// stays visible. Both are safe; this only picks the better-looking one.
+const WHOLE_FIELD_PCT = 0.8;
 
 const REASONS = {
   general: "It was flashing faster than is safe.",
@@ -108,6 +115,7 @@ const REASONS = {
   unknownStyle: "It changes too fast to check, so it's dimmed to be safe.",
   glow: "A decorative glow was faded.",
   softDim: "It was flashing, so it's dimmed and in greyscale, where it can't flash. It keeps playing.",
+  softFlat: "Its whole picture was flashing colours, so it's shown as one steady colour, which can't flash. It keeps playing.",
 };
 
 // ---------------------------------------------------------------- state
@@ -1126,7 +1134,9 @@ class Source {
     if (SOFTEN_STYLE === "dim") {
       // Dim + greyscale: the content stays visible and playing, darker and grey,
       // and nothing in it can reach a flash. Stays for this element (no on/off).
-      safemode.guard(v, "dim", REASONS.softDim, { canShow: true });
+      // Once flat, stay flat: switching back and forth would itself be a change.
+      if (!this.flatDim && typeof report.areaPct === "number" && report.areaPct >= WHOLE_FIELD_PCT) this.flatDim = true;
+      safemode.guard(v, "dim", this.flatDim ? REASONS.softFlat : REASONS.softDim, { canShow: true, flat: !!this.flatDim });
       this.persistentDim = true;
       this.noteViolation(report, t); // still logged: the site served flashing media
       return true;
