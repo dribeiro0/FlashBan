@@ -104,7 +104,20 @@ const SHADOW_CSS = `
   }
   .pagecheck .brand { margin-right: 8px; display: inline-block; }
   @media (prefers-reduced-motion: reduce) { .pagecheck { transition: none; } }
-  .panel.dim button { min-height: 32px; padding: 4px 12px; font-size: 13px; }
+  /* The one bypass control for the page (lead decision, Sat 7:01 PM, David's
+     proposal): a slim bar at the top right, never over the content it
+     protects, with one button that shows the original on this site. */
+  .bar {
+    position: fixed; top: 8px; right: 8px; max-width: calc(100vw - 16px); box-sizing: border-box;
+    display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px;
+    background: #121212; color: #ffffff; border-radius: 999px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    pointer-events: auto; font: 600 13px/1.25 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    text-align: left;
+  }
+  .bar[hidden] { display: none; }
+  .bar .brand { margin: 0; }
+  .bar .text { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar button { min-height: 32px; padding: 4px 12px; font-size: 13px; white-space: nowrap; }
   .panel.cover { background: #121212; }
   .brand {
     margin: 0; padding: 2px 8px; border-radius: 4px;
@@ -162,6 +175,11 @@ let tamperLocked = false;
 /** @type {ShadowRoot | null} */ let root = null;
 /** @type {HTMLDivElement | null} */ let layer = null;
 /** @type {HTMLDivElement | null} */ let live = null;
+/** @type {HTMLDivElement | null} */ let bar = null;
+/** @type {HTMLParagraphElement | null} */ let barText = null;
+/** @type {(() => void) | null} */ let bypassHandler = null;
+let softened = 0;
+let barDismissed = false;
 let wrapperStyleText = "";
 let loopHandle = 0;
 let lastAnnounce = 0;
@@ -214,6 +232,7 @@ export function guard(el, mode, reason, opts = {}) {
   if (mode === "cover" && opts.announce !== false && (isNew || escalated)) {
     announce(`FlashBan hid flashing content on this page. ${reason}`);
   }
+  refreshBar();
   startLoop();
 }
 
@@ -253,6 +272,53 @@ export function wasShownByUser(el) {
 /** Called after the user chooses "Show anyway" for an element. */
 export function onUserShow(/** @type {(el: Element) => void} */ fn) {
   userShowHandler = fn;
+}
+
+/** Called when the user presses "Show original on this site" in the bar. */
+export function onBypass(/** @type {() => void} */ fn) {
+  bypassHandler = fn;
+}
+
+/** The shield was turned back on for this page: the bar may show again. */
+export function resetBar() {
+  barDismissed = false;
+  refreshBar();
+}
+
+/** How many elements are being softened right now (the bar counts them). @param {number} n */
+export function setSoftened(n) {
+  if (n === softened) return;
+  softened = n;
+  if (n > 0) ensureLayer();
+  refreshBar();
+}
+
+/** The bar shows whenever anything on the page is softened, dimmed or hidden. */
+function refreshBar() {
+  if (!bar || !barText) return;
+  const c = counts();
+  const total = softened + c.dim + c.cover;
+  const show = total > 0 && !barDismissed;
+  if (!show) {
+    if (!bar.hidden) {
+      bar.hidden = true;
+      if (guards.size === 0 && !pagePanel && softened === 0) closeLayer();
+    }
+    return;
+  }
+  const parts = [];
+  if (softened) parts.push(`softening ${softened}`);
+  if (c.dim) parts.push(`dimming ${c.dim}`);
+  if (c.cover) parts.push(`hiding ${c.cover}`);
+  barText.textContent = `${capitalize(parts.join(", "))} ${total === 1 ? "item" : "items"} on this page`;
+  if (bar.hidden) bar.hidden = false;
+  openLayer();
+  startLoop();
+}
+
+/** @param {string} t */
+function capitalize(t) {
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 /**
@@ -299,6 +365,8 @@ export function counts() {
 /** Remove every guard (used when the user turns the shield off for this site). */
 export function releaseAll() {
   for (const g of [...guards.values()]) removeGuard(g);
+  softened = 0;
+  refreshBar();
   hidePageCheck(true);
 }
 
@@ -336,7 +404,7 @@ function hidePageCheck(immediate) {
   const done = () => {
     p.remove();
     if (pagePanel === p) pagePanel = null;
-    if (guards.size === 0) closeLayer();
+    if (guards.size === 0 && (!bar || bar.hidden)) closeLayer();
   };
   if (immediate || reducedMotion.matches) return done();
   p.classList.add("fading");
@@ -363,6 +431,33 @@ function ensureLayer() {
   layer = document.createElement("div");
   layer.className = "layer";
   layer.setAttribute("popover", "manual");
+
+  bar = document.createElement("div");
+  bar.className = "bar";
+  bar.hidden = true;
+  bar.setAttribute("role", "region");
+  bar.setAttribute("aria-label", "FlashBan");
+  const brand = document.createElement("p");
+  brand.className = "brand";
+  brand.textContent = "FlashBan";
+  brand.setAttribute("aria-hidden", "true");
+  barText = document.createElement("p");
+  barText.className = "text";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "Show original on this site";
+  btn.setAttribute("aria-label", "Show the original on this site. FlashBan stops softening and dimming here until you turn it back on in the FlashBan popup.");
+  btn.addEventListener("click", (e) => {
+    if (!e.isTrusted) return; // the page can't press this for the user (T6/T7)
+    barDismissed = true;
+    announce("Showing the original on this site. Turn FlashBan back on for this site in the FlashBan popup.");
+    try {
+      bypassHandler?.();
+    } catch {}
+    refreshBar();
+  });
+  bar.append(brand, barText, btn);
+  layer.append(bar);
 
   root.append(style, live, layer);
   attachWrapper();
@@ -425,22 +520,8 @@ function render(g) {
   reason.textContent = g.reason;
   panel.append(brand, title, reason);
 
-  if (g.canShow) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "Show anyway";
-    btn.setAttribute("aria-label", `Show anyway. ${g.reason}`);
-    btn.addEventListener("click", (e) => {
-      if (!e.isTrusted) return; // the page can't click this for the user
-      userShown.add(g.el);
-      removeGuard(g);
-      announce("Content shown. FlashBan will not hide it again on this page.");
-      try {
-        userShowHandler?.(g.el);
-      } catch {}
-    });
-    panel.append(btn);
-  }
+  // No per-element "Show anyway" button any more (lead decision, Sat 7:01 PM):
+  // the one bypass for the page is the bar's "Show original on this site".
 }
 
 /** @param {Guard} g */
@@ -476,7 +557,8 @@ function removeGuard(g) {
   g.fadeTimer = 0;
   g.panel.remove();
   guards.delete(g.el);
-  if (guards.size === 0 && !pagePanel) closeLayer();
+  refreshBar();
+  if (guards.size === 0 && !pagePanel && (!bar || bar.hidden)) closeLayer();
 }
 
 /** @param {string} text */
@@ -497,7 +579,7 @@ function startLoop() {
 /** @param {number} now */
 function tick(now) {
   loopHandle = 0;
-  if (guards.size === 0) return;
+  if (guards.size === 0 && (!bar || bar.hidden)) return;
 
   // Tamper checks (threat T6): re-attach, restore styles, re-open the layer.
   // Repeated tampering hands off to the page lockdown (CSS the page can't

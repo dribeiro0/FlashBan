@@ -98,6 +98,7 @@ let canvasLoop = 0;
 /** @type {Map<Element, DomSource>} */ const domSources = new Map();
 /** @type {Map<Element, { times: number[], sources: DomSource[] | null }>} */ const domDrivers = new Map();
 /** @type {MutationObserver | null} */ let amo = null;
+let softCountTimer = 0;
 let domLoop = 0;
 let lastDriverPrune = 0;
 let lockedDown = false; // page lockdown CSS applied (see onTamper)
@@ -125,6 +126,7 @@ async function init() {
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
   safemode.onUserShow(onUserShow);
   safemode.onTamper(onTamper);
+  safemode.onBypass(onBypass);
 
   const loaded = await loadDetector();
   detect = loaded.module;
@@ -198,6 +200,7 @@ function onRuntimeMessage(msg, sender, sendResponse) {
 }
 
 function start() {
+  safemode.resetBar();
   io = new IntersectionObserver(onIntersect, { threshold: [0, 0.01] });
   mo = new MutationObserver(onMutations);
   amo = new MutationObserver(onAttrMutations);
@@ -210,6 +213,11 @@ function start() {
   document.addEventListener("animationstart", queueAnimScan, true);
   document.addEventListener("transitionrun", queueAnimScan, true);
   animTimer = setInterval(scanAnimations, 500);
+  softCountTimer = setInterval(() => {
+    let n = 0;
+    for (const s of allSources()) if (s.soft) n++;
+    if (isTop) safemode.setSoftened(n);
+  }, 500);
 }
 
 function stop() {
@@ -229,6 +237,7 @@ function stop() {
   cancelAnimationFrame(canvasLoop);
   canvasLoop = 0;
   clearInterval(animTimer);
+  clearInterval(softCountTimer);
   document.removeEventListener("visibilitychange", onVisibility);
   document.removeEventListener("animationstart", queueAnimScan, true);
   document.removeEventListener("transitionrun", queueAnimScan, true);
@@ -1490,6 +1499,23 @@ function onTamper() {
       } catch {}
     }
   }
+}
+
+/**
+ * The user pressed "Show original on this site" in the bar: remember the site
+ * (allowlist), which turns the shield off here through the normal settings
+ * path; the popup's per-site switch turns it back on.
+ */
+function onBypass() {
+  if (!siteDomain) return;
+  chrome.storage.local
+    .get("settings")
+    .then(({ settings: raw }) => {
+      const cur = normalizeSettings(raw);
+      if (cur.allowlist.includes(siteDomain)) return;
+      return chrome.storage.local.set({ settings: { ...cur, allowlist: [...cur.allowlist, siteDomain] } });
+    })
+    .catch(() => {});
 }
 
 /** The user pressed "Show anyway". @param {Element} el */

@@ -15,7 +15,7 @@ About 1 in 4,000 people have photosensitive epilepsy (Fisher et al., Epilepsia 2
 FlashBan is a Chrome extension that watches video, canvas, animated images, CSS animations and script-driven flicker on every page, and measures them against the WCAG general-flash and red-flash rules.
 
 - **Softens first.** When something flashes too fast, FlashBan smooths it so it can keep playing: video, canvas and animated images run through a filter (checked again by a second detector), CSS animations slow to about one cycle a second, and flickering elements fade slowly. People aren't interrupted.
-- **Covers when it has to.** If softening can't bring the flashing under the limit, FlashBan pauses the content and puts a static panel over it. "Show anyway" brings it back, only when you choose to.
+- **Covers when it has to.** If softening can't bring the flashing under the limit, FlashBan pauses the content and puts a static panel over it. One bar at the top of the page says what FlashBan is doing ("Softening 2 items on this page") and has a single "Show original on this site" button, remembered per site and undone in the popup.
 - **Fails closed.** Media it can't read, like DRM or cross-origin video, is dimmed and labelled "can't verify".
 - **Fights back.** If a page keeps deleting FlashBan's protection, FlashBan locks the page down with browser-level styles the page can't see or remove, and explains why.
 - **Respects privacy.** It keeps a local list of sites that flashed (site and date only), with a Clear my data button and 30-day deletion. There's no account and no server.
