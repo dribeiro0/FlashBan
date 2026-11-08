@@ -289,6 +289,15 @@ export function analyzeAnimation(a, opts = {}) {
     const frames = effect.getKeyframes();
     if (!Array.isArray(frames) || !timing) return { ...BLOCK };
 
+    // No keyframe animates anything that can change brightness (e.g. GitHub's
+    // empty-keyframe scroll-timeline "detect-overflow" animations): nothing can
+    // flash, whatever the timing. Checked before timing so a non-time timeline
+    // with visual keyframes (a scroll-linked strobe) still fails closed below.
+    const visual = (p) => UNMODELLED.has(p) || COLOUR_PROPS.has(p) || p === "opacity" || p === "visibility" || p === "filter";
+    if (!frames.some((f) => f && typeof f === "object" && Object.keys(f).some((p) => !IGNORED.has(p) && visual(p)))) {
+      return { cyclesPerSecond: 0, maxLuminanceDelta: 0, violation: false };
+    }
+
     const rate = a.playbackRate === undefined ? 1 : Number(a.playbackRate);
     if (!Number.isFinite(rate)) return { ...BLOCK };
     const duration = Number(timing.duration);
