@@ -18,6 +18,10 @@
             --paper (cream changelog), --ink; Sofia Sans Extra Condensed 900 for fitted display type, Martian Mono
             for labels and body; --ease for reveals, --roll for link and arrow rolls.
   sections  nav, hero, about, decides, states, marquee, tested, changelog, download, footer (each carries data-section)
+  eye       hero banner: an eye drawn in characters (pattern studied on 2025.unseen.co: per-cell sampling, brightness
+            picks a glyph from a canvas atlas, pointer drives a distortion field). Ours draws the eye in the shader (no
+            video, no blink), only displaces cells near the pointer trail (never brightens), redraws only while the gaze
+            or trail is settling, and holds still under reduced motion. The dithered plate is the fallback.
   decides   a pinned scroll stepper (pattern studied on good-fella.com: tall section, sticky child, scroll progress
             picks the active step, a marker square moves and turns). Ours uses native scroll, rate-limits the plate
             swap to one fade per 400 ms, and falls back to a plain list under 1200px or with reduced motion.
@@ -36,7 +40,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-XZbtYXB9KW38shBmjd6A1qt8hho4qzNyGiUuGBAbkJc='; style-src 'self' 'sha256-pF69owyPgvS3Y6c4YMq34fYHjoJfEgpoQT7NcMCvgtg='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-+iucUCszsj3h06fC6MhY8EreQwtghRHm4oCkyWwSrVE='; style-src 'self' 'sha256-Euugs4BP+R83yPNJgR+Arg06YB9GPm6/Gk/K68HjvGQ='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — flashing content, softened before it reaches you</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
@@ -117,6 +121,8 @@ body.menu-open .menu-btn .w2{top:0}
 .hero h1{position:sticky;top:64px;z-index:2;mix-blend-mode:difference;color:var(--fg)}
 .hero-img{position:relative;height:78vh;min-height:420px;overflow:clip}
 .hero-img .art{inset:-40px 0;will-change:transform}
+.hero-img .eye{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1;background:#121210}
+.hero-img .eye[hidden]{display:none}
 .hero-note{position:absolute;left:16px;bottom:16px;z-index:2;max-width:360px;background:var(--panel);color:var(--fg);padding:10px 12px}
 
 /* about */
@@ -377,7 +383,8 @@ body.menu-open .menu-btn .w2{top:0}
     <h1 class="fit" id="h-title" data-reveal data-d=".1"><span>FlashBan</span></h1>
     <div class="hero-img">
       <div class="art" data-art="hero" id="heroArt" role="img" aria-label="A dithered 3D shape, holding still"></div>
-      <p class="label fg hero-note">Every picture here is a live 3D shape, dithered in two close tones. None of them move on their own.</p>
+      <canvas class="eye" id="eye" hidden role="img" aria-label="An eye drawn in letters. It looks toward your pointer and never blinks."></canvas>
+      <p class="label fg hero-note" id="heroNote">Every picture here is a live 3D shape, dithered in two close tones. None of them move on their own.</p>
     </div>
   </section>
 
@@ -572,6 +579,165 @@ body.menu-open .menu-btn .w2{top:0}
 (function(){
 "use strict";
 const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+/* =========================================================
+   THE EYE (hero banner)
+   The screen is cut into cells; each cell samples an eye drawn
+   in the shader and picks a character by brightness from an
+   atlas canvas (" .,:-=+*FLASHBAN"). The pointer steers the
+   gaze (eased) and leaves a trail that pushes cells aside and
+   fades in ~0.5 s. Safety: no blink, the trail never brightens,
+   ink and ground are close tones, it redraws only while
+   something is settling, and reduced motion holds it still.
+========================================================= */
+const EYE=(function(){
+  const cv=document.getElementById("eye"),plate=document.getElementById("heroArt");
+  const g2=cv.getContext("webgl2",{alpha:false,antialias:false,depth:false,stencil:false});
+  if(!g2) return null;
+  const CHARS=" .,:-=+*FLASHBAN",GRID=16,TRAIL=8;
+  const vs=`#version 300 es
+void main(){vec2 v=vec2(gl_VertexID==1?3.0:-1.0,gl_VertexID==2?3.0:-1.0);gl_Position=vec4(v,0.0,1.0);}`;
+  const fs=`#version 300 es
+precision highp float;
+out vec4 o;
+uniform vec2 uRes;          // device px
+uniform float uCell;        // device px per character cell
+uniform sampler2D uAtlas;
+uniform float uCount;
+uniform vec2 uGaze;         // -1..1
+uniform vec3 uTrail[${TRAIL}]; // x, y (device px, top-left origin), strength
+uniform vec3 uInk, uBg;
+float sstep(float a,float b,float x){return smoothstep(a,b,x);}
+// brightness of the eye at point p (device px, top-left origin)
+float eye(vec2 p){
+  vec2 c=uRes*vec2(.5,.48);
+  float S=min(uRes.x*.42,uRes.y*.78);
+  vec2 q=(p-c)/S;                        // eye space, about -1..1
+  // almond opening: between two arcs
+  float upper=.46*(1.0-q.x*q.x)-.02, lower=-.40*(1.0-q.x*q.x)+.02;
+  float open=sstep(.0,.03,upper-(-q.y))*sstep(.0,.03,(-q.y)-lower)*sstep(1.0,.96,abs(q.x));
+  // skin: soft creases above and below
+  float skin=.07+.035*sin((q.y+.55*(1.0-q.x*q.x))*18.0)*sstep(.9,.25,length(q));
+  // sclera with lid shadow
+  float lidShade=sstep(.0,.18,upper-(-q.y));
+  float tone=mix(skin,.78*mix(.5,1.0,lidShade),open);
+  // lash line: a dark band along the upper lid edge
+  float lash=sstep(.05,.0,abs(upper-(-q.y)))*sstep(1.0,.7,abs(q.x));
+  tone=mix(tone,.0,lash*.9);
+  // iris follows the gaze
+  vec2 ic=uGaze*vec2(.32,.14);
+  vec2 d=q-ic; float r=length(d), a=atan(d.y,d.x);
+  float iris=sstep(.30,.285,r);
+  float fibres=.36+.10*sin(a*28.0+r*9.0)+.05*sin(a*7.0)+.12*sstep(.12,.28,r);
+  float limbal=sstep(.2,.29,r);
+  float it=mix(fibres,.18,limbal);
+  it=mix(it,.04,sstep(.125,.11,r));                    // pupil
+  it=max(it,.95*sstep(.045,.03,length(d-vec2(-.07,-.08)))); // highlight
+  tone=mix(tone,it,iris*open);
+  return clamp(tone,0.0,1.0);
+}
+void main(){
+  vec2 fc=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y);  // top-left origin
+  vec2 cell=floor(fc/uCell), ctr=(cell+.5)*uCell;
+  // trail: push the sample away from recent pointer points (displacement only, never brighter)
+  vec2 off=vec2(0.0);
+  for(int i=0;i<${TRAIL};i++){
+    vec3 t=uTrail[i]; if(t.z<=0.0) continue;
+    vec2 dd=ctr-t.xy; float rr=uCell*7.0;
+    float w=t.z*exp(-dot(dd,dd)/(rr*rr));
+    off+=normalize(dd+1e-4)*w*uCell*2.2;
+  }
+  float tone=eye(ctr+off);
+  float idx=floor((uCount-1.0)*tone+.5);
+  vec2 g=vec2(mod(idx,${GRID}.0),floor(idx/${GRID}.0));
+  vec2 f=fract(fc/uCell);
+  vec2 uv=(g+f)/${GRID}.0;
+  float m=texture(uAtlas,uv).r;
+  o=vec4(mix(uBg,uInk,m),1.0);
+}`;
+  const sh=(t,src)=>{const x=g2.createShader(t);g2.shaderSource(x,src);g2.compileShader(x);if(!g2.getShaderParameter(x,g2.COMPILE_STATUS))throw new Error(g2.getShaderInfoLog(x));return x;};
+  let prog;
+  try{
+    prog=g2.createProgram();g2.attachShader(prog,sh(g2.VERTEX_SHADER,vs));g2.attachShader(prog,sh(g2.FRAGMENT_SHADER,fs));g2.linkProgram(prog);
+    if(!g2.getProgramParameter(prog,g2.LINK_STATUS)) throw new Error(g2.getProgramInfoLog(prog));
+  }catch(e){ return null; }
+  const U={};["uRes","uCell","uAtlas","uCount","uGaze","uTrail","uInk","uBg"].forEach(n=>U[n]=g2.getUniformLocation(prog,n));
+  g2.useProgram(prog); g2.bindVertexArray(g2.createVertexArray());
+  const tex=g2.createTexture();
+  function buildAtlas(){
+    const N=1024,c=document.createElement("canvas"); c.width=c.height=N;
+    const x=c.getContext("2d"),step=N/GRID;
+    x.fillStyle="#000";x.fillRect(0,0,N,N);x.fillStyle="#fff";
+    x.font=`700 ${Math.round(step*.78)}px "Martian Mono",ui-monospace,monospace`;x.textAlign="center";x.textBaseline="middle";
+    for(let i=0;i<CHARS.length;i++) x.fillText(CHARS[i],(i%GRID)*step+step/2,Math.floor(i/GRID)*step+step/2);
+    g2.bindTexture(g2.TEXTURE_2D,tex);
+    g2.texImage2D(g2.TEXTURE_2D,0,g2.RGBA,g2.RGBA,g2.UNSIGNED_BYTE,c);
+    g2.texParameteri(g2.TEXTURE_2D,g2.TEXTURE_MIN_FILTER,g2.LINEAR);g2.texParameteri(g2.TEXTURE_2D,g2.TEXTURE_MAG_FILTER,g2.LINEAR);
+    g2.texParameteri(g2.TEXTURE_2D,g2.TEXTURE_WRAP_S,g2.CLAMP_TO_EDGE);g2.texParameteri(g2.TEXTURE_2D,g2.TEXTURE_WRAP_T,g2.CLAMP_TO_EDGE);
+  }
+  const trail=[],gz={x:0,y:0,tx:0,ty:0};
+  let dpr=1,queued=false;
+  function size(){
+    dpr=Math.min(devicePixelRatio||1,2);
+    const r=cv.getBoundingClientRect();
+    cv.width=Math.max(2,Math.round(r.width*dpr)); cv.height=Math.max(2,Math.round(r.height*dpr));
+    req();
+  }
+  function draw(){
+    g2.viewport(0,0,cv.width,cv.height);
+    g2.uniform2f(U.uRes,cv.width,cv.height);
+    g2.uniform1f(U.uCell,Math.round(12*dpr));
+    g2.uniform1f(U.uCount,CHARS.length);
+    g2.uniform1i(U.uAtlas,0);
+    g2.uniform2f(U.uGaze,gz.x,gz.y);
+    const arr=new Float32Array(TRAIL*3);
+    trail.forEach((t,i)=>{arr[i*3]=t.x*dpr;arr[i*3+1]=t.y*dpr;arr[i*3+2]=t.s;});
+    g2.uniform3fv(U.uTrail,arr);
+    g2.uniform3f(U.uInk,111/255,117/255,98/255);   // close to the ground: about 3:1
+    g2.uniform3f(U.uBg,18/255,18/255,16/255);
+    g2.activeTexture(g2.TEXTURE0); g2.bindTexture(g2.TEXTURE_2D,tex);
+    g2.drawArrays(g2.TRIANGLES,0,3);
+  }
+  let last=0;
+  function tick(now){
+    queued=false;
+    // time-based easing (real time, not frame counts): same feel at any frame rate
+    const dt=last?Math.min(100,now-last):16.7; last=now;
+    const k=1-Math.pow(.9,dt/16.7),fade=Math.pow(.9,dt/16.7);
+    gz.x+=(gz.tx-gz.x)*k; gz.y+=(gz.ty-gz.y)*k;
+    for(const t of trail) t.s*=fade;
+    while(trail.length&&trail[0].s<.02) trail.shift();
+    draw();
+    if(Math.abs(gz.tx-gz.x)+Math.abs(gz.ty-gz.y)>.002||trail.length) req(); else last=0;
+  }
+  function req(){ if(!queued){queued=true;requestAnimationFrame(tick);} }
+  if(!reduce){
+    // Listen on the document: the sticky headline sits on top of the banner and would swallow the events.
+    let inside=false;
+    document.addEventListener("pointermove",e=>{
+      if(cv.hidden) return;
+      const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+      const now=x>=0&&y>=0&&x<=r.width&&y<=r.height;
+      if(!now){ if(inside){inside=false;gz.tx=0;gz.ty=0;req();} return; }
+      inside=true;
+      const ex=r.width*.5,ey=r.height*.48,S=Math.min(r.width*.42,r.height*.78);
+      let dx=(x-ex)/S,dy=(y-ey)/S; const L=Math.hypot(dx,dy); if(L>1){dx/=L;dy/=L;}
+      gz.tx=dx; gz.ty=dy;
+      const last=trail[trail.length-1];
+      if(!last||Math.hypot(last.x-x,last.y-y)>14){ trail.push({x,y,s:1}); if(trail.length>TRAIL) trail.shift(); }
+      req();
+    });
+    document.addEventListener("pointerleave",()=>{inside=false;gz.tx=0;gz.ty=0;req();});
+  }
+  // Show the eye only once the atlas font is ready; the plate stays until then (and if anything fails).
+  const ready=document.fonts&&document.fonts.load?document.fonts.load('700 48px "Martian Mono"').catch(()=>{}):Promise.resolve();
+  ready.then(()=>{
+    buildAtlas(); cv.hidden=false; plate.hidden=true;
+    document.getElementById("heroNote").textContent="An eye drawn in letters. It follows your pointer and never blinks. The other pictures are dithered 3D shapes that hold still.";
+    size(); addEventListener("resize",size);
+  });
+  return {cv};
+})();
 
 /* ---------- reveal delays (data-d instead of inline styles, for the CSP) ---------- */
 document.querySelectorAll("[data-d]").forEach(el=>{el.style.transitionDelay=(+el.dataset.d||0)+"s";});
