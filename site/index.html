@@ -17,14 +17,15 @@
   tokens    one :root block at the top of the <style>: --bg #0e0e0e, --card, --fg #edeae3, --mute, --line,
             --paper (cream changelog), --ink; Sofia Sans Extra Condensed 900 for fitted display type, Martian Mono
             for labels and body; --ease for reveals, --roll for link and arrow rolls.
-  sections  nav, hero, about, decides, states, marquee, tested, changelog, download, footer (each carries data-section)
+  sections  nav, hero, inside (horizontal panels: what it is, how it decides, what you see, tested, changelog),
+            download, marquee, footer (each carries data-section)
   eye       hero banner: an eye drawn in characters (pattern studied on 2025.unseen.co: per-cell sampling, brightness
             picks a glyph from a canvas atlas, pointer drives a distortion field). Ours draws the eye in the shader (no
             video, no blink), only displaces cells near the pointer trail (never brightens), redraws only while the gaze
             or trail is settling, and holds still under reduced motion. The dithered plate is the fallback.
-  decides   a pinned scroll stepper (pattern studied on good-fella.com: tall section, sticky child, scroll progress
-            picks the active step, a marker square moves and turns). Ours uses native scroll, shows the step number
-            as plain text, and falls back to a plain list under 1200px or with reduced motion.
+  inside    horizontal panels with tabs (pattern studied on naughtyduk.com/projects/primal: a wheel listener with
+            passive:false captures the wheel at the end of the page and turns it into progress). Ours steps one panel
+            per wheel gesture over the track and releases at both ends; tabs and arrow keys work; reduced motion jumps.
   scripts   one classic IIFE: one shared WebGL2 context raymarches a signed-distance shape and Bayer-dithers it in
             the same pass (silhouette outline from the ray's closest approach), then copies it into each [data-art]
             canvas; fit-to-width headings, reveals, scroll-only parallax and marquee, phone menu, download box.
@@ -40,7 +41,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-iBUuq4ioocCHAPtnHF9SvY579YxbVtsqhoJo6Yicao0='; style-src 'self' 'sha256-lHAn8shMmq3LDr7hLSaDqfMwmfLKZOIREWX1FJfn8nw='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-sSwA4RE5sSIIG7zPq9VbqyTuJNrLDIqtTpzZxk4+W4E='; style-src 'self' 'sha256-zHH0D3SMCz0oNLOjCnivhjtECuutlwg5N3ALu7YptqU='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — flashing content, softened before it reaches you</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
@@ -126,15 +127,6 @@ body.menu-open .menu-btn .w2{top:0}
 .hero-img .eye[hidden]{display:none}
 .hero-note{position:absolute;left:16px;bottom:16px;z-index:2;max-width:360px;background:var(--panel);color:var(--fg);padding:10px 12px}
 
-/* about */
-.intro{display:flex;gap:16px;padding:80px 24px}
-.ic1{flex:1;display:flex;align-items:flex-start}
-.stmt{position:sticky;top:calc(var(--nav) + 32px);display:flex;flex-direction:column;gap:12px}
-.stmt .body,.bio .body{max-width:340px;color:var(--fg)}
-.stmt .muted{color:var(--mute)}
-.ic3{flex:1;display:flex;flex-direction:column;justify-content:flex-end}
-.bio{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
-
 /* button */
 .btn{display:inline-flex;align-items:center;padding:4px 6px 4px 12px;border:1px solid var(--line2);transition:border-color .3s;min-height:32px}
 .btn:hover,.btn:focus-visible{border-color:var(--mute)}
@@ -145,26 +137,32 @@ body.menu-open .menu-btn .w2{top:0}
 .slot .ain{left:120%;top:-20%}.slot .aout{left:50%;top:50%}
 .btn:hover .ain,.btn:focus-visible .ain{left:50%;top:50%}.btn:hover .aout,.btn:focus-visible .aout{left:-20%;top:120%}
 
-/* decides: pinned scroll stepper */
-.dec{position:relative;height:340vh;padding:0 24px}
-.dec-pin{position:sticky;top:0;height:100vh;display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:center;padding-top:var(--nav)}
-.dec-l{display:flex;flex-direction:column;gap:12px;height:min(66vh,560px)}
-.dec-l h2{font:900 80px/.88 var(--display);text-transform:uppercase}
-.dec-count{font:900 160px/.8 var(--display);color:var(--fg);margin-top:auto}
-.dec-count .of{font-size:.3em;color:var(--mute);margin-left:.1em}
-.dec-name{font-size:14px}
-.steps{position:relative;display:flex;flex-direction:column;gap:16px;padding-left:16px}
-.marker{position:absolute;left:0;top:10px;width:12px;height:12px;background:var(--warn);transition:transform .8s var(--roll)}
-.step{display:flex;gap:16px;align-items:flex-start;width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:4px 0 4px 16px;color:var(--mute);transition:color .6s var(--ease),transform .8s var(--roll)}
-.step .n{font:400 13px/1.6 var(--mono);padding-top:6px}
-.step .h{display:block;font:900 32px/.95 var(--display);text-transform:uppercase}
-.step .d{display:block;font:400 13px/1.55 var(--mono);margin-top:4px;max-width:48ch}
-.step[aria-current="step"]{color:var(--fg);transform:translateX(32px)}
-.dec-static .dec{height:auto;padding:80px 24px 0}
-.dec-static .dec-pin{position:static;height:auto;padding-top:0}
-.dec-static .marker{display:none}
-.dec-static .step{color:var(--fg);transform:none;cursor:default}
-.dec-static .dec-count,.dec-static .dec-name{display:none}
+/* inside: horizontal panels with tabs */
+.hz{position:relative;z-index:1;padding:48px 0 24px}
+.hz-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:0 24px 12px;flex-wrap:wrap}
+.hz-tabs{display:flex;gap:2px;overflow-x:auto;max-width:100%}
+.hz-tabs button{flex:none;background:none;border:1px solid var(--line2);color:var(--mute);font:400 12px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:9px 12px;min-height:32px;cursor:pointer}
+.hz-tabs button:hover{color:var(--fg);border-color:var(--mute)}
+.hz-tabs button[aria-current="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.hz-track{position:relative;display:flex;align-items:flex-start;gap:12px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:24px;padding:0 24px 12px;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+.hz-panel{flex:0 0 min(1120px,86vw);scroll-snap-align:start;display:flex;flex-direction:column;gap:14px;background:var(--card);padding:20px}
+.hz-panel.paper{background:var(--paper);color:var(--ink)}
+.hz-t{font:900 56px/.9 var(--display);text-transform:uppercase}
+.hz-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.hz-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.hz-cols>.body{font-size:16px;line-height:1.55;max-width:44ch}
+.hz-col{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.hz-col .body{max-width:48ch}
+.body.mute{color:var(--mute)}
+.ink-mute{color:var(--ink-mute);max-width:60ch}
+.hz-steps{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.hz-steps li{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.hz-steps .n{font:400 12px/1 var(--mono);color:var(--mute)}
+.hz-steps .h{font:900 26px/.95 var(--display);text-transform:uppercase}
+.hz-steps .d{font:400 12px/1.55 var(--mono);color:var(--mute)}
+.hz-progress{height:1px;margin:0 24px;background:var(--line)}
+.hz-progress span{display:block;height:1px;background:var(--fg);transform-origin:left;transform:scaleX(0)}
+@media (prefers-reduced-motion:reduce){.hz-track{scroll-behavior:auto}}
 /* states gallery */
 .work{position:relative;z-index:1;padding:80px 24px 0}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line2)}
@@ -251,16 +249,11 @@ body.menu-open .menu-btn .w2{top:0}
 /* tablet */
 @media (max-width:1199.98px){
   .latest{display:none}
-  .dec-pin{grid-template-columns:1fr;gap:32px}
-  .dec-l{height:auto}
-  .dec-count{font-size:110px;margin-top:0}
-  .dec-l h2{font-size:60px}
+  .hz-cols{grid-template-columns:1fr}
+  .hz-steps{grid-template-columns:repeat(2,1fr)}
+  .hz-t{font-size:44px}
   .brand{padding:0 20px}
   .hero{padding:calc(var(--nav) + 12px) 20px 32px}
-  .intro{flex-direction:column;gap:28px;padding:56px 20px}
-  .ic1,.ic3{flex:none;width:100%}
-  .stmt{position:static}
-  .stmt .body,.bio .body{max-width:560px}
   .work{padding:56px 20px 40px}
   .grid{grid-template-columns:repeat(2,1fr)}
   .card{height:320px}
@@ -290,12 +283,15 @@ body.menu-open .menu-btn .w2{top:0}
   .brand{padding:0;border:0;font-size:26px}
   .navlinks{display:none}
   .menu-btn{display:flex}
-  .dec-l h2{font-size:48px}
-  .dec-count{font-size:80px}
-  .step .h{font-size:26px}
+  .hz{padding:32px 0 16px}
+  .hz-head{padding:0 16px 10px}
+  .hz-track{padding:0 16px 10px;scroll-padding-inline:16px}
+  .hz-panel{flex-basis:88vw;padding:14px}
+  .hz-t{font-size:34px}
+  .hz-steps{grid-template-columns:1fr}
+  .hz-progress{margin:0 16px}
   .hero{padding:calc(var(--nav) + 10px) 16px 28px}
   .hero-img{height:56vh}
-  .intro{gap:24px;padding:40px 16px}
   .work{padding:48px 16px 32px}
   .grid{display:flex;flex-direction:column}
   .card{height:300px}
@@ -385,50 +381,47 @@ body.menu-open .menu-btn .w2{top:0}
     </div>
   </section>
 
-  <!-- 02 ABOUT -->
-  <section class="intro" id="about" data-section="about" aria-label="What FlashBan is">
-    <div class="ic1">
-      <div class="stmt">
-        <p class="body muted" data-reveal>[ What it is ]</p>
-        <p class="body" data-reveal data-d=".08">FlashBan is a free Chrome extension for people with photosensitive epilepsy. It finds flashing video, GIFs, canvas and animation and softens just that part, before it reaches you.</p>
-      </div>
-    </div>
-    <div class="ic3">
-      <div class="bio">
-        <p class="body" data-reveal>Soften first. Cover only if it won't calm down. Dim what it can't check. No account and no server: the only record is a site's domain, on your computer, for 30 days.</p>
-        <p class="body" data-reveal data-d=".06">Not a medical device. It reduces exposure to flashing content; it can't guarantee protection.</p>
-        <a class="btn" href="how.html" data-reveal data-d=".1">
-          <span class="label fg">How it decides</span>
-          <span class="slot" aria-hidden="true"><svg class="ic ain"><use href="#arw"/></svg><svg class="ic aout"><use href="#arw"/></svg></span>
-        </a>
-      </div>
-    </div>
-  </section>
 
-  <!-- 03 DECIDES -->
-  <section class="dec" id="decides" data-section="decides" aria-labelledby="dec-title">
-    <div class="dec-pin">
-      <div class="dec-l">
-        <p class="label">// The pipeline</p>
-        <h2 id="dec-title">How it decides</h2>
-        <p class="dec-count" aria-hidden="true"><span id="stepNum">01</span><span class="of">/05</span></p>
-        <p class="label fg dec-name" id="stepName" aria-hidden="true">Sample</p>
-      </div>
-      <ol class="steps" id="steps">
-        <li class="marker" id="marker" aria-hidden="true"></li>
-        <li><button class="step" type="button" aria-current="step"><span class="n">01</span><span><span class="h">Sample every frame</span><span class="d">Video frames, canvas pixels, animated images and CSS animations are read as they're drawn, never on a slow timer a strobe could slip between.</span></span></button></li>
-        <li><button class="step" type="button"><span class="n">02</span><span><span class="h">Measure brightness and red</span><span class="d">Relative luminance per WCAG, plus a separate check for saturated red. Near-black noise counts as having no colour.</span></span></button></li>
-        <li><button class="step" type="button"><span class="n">03</span><span><span class="h">Count in a one-second window</span><span class="d">By the clock, not by frames. Flashing area is added up across elements, so one big flash split into tiles still counts.</span></span></button></li>
-        <li><button class="step" type="button"><span class="n">04</span><span><span class="h">Decide</span><span class="d">Over the limit (WCAG by default; Strict and Relaxed in the popup) means act. Can't read it at all means fail closed.</span></span></button></li>
-        <li><button class="step" type="button"><span class="n">05</span><span><span class="h">Soften, cover or dim</span><span class="d">Soften keeps it playing, checked again by a second detector. Cover pauses it if softening isn't enough. Dim labels what couldn't be checked.</span></span></button></li>
-      </ol>
-    </div>
-  </section>
 
-  <!-- 03 STATES -->
-  <section class="work" id="states" data-section="states" aria-labelledby="s-title">
-    <h2 class="fit" id="s-title" data-reveal><span>What you see on the page</span></h2>
-    <div class="grid">
+
+
+  <!-- 02 INSIDE: horizontal panels with tabs (pattern studied on naughtyduk.com/projects/primal) -->
+  <section class="hz" id="inside" data-section="inside" aria-labelledby="hz-title">
+    <div class="hz-head">
+      <h2 class="label fg" id="hz-title">Inside FlashBan</h2>
+      <nav class="hz-tabs" id="hzTabs" aria-label="Inside FlashBan sections">
+        <button type="button" data-to="about" aria-current="true">What it is</button>
+        <button type="button" data-to="decides">How it decides</button>
+        <button type="button" data-to="states">What you see</button>
+        <button type="button" data-to="tested">Tested</button>
+        <button type="button" data-to="changelog">Changelog</button>
+      </nav>
+    </div>
+    <div class="hz-track" id="hzTrack" tabindex="0" role="region" aria-label="Inside FlashBan. Scrolls sideways: use the tabs, the arrow keys or the scroll wheel.">
+      <article class="hz-panel" id="about" aria-labelledby="pa-t">
+        <h3 class="hz-t" id="pa-t">What it is</h3>
+        <div class="hz-cols">
+          <p class="body">FlashBan is a free Chrome extension for people with photosensitive epilepsy. It finds flashing video, GIFs, canvas and animation and softens just that part, before it reaches you.</p>
+          <div class="hz-col">
+            <p class="body">Soften first. Cover only if it won't calm down. Dim what it can't check. No account and no server: the only record is a site's domain, on your computer, for 30 days.</p>
+            <p class="body mute">Not a medical device. It reduces exposure to flashing content; it can't guarantee protection.</p>
+            <a class="btn" href="how.html"><span class="label fg">How it decides</span><span class="slot" aria-hidden="true"><svg class="ic ain"><use href="#arw"/></svg><svg class="ic aout"><use href="#arw"/></svg></span></a>
+          </div>
+        </div>
+      </article>
+      <article class="hz-panel" id="decides" aria-labelledby="pd-t">
+        <h3 class="hz-t" id="pd-t">How it decides</h3>
+        <ol class="hz-steps">
+          <li><span class="n">01</span><span class="h">Sample every frame</span><span class="d">Video frames, canvas pixels, animated images and CSS animations are read as they're drawn, never on a slow timer a strobe could slip between.</span></li>
+          <li><span class="n">02</span><span class="h">Measure brightness and red</span><span class="d">Relative luminance per WCAG, plus a separate check for saturated red. Near-black noise counts as having no colour.</span></li>
+          <li><span class="n">03</span><span class="h">Count in a one-second window</span><span class="d">By the clock, not by frames. Flashing area is added up across elements, so one big flash split into tiles still counts.</span></li>
+          <li><span class="n">04</span><span class="h">Decide</span><span class="d">Over the limit (WCAG by default; Strict and Relaxed in the popup) means act. Can't read it at all means fail closed.</span></li>
+          <li><span class="n">05</span><span class="h">Soften, cover or dim</span><span class="d">Soften keeps it playing, checked again by a second detector. Cover pauses it if softening isn't enough. Dim labels what couldn't be checked.</span></li>
+        </ol>
+      </article>
+      <article class="hz-panel" id="states" aria-labelledby="ps-t">
+        <h3 class="hz-t" id="ps-t">What you see on the page</h3>
+        <div class="grid">
       <a class="card" href="how.html">
         <span class="ov-chip"><b>FlashBan</b>Flashing softened</span>
         <div class="cap"><div class="cap-row"><h3>Softened</h3>
@@ -458,59 +451,40 @@ body.menu-open .menu-btn .w2{top:0}
         </div>
       </a>
     </div>
-  </section>
-
-  <!-- 04 MARQUEE -->
-  <section class="marq-wrap" data-section="marquee" aria-label="Softened, not stopped">
-    <div class="marq" aria-hidden="true"><div class="track" id="track">
-      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
-      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
-      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
-      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
-    </div></div>
-  </section>
-
-  <!-- 05 TESTED -->
-  <section class="clients" id="tested" data-section="tested" aria-labelledby="t-title">
-    <div class="tag"><p class="label" id="t-title" data-reveal>[ Attack pages it beats ▪ node harness/run.mjs ]</p><a class="label fg" href="security.html" data-reveal>Threat model →</a></div>
-    <ul class="wall">
-      <li class="cell" data-reveal><span class="num">0.82 s</span><span class="what">A page deletes FlashBan's cover every frame: locked down.</span><span class="label">Overlay killer ▪ T6</span></li>
-      <li class="cell" data-reveal data-d=".06"><span class="num">0.42 s</span><span class="what">Red-only flashes with almost no brightness change: softened.</span><span class="label">Red only ▪ T3</span></li>
-      <li class="cell" data-reveal data-d=".12"><span class="num">0.44 s</span><span class="what">A 12.5 Hz strobe timed between samples: softened.</span><span class="label">Aliasing ▪ T1</span></li>
-      <li class="cell" data-reveal data-d=".18"><span class="num">1.2 s</span><span class="what">Flashing after 10 calm seconds: caught after it starts.</span><span class="label">Late start ▪ T8</span></li>
-      <li class="cell" data-reveal><span class="num">1.5 s</span><span class="what">40 strobes plus busy work: softened, never a silent allow.</span><span class="label">CPU flood ▪ T5</span></li>
-      <li class="cell" data-reveal data-d=".06"><span class="num">Dim</span><span class="what">A strobe on a canvas it can't read: dimmed and labelled.</span><span class="label">Tainted canvas ▪ T4</span></li>
-      <li class="cell" data-reveal data-d=".12"><span class="num">16 tiles</span><span class="what">One big flash split into small tiles: still blocked.</span><span class="label">Split area ▪ T2</span></li>
-      <li class="cell" data-reveal data-d=".18"><span class="num">0 of 7</span><span class="what">Everyday pages (scene cuts, a camera flash, a sunset) flagged.</span><span class="label">False positives</span></li>
+      </article>
+      <article class="hz-panel" id="tested" aria-labelledby="pt-t">
+        <div class="hz-row"><h3 class="hz-t" id="pt-t">Tested</h3><a class="label fg" href="security.html">Threat model →</a></div>
+        <p class="label">Attack pages it beats ▪ node harness/run.mjs</p>
+        <ul class="wall">
+      <li class="cell"><span class="num">0.82 s</span><span class="what">A page deletes FlashBan's cover every frame: locked down.</span><span class="label">Overlay killer ▪ T6</span></li>
+      <li class="cell"><span class="num">0.42 s</span><span class="what">Red-only flashes with almost no brightness change: softened.</span><span class="label">Red only ▪ T3</span></li>
+      <li class="cell"><span class="num">0.44 s</span><span class="what">A 12.5 Hz strobe timed between samples: softened.</span><span class="label">Aliasing ▪ T1</span></li>
+      <li class="cell"><span class="num">1.2 s</span><span class="what">Flashing after 10 calm seconds: caught after it starts.</span><span class="label">Late start ▪ T8</span></li>
+      <li class="cell"><span class="num">1.5 s</span><span class="what">40 strobes plus busy work: softened, never a silent allow.</span><span class="label">CPU flood ▪ T5</span></li>
+      <li class="cell"><span class="num">Dim</span><span class="what">A strobe on a canvas it can't read: dimmed and labelled.</span><span class="label">Tainted canvas ▪ T4</span></li>
+      <li class="cell"><span class="num">16 tiles</span><span class="what">One big flash split into small tiles: still blocked.</span><span class="label">Split area ▪ T2</span></li>
+      <li class="cell"><span class="num">0 of 7</span><span class="what">Everyday pages (scene cuts, a camera flash, a sunset) flagged.</span><span class="label">False positives</span></li>
     </ul>
-  </section>
-
-  <!-- 06 CHANGELOG -->
-  <section class="journal" id="changelog" data-section="changelog" aria-labelledby="c-title">
-    <div class="jhead">
-      <h2 class="fit" id="c-title" data-reveal><span>From the changelog</span></h2>
-      <div class="introrow">
-        <div class="sp96"></div><div class="grow"></div>
-        <p class="body jintro" data-reveal>Merged pull requests from the hackathon build, newest first. Every fix to a false alarm gets an everyday test page, so the harness keeps it fixed.</p>
-        <div class="sp48"></div>
-      </div>
-    </div>
-    <div class="posts">
-      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/94" rel="noopener noreferrer" data-reveal data-d=".1">
+      </article>
+      <article class="hz-panel paper" id="changelog" aria-labelledby="pc-t">
+        <h3 class="hz-t" id="pc-t">From the changelog</h3>
+        <p class="body ink-mute">Merged pull requests from the hackathon build, newest first. Every fix to a false alarm gets an everyday test page, so the harness keeps it fixed.</p>
+        <div class="posts">
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/94" rel="noopener noreferrer">
         <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">Near-black isn't red</h3>
         <p class="body exc">Compression noise in dark scenes was being read as red flashing. Near-black now has no hue, so letterbox bars stop tripping the red-flash rule. (#94)</p>
         <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
       </a>
-      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/84" rel="noopener noreferrer" data-reveal data-d=".2">
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/84" rel="noopener noreferrer">
         <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">Sharper soften</h3>
         <p class="body exc">The brightness clamp runs on the GPU at full resolution, only inside the flashing area. Everything outside it stays sharp and in colour. (#84)</p>
         <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
       </a>
-      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/77" rel="noopener noreferrer" data-reveal data-d=".3">
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/77" rel="noopener noreferrer">
         <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">YouTube, measured</h3>
@@ -519,14 +493,14 @@ body.menu-open .menu-btn .w2{top:0}
       </a>
       <details class="older">
         <summary class="label">Older changes</summary>
-      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/65" rel="noopener noreferrer" data-reveal data-d=".4">
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/65" rel="noopener noreferrer">
         <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">Every presented frame</h3>
         <p class="body exc">Sampling every presented frame closed a gap where a 30 Hz strobe at 60 fps could slip between samples. (#65)</p>
         <span class="disc" aria-hidden="true"><svg class="ic i2"><use href="#arw"/></svg><svg class="ic i1"><use href="#arw"/></svg></span>
       </a>
-      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/64" rel="noopener noreferrer" data-reveal data-d=".5">
+      <a class="row" href="https://github.com/dribeiro0/FlashBan/pull/64" rel="noopener noreferrer">
         <div class="bg"></div>
         <p class="body date"><time datetime="2026-11-07">Nov 7</time></p>
         <h3 class="rtitle">One bypass bar</h3>
@@ -535,6 +509,9 @@ body.menu-open .menu-btn .w2{top:0}
       </a>
       </details>
     </div>
+      </article>
+    </div>
+    <div class="hz-progress" aria-hidden="true"><span id="hzBar"></span></div>
   </section>
 
   <!-- 07 DOWNLOAD -->
@@ -552,6 +529,16 @@ body.menu-open .menu-btn .w2{top:0}
     </div>
     <p class="sha" id="sha" hidden><span class="label">SHA-256 ▪ reproducible build</span><span id="sha-v"></span></p>
     <p class="label note" data-reveal data-d=".16">Chrome 116+ ▪ Load unpacked ▪ Not in the Chrome Web Store yet ▪ Not a medical device</p>
+  </section>
+
+  <!-- 04 MARQUEE -->
+  <section class="marq-wrap" data-section="marquee" aria-label="Softened, not stopped">
+    <div class="marq" aria-hidden="true"><div class="track" id="track">
+      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
+      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
+      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
+      <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
+    </div></div>
   </section>
 </main>
 
@@ -924,46 +911,47 @@ function frame(){
 }
 schedule();
 
-/* ---------- "How it decides": pinned scroll stepper ----------
-   Progress through the tall section picks the active step (first sixth holds step 1, the rest splits evenly).
-   The left column shows the current step number as plain text (no pictures change).
-   Under 1200px or with reduced motion: a plain list, every step visible, nothing pinned. */
+/* ---------- "Inside FlashBan": horizontal panels with tabs ----------
+   Pattern studied on naughtyduk.com/projects/primal, where a wheel listener (passive:false) captures the wheel at
+   the end of the page and turns it into progress. Here the vertical wheel over the track steps one panel per
+   gesture and lets go at either end, so the page keeps scrolling. Tabs and arrow keys move it too; a hairline
+   shows progress. Reduced motion: jumps instead of slides. All panels stay in the page for screen readers. */
 (function(){
-  const sec=document.getElementById("decides"),list=document.getElementById("steps"),marker=document.getElementById("marker");
-  const btns=[...list.querySelectorAll(".step")],num=document.getElementById("stepNum"),name=document.getElementById("stepName");
-  const NAMES=["Sample","Measure","Count","Decide","Act"],n=btns.length,wide=matchMedia("(min-width:1200px)");
-  let active=0;
-  const isStatic=()=>reduce||!wide.matches;
-  const indexAt=p=>p<1/6?0:Math.min(Math.floor((p-1/6)/(5/6)*(n-1))+1,n-1);
-  const progress=()=>{const r=sec.getBoundingClientRect(),range=sec.offsetHeight-innerHeight;return range>0?Math.min(1,Math.max(0,-r.top/range)):0;};
-  function placeMarker(){
-    const first=btns[0].getBoundingClientRect(),cur=btns[active].getBoundingClientRect();
-    marker.style.transform=`translateY(${(cur.top-first.top).toFixed(1)}px) rotate(${90*active}deg)`;
+  const track=document.getElementById("hzTrack"),bar=document.getElementById("hzBar");
+  const tabs=[...document.querySelectorAll("#hzTabs button")],panels=tabs.map(t=>document.getElementById(t.dataset.to));
+  const last=panels.length-1,pad=()=>parseFloat(getComputedStyle(track).paddingLeft)||0;
+  const max=()=>track.scrollWidth-track.clientWidth;
+  const leftOf=i=>Math.min(max(),panels[i].offsetLeft-pad());
+  function current(){
+    const x=track.scrollLeft; let best=0,d=Infinity;
+    panels.forEach((_,i)=>{const dd=Math.abs(leftOf(i)-x); if(dd<d){d=dd;best=i;}});
+    return best;
   }
-  function showStep(){ num.textContent=String(active+1).padStart(2,"0"); name.textContent=NAMES[active]; }
-  function setActive(i){
-    if(i===active) return;
-    active=i;
-    btns.forEach((b,k)=>{ if(k===i) b.setAttribute("aria-current","step"); else b.removeAttribute("aria-current"); });
-    placeMarker(); showStep();
+  function go(i,instant){ track.scrollTo({left:leftOf(Math.max(0,Math.min(last,i))),behavior:instant||reduce?"auto":"smooth"}); }
+  let shown=-1;
+  function update(){
+    const i=current(),m=max();
+    if(i!==shown){ shown=i; tabs.forEach((t,k)=>{ if(k===i) t.setAttribute("aria-current","true"); else t.removeAttribute("aria-current"); }); }
+    bar.style.transform=`scaleX(${m>0?(track.scrollLeft/m).toFixed(4):1})`;
   }
-  function update(){ if(!isStatic()) setActive(indexAt(progress())); }
-  function mode(){
-    document.documentElement.classList.toggle("dec-static",isStatic());
-    if(isStatic()) btns.forEach(b=>b.removeAttribute("aria-current"));
-    else { btns.forEach((b,k)=>{ if(k===active) b.setAttribute("aria-current","step"); }); placeMarker(); update(); }
-  }
-  // Click (or Enter/Space) on a step scrolls to where that step becomes active. Native scroll, no hijacking.
-  btns.forEach((b,k)=>b.addEventListener("click",()=>{
-    if(isStatic()) return;
-    const range=sec.offsetHeight-innerHeight,top=sec.getBoundingClientRect().top+scrollY;
-    const p=k===0?1/12:1/6+(5/6)/(n-1)*(k-.5);
-    scrollTo({top:top+p*range,behavior:"smooth"});
-  }));
-  addEventListener("scroll",()=>requestAnimationFrame(update),{passive:true});
-  addEventListener("resize",()=>requestAnimationFrame(()=>{mode();placeMarker();}));
-  if(wide.addEventListener) wide.addEventListener("change",mode);
-  mode();
+  tabs.forEach((t,k)=>t.addEventListener("click",()=>go(k)));
+  // Vertical wheel over the track: one panel per gesture; at the first/last panel the page scrolls as normal.
+  let acc=0,lock=false;
+  track.addEventListener("wheel",e=>{
+    if(Math.abs(e.deltaX)>Math.abs(e.deltaY)||e.ctrlKey) return;      // trackpad sideways swipes and zoom stay native
+    const dir=Math.sign(e.deltaY),x=track.scrollLeft;
+    if(!dir||(dir<0&&x<=1)||(dir>0&&x>=max()-1)) return;                // release at the ends
+    e.preventDefault();
+    if(lock) return;
+    acc+=e.deltaY;
+    if(Math.abs(acc)>=40){ lock=true; acc=0; go(current()+dir); setTimeout(()=>{lock=false;},reduce?150:450); }
+  },{passive:false});
+  track.addEventListener("scroll",()=>requestAnimationFrame(update),{passive:true});
+  addEventListener("resize",()=>requestAnimationFrame(update));
+  // A link to #tested (nav) or any panel id lands on that panel.
+  function fromHash(){ const k=panels.findIndex(pn=>"#"+pn.id===location.hash); if(k>=0){ go(k,true); } }
+  addEventListener("hashchange",fromHash);
+  fromHash(); update();
 })();
 
 /* ---------- fit text ---------- */
