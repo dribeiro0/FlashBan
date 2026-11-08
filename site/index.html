@@ -17,7 +17,10 @@
   tokens    one :root block at the top of the <style>: --bg #0e0e0e, --card, --fg #edeae3, --mute, --line,
             --paper (cream changelog), --ink; Sofia Sans Extra Condensed 900 for fitted display type, Martian Mono
             for labels and body; --ease for reveals, --roll for link and arrow rolls.
-  sections  nav, hero, about, states, marquee, tested, changelog, download, footer (each carries data-section)
+  sections  nav, hero, about, decides, states, marquee, tested, changelog, download, footer (each carries data-section)
+  decides   a pinned scroll stepper (pattern studied on good-fella.com: tall section, sticky child, scroll progress
+            picks the active step, a marker square moves and turns). Ours uses native scroll, rate-limits the plate
+            swap to one fade per 400 ms, and falls back to a plain list under 1200px or with reduced motion.
   scripts   one classic IIFE: one shared WebGL2 context raymarches a signed-distance shape and Bayer-dithers it in
             the same pass (silhouette outline from the ray's closest approach), then copies it into each [data-art]
             canvas; fit-to-width headings, reveals, scroll-only parallax and marquee, phone menu, download box.
@@ -33,7 +36,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-cp+YaSE+q71m3A2m9OXw8clPQzSFBRqSBr8JFl2PbGM='; style-src 'self' 'sha256-0gW15zk7lUNYgr+ZQyzckjC9nhAtz1JDfYtV9D77yIE='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-XZbtYXB9KW38shBmjd6A1qt8hho4qzNyGiUuGBAbkJc='; style-src 'self' 'sha256-pF69owyPgvS3Y6c4YMq34fYHjoJfEgpoQT7NcMCvgtg='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — flashing content, softened before it reaches you</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
@@ -61,7 +64,7 @@ button{font:inherit;color:inherit}
 .skip{position:absolute;left:-999px;top:8px;z-index:60;background:var(--fg);color:var(--bg);padding:8px 12px}
 .skip:focus{left:8px}
 .sym{position:absolute;width:0;height:0;overflow:hidden}
-ul{list-style:none}
+ul,ol{list-style:none}
 .label{font:400 12px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
 .label.fg{color:var(--fg)}
 .body{font:400 13px/1.65 var(--mono)}
@@ -136,6 +139,26 @@ body.menu-open .menu-btn .w2{top:0}
 .slot .ain{left:120%;top:-20%}.slot .aout{left:50%;top:50%}
 .btn:hover .ain,.btn:focus-visible .ain{left:50%;top:50%}.btn:hover .aout,.btn:focus-visible .aout{left:-20%;top:120%}
 
+/* decides: pinned scroll stepper */
+.dec{position:relative;height:420vh;padding:0 24px}
+.dec-pin{position:sticky;top:0;height:100vh;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;padding-top:64px}
+.dec-l{display:flex;flex-direction:column;gap:24px;height:min(72vh,640px)}
+.dec-l h2{font:900 96px/.88 var(--display);text-transform:uppercase}
+.dec-plate{position:relative;flex:1;overflow:clip}
+.dec-plate .art{transition:opacity .35s var(--ease)}
+.dec-plate .art.swap{opacity:0}
+.dec-plate .ov-chip{z-index:2}
+.steps{position:relative;display:flex;flex-direction:column;gap:28px;padding-left:16px}
+.marker{position:absolute;left:0;top:10px;width:12px;height:12px;background:var(--warn);transition:transform .8s var(--roll)}
+.step{display:flex;gap:16px;align-items:flex-start;width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:4px 0 4px 16px;color:var(--mute);transition:color .6s var(--ease),transform .8s var(--roll)}
+.step .n{font:400 13px/1.6 var(--mono);padding-top:6px}
+.step .h{display:block;font:900 40px/.95 var(--display);text-transform:uppercase}
+.step .d{display:block;font:400 13px/1.6 var(--mono);margin-top:8px;max-width:44ch}
+.step[aria-current="step"]{color:var(--fg);transform:translateX(32px)}
+.dec-static .dec{height:auto;padding:128px 24px 0}
+.dec-static .dec-pin{position:static;height:auto;padding-top:0}
+.dec-static .marker{display:none}
+.dec-static .step{color:var(--fg);transform:none;cursor:default}
 /* states gallery */
 .work{position:relative;z-index:1;padding:128px 24px 0}
 .grid{display:grid;grid-template-columns:1fr 1fr}
@@ -220,6 +243,10 @@ body.menu-open .menu-btn .w2{top:0}
 /* tablet */
 @media (max-width:1199.98px){
   .latest{display:none}
+  .dec-pin{grid-template-columns:1fr;gap:32px}
+  .dec-l{height:auto}
+  .dec-plate{height:420px;flex:none}
+  .dec-l h2{font-size:72px}
   .brand{padding:0 20px}
   .hero{padding:88px 20px 64px}
   .intro{flex-direction:column;gap:48px;padding:96px 20px}
@@ -256,6 +283,9 @@ body.menu-open .menu-btn .w2{top:0}
   .brand{padding:0;border:0;font-size:26px}
   .navlinks{display:none}
   .menu-btn{display:flex}
+  .dec-l h2{font-size:56px}
+  .dec-plate{height:320px}
+  .step .h{font-size:32px}
   .hero{padding:80px 16px 48px}
   .hero-img{height:62vh}
   .intro{gap:40px;padding:64px 16px}
@@ -369,6 +399,28 @@ body.menu-open .menu-btn .w2{top:0}
           <span class="slot" aria-hidden="true"><svg class="ic ain"><use href="#arw"/></svg><svg class="ic aout"><use href="#arw"/></svg></span>
         </a>
       </div>
+    </div>
+  </section>
+
+  <!-- 03 DECIDES -->
+  <section class="dec" id="decides" data-section="decides" aria-labelledby="dec-title">
+    <div class="dec-pin">
+      <div class="dec-l">
+        <p class="label">// The pipeline</p>
+        <h2 id="dec-title">How it decides</h2>
+        <div class="dec-plate">
+          <div class="art" data-art="step0" id="stepArt" role="img" aria-label="A dithered 3D shape for the current step"></div>
+          <span class="ov-chip" id="stepChip" aria-hidden="true"><b>01</b>Sample</span>
+        </div>
+      </div>
+      <ol class="steps" id="steps">
+        <li class="marker" id="marker" aria-hidden="true"></li>
+        <li><button class="step" type="button" aria-current="step"><span class="n">01</span><span><span class="h">Sample every frame</span><span class="d">Video frames, canvas pixels, animated images and CSS animations are read as they're drawn, never on a slow timer a strobe could slip between.</span></span></button></li>
+        <li><button class="step" type="button"><span class="n">02</span><span><span class="h">Measure brightness and red</span><span class="d">Relative luminance per WCAG, plus a separate check for saturated red. Near-black noise counts as having no colour.</span></span></button></li>
+        <li><button class="step" type="button"><span class="n">03</span><span><span class="h">Count in a one-second window</span><span class="d">By the clock, not by frames. Flashing area is added up across elements, so one big flash split into tiles still counts.</span></span></button></li>
+        <li><button class="step" type="button"><span class="n">04</span><span><span class="h">Decide</span><span class="d">Over the limit (WCAG by default; Strict and Relaxed in the popup) means act. Can't read it at all means fail closed.</span></span></button></li>
+        <li><button class="step" type="button"><span class="n">05</span><span><span class="h">Soften, cover or dim</span><span class="d">Soften keeps it playing, checked again by a second detector. Cover pauses it if softening isn't enough. Dim labels what couldn't be checked.</span></span></button></li>
+      </ol>
     </div>
   </section>
 
@@ -544,6 +596,11 @@ const PAL={
 // shapes: 0 rounded box · 1 sphere · 2 torus · 3 capsule · 4 octahedron · 5 cylinder · 6 blob
 const SPEC={
   hero:    {shape:6,pal:"sage", zoom:1.15,yaw:.72, pitch:.5, bayer:4},
+  step0:   {shape:1,pal:"sage", zoom:1.2, yaw:.5,  pitch:.5, bayer:4},
+  step1:   {shape:5,pal:"sage", zoom:1.2, yaw:-.4, pitch:.6, bayer:4},
+  step2:   {shape:2,pal:"sage", zoom:1.15,yaw:.8,  pitch:.7, bayer:4},
+  step3:   {shape:4,pal:"sage", zoom:1.15,yaw:-.7, pitch:.5, bayer:4},
+  step4:   {shape:0,pal:"sage", zoom:1.2, yaw:.6,  pitch:.55,bayer:4},
   thumb:   {shape:2,pal:"sage", zoom:1.25,yaw:.4,  pitch:.7, bayer:2},
   portrait:{shape:2,pal:"sand", zoom:1.1, yaw:-.5, pitch:.45,bayer:4},
   softened:{shape:0,pal:"sage", zoom:1.2, yaw:.6,  pitch:.55,bayer:8},
@@ -573,6 +630,7 @@ uniform vec2 uCam;
 uniform float uZoom;
 uniform int uBayer;
 uniform vec3 uBg, uDark, uLight;
+uniform vec2 uOff;      // viewport origin inside the shared canvas
 
 float sdBox(vec3 p,vec3 b,float r){vec3 q=abs(p)-b;return length(max(q,0.0))+min(max(q.x,max(q.y,q.z)),0.0)-r;}
 float sdTorus(vec3 p,vec2 t){return length(vec2(length(p.xz)-t.x,p.y))-t.y;}
@@ -612,7 +670,8 @@ float threshold(ivec2 q){
   return (float(m[(q.y&3)*4+(q.x&3)])+0.5)/16.0;
 }
 void main(){
-  vec2 uv=(gl_FragCoord.xy*2.0-uRes)/min(uRes.x,uRes.y);
+  vec2 fc=gl_FragCoord.xy-uOff;
+  vec2 uv=(fc*2.0-uRes)/min(uRes.x,uRes.y);
   vec3 ro=3.5*uZoom*vec3(sin(uCam.x)*cos(uCam.y),sin(uCam.y),cos(uCam.x)*cos(uCam.y));
   vec3 fw=normalize(-ro),rt=normalize(cross(fw,vec3(0.0,1.0,0.0))),up=cross(rt,fw);
   vec3 rd=normalize(rt*uv.x+up*(uv.y-0.06)+fw*2.3);
@@ -636,7 +695,7 @@ void main(){
     lum=mix(0.62,0.96,shade(p+vec3(0.0,0.01,0.0),L,6.0));
     floorHit=true;
   }
-  ivec2 q=ivec2(gl_FragCoord.xy);
+  ivec2 q=ivec2(fc);
   vec3 col=lum>=threshold(q)?uLight:uDark;
   if(!hit&&!floorHit) col=uBg;
   float px=2.0/min(uRes.x,uRes.y);
@@ -654,7 +713,7 @@ function initGL(){
   const prog=gl.createProgram();
   gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(prog);
   if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog));
-  const U={};["uRes","uShape","uCam","uZoom","uBayer","uBg","uDark","uLight"].forEach(n=>U[n]=gl.getUniformLocation(prog,n));
+  const U={};["uRes","uShape","uCam","uZoom","uBayer","uBg","uDark","uLight","uOff"].forEach(n=>U[n]=gl.getUniformLocation(prog,n));
   gl.useProgram(prog);gl.bindVertexArray(gl.createVertexArray());
   const v3=(loc,c)=>gl.uniform3f(loc,c[0]/255,c[1]/255,c[2]/255);
   return function(m){
@@ -662,6 +721,7 @@ function initGL(){
     if(glc.width<w) glc.width=w; if(glc.height<h) glc.height=h;
     const s=m.spec,[bg,dark,light]=PAL[s.pal];
     gl.viewport(0,glc.height-h,w,h);
+    gl.uniform2f(U.uOff,0,glc.height-h);
     gl.uniform2f(U.uRes,w,h);
     gl.uniform1i(U.uShape,s.shape);
     gl.uniform2f(U.uCam,s.yaw+m.px*.6,Math.max(.08,Math.min(1.05,s.pitch+m.py*.4)));
@@ -719,6 +779,62 @@ function frame(){
   if(again) schedule();
 }
 schedule();
+
+/* ---------- "How it decides": pinned scroll stepper ----------
+   Progress through the tall section picks the active step (first sixth holds step 1, the rest splits evenly).
+   The plate swap is a fade, rate-limited to one change per 400 ms, so a fast scroll fling can't make it flicker.
+   Under 1200px or with reduced motion: a plain list, every step visible, nothing pinned. */
+(function(){
+  const sec=document.getElementById("decides"),list=document.getElementById("steps"),marker=document.getElementById("marker");
+  const btns=[...list.querySelectorAll(".step")],art=document.getElementById("stepArt"),chip=document.getElementById("stepChip");
+  const NAMES=["Sample","Measure","Count","Decide","Act"],n=btns.length,wide=matchMedia("(min-width:1200px)");
+  let active=0,shown=0,lastSwap=0,swapTimer=0;
+  const isStatic=()=>reduce||!wide.matches;
+  const indexAt=p=>p<1/6?0:Math.min(Math.floor((p-1/6)/(5/6)*(n-1))+1,n-1);
+  const progress=()=>{const r=sec.getBoundingClientRect(),range=sec.offsetHeight-innerHeight;return range>0?Math.min(1,Math.max(0,-r.top/range)):0;};
+  function placeMarker(){
+    const first=btns[0].getBoundingClientRect(),cur=btns[active].getBoundingClientRect();
+    marker.style.transform=`translateY(${(cur.top-first.top).toFixed(1)}px) rotate(${90*active}deg)`;
+  }
+  function showPlate(){
+    clearTimeout(swapTimer);
+    const wait=Math.max(0,400-(performance.now()-lastSwap));
+    swapTimer=setTimeout(()=>{
+      if(shown===active) return;
+      lastSwap=performance.now(); shown=active;
+      art.classList.add("swap");
+      setTimeout(()=>{
+        const m=byEl.get(art); if(m){m.spec=SPEC["step"+shown];m.dirty=true;schedule();}
+        if(!render) art.style.backgroundColor=rgb(PAL[SPEC["step"+shown].pal][0]);
+        chip.lastChild.textContent=NAMES[shown]; chip.firstChild.textContent=String(shown+1).padStart(2,"0");
+        art.classList.remove("swap");
+      },reduce?0:350);
+    },wait);
+  }
+  function setActive(i){
+    if(i===active) return;
+    active=i;
+    btns.forEach((b,k)=>{ if(k===i) b.setAttribute("aria-current","step"); else b.removeAttribute("aria-current"); });
+    placeMarker(); showPlate();
+  }
+  function update(){ if(!isStatic()) setActive(indexAt(progress())); }
+  function mode(){
+    document.documentElement.classList.toggle("dec-static",isStatic());
+    if(isStatic()) btns.forEach(b=>b.removeAttribute("aria-current"));
+    else { btns.forEach((b,k)=>{ if(k===active) b.setAttribute("aria-current","step"); }); placeMarker(); update(); }
+  }
+  // Click (or Enter/Space) on a step scrolls to where that step becomes active. Native scroll, no hijacking.
+  btns.forEach((b,k)=>b.addEventListener("click",()=>{
+    if(isStatic()) return;
+    const range=sec.offsetHeight-innerHeight,top=sec.getBoundingClientRect().top+scrollY;
+    const p=k===0?1/12:1/6+(5/6)/(n-1)*(k-.5);
+    scrollTo({top:top+p*range,behavior:"smooth"});
+  }));
+  addEventListener("scroll",()=>requestAnimationFrame(update),{passive:true});
+  addEventListener("resize",()=>requestAnimationFrame(()=>{mode();placeMarker();}));
+  if(wide.addEventListener) wide.addEventListener("change",mode);
+  mode();
+})();
 
 /* ---------- fit text ---------- */
 function fit(){
