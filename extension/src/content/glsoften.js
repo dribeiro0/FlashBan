@@ -36,6 +36,10 @@ const DETAIL_STRIDE_PX = 4; // low-pass tap spacing for the detail estimate
 // only those cells read as blocky patches next to sharp, coloured video. Whole
 // frame = no block edges, and nothing in the frame can swing past the clamp.
 const WHOLE_FRAME = true;
+// David (Sun 1:45 AM): stop the flashing altogether with one steady colour, and no
+// trail. When >= 0, the softened area is this flat sRGB grey (#555), no detail and
+// no lagging average shown. Set to -1 to go back to the clamped picture.
+const FLAT_GREY = 0x55 / 255;
 const MAX_STEP = 0.15; // largest share of the way to a new frame the average may move per processed frame
 
 const VERT = `
@@ -61,7 +65,7 @@ void main() {
 
 const FRAG_OUT = `
 precision highp float; varying vec2 uv;
-uniform sampler2D frame; uniform sampler2D avg; uniform sampler2D mask; uniform vec2 texel; uniform float band; uniform float detailGain; uniform float stride; uniform float chroma;
+uniform sampler2D frame; uniform sampler2D avg; uniform sampler2D mask; uniform vec2 texel; uniform float band; uniform float detailGain; uniform float stride; uniform float chroma; uniform float flatGrey;
 ${LIN}
 void main() {
   vec2 fuv = vec2(uv.x, 1.0 - uv.y);
@@ -69,6 +73,8 @@ void main() {
   vec3 A = texture2D(avg, uv).rgb;
   float w = texture2D(mask, fuv).r;
   if (w <= 0.001) { gl_FragColor = vec4(toSrgb(x), 1.0); return; }
+  // Flat mode: one steady grey (sRGB), no detail, so nothing flashes and nothing trails.
+  if (flatGrey >= 0.0) { gl_FragColor = vec4(mix(toSrgb(x), vec3(flatGrey), w), 1.0); return; }
   // Fine detail of the frame: x minus a cheap 3x3 low-pass at a wide stride.
   vec2 d = texel * stride;
   vec3 lp = x * 0.25
@@ -208,7 +214,7 @@ export function createGlSoftener(canvas, opts) {
     return null;
   }
   const uAvg = { src: G.getUniformLocation(progAvg, "src"), prev: G.getUniformLocation(progAvg, "prev"), a: G.getUniformLocation(progAvg, "a"), fromSrgb: G.getUniformLocation(progAvg, "fromSrgb"), flipSrc: G.getUniformLocation(progAvg, "flipSrc") };
-  const uOut = { frame: G.getUniformLocation(progOut, "frame"), avg: G.getUniformLocation(progOut, "avg"), mask: G.getUniformLocation(progOut, "mask"), texel: G.getUniformLocation(progOut, "texel"), band: G.getUniformLocation(progOut, "band"), detailGain: G.getUniformLocation(progOut, "detailGain"), stride: G.getUniformLocation(progOut, "stride"), chroma: G.getUniformLocation(progOut, "chroma") };
+  const uOut = { frame: G.getUniformLocation(progOut, "frame"), avg: G.getUniformLocation(progOut, "avg"), mask: G.getUniformLocation(progOut, "mask"), texel: G.getUniformLocation(progOut, "texel"), band: G.getUniformLocation(progOut, "band"), detailGain: G.getUniformLocation(progOut, "detailGain"), stride: G.getUniformLocation(progOut, "stride"), chroma: G.getUniformLocation(progOut, "chroma"), flatGrey: G.getUniformLocation(progOut, "flatGrey") };
   const ones = new Uint8Array(MW * MH).fill(255);
   const maskBytes = new Uint8Array(MW * MH);
   let ping = 0;
@@ -277,6 +283,7 @@ export function createGlSoftener(canvas, opts) {
     G.uniform1f(uOut.detailGain, DETAIL_GAIN);
     G.uniform1f(uOut.stride, DETAIL_STRIDE_PX);
     G.uniform1f(uOut.chroma, BASE_CHROMA);
+    G.uniform1f(uOut.flatGrey, FLAT_GREY);
     G.drawArrays(G.TRIANGLE_STRIP, 0, 4);
     return G.getError() === G.NO_ERROR;
   }
