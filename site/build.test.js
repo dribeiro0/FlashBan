@@ -1,7 +1,7 @@
 // Tests for the download packager: reproducible bytes, valid zip, nothing extra shipped.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildPackage, crc32, ships, zip } from "./build.mjs";
+import { buildPackage, crc32, normalize, ships, zip } from "./build.mjs";
 
 test("crc32 matches the standard check value", () => {
   assert.equal(crc32(Buffer.from("123456789")), 0xcbf43926);
@@ -51,4 +51,12 @@ test("stored entries round-trip their data and CRC", () => {
   const n = buf.readUInt16LE(26);
   assert.equal(buf.readUInt32LE(14), crc32(data));
   assert.ok(buf.subarray(30 + n, 30 + n + data.length).equals(data));
+});
+
+test("text files zip with LF, so Windows (CRLF) checkouts build the same bytes", () => {
+  const lf = Buffer.from("a\nb\n"), crlf = Buffer.from("a\r\nb\r\n");
+  assert.ok(normalize("src/x.js", crlf).equals(lf));
+  assert.ok(normalize("manifest.json", lf).equals(lf));
+  const png = Buffer.from([0x89, 0x50, 0x0d, 0x0a]);
+  assert.ok(normalize("icon.png", png).equals(png), "binary files are untouched");
 });

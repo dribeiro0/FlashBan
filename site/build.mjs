@@ -98,6 +98,13 @@ export function zip(entries) {
   return Buffer.concat([...parts, cdBuf, end]);
 }
 
+// Text files are zipped with LF line endings, so a Windows checkout (git core.autocrlf turns \n into \r\n)
+// builds the same bytes and the same SHA-256 as Linux and macOS. Binary files are copied as they are.
+const TEXT = /\.(js|mjs|json|html|css|md|txt|svg)$/i;
+export function normalize(rel, data) {
+  return TEXT.test(rel) ? Buffer.from(data.toString("utf8").replace(/\r\n/g, "\n"), "utf8") : data;
+}
+
 /** Reads extension/ and returns the package (no files written). */
 export async function buildPackage(extDir = EXT) {
   const manifest = JSON.parse(await readFile(join(extDir, "manifest.json"), "utf8"));
@@ -109,7 +116,7 @@ export async function buildPackage(extDir = EXT) {
     .filter(ships)
     .sort();
   const entries = [];
-  for (const rel of files) entries.push({ name: `${folder}/${rel}`, data: await readFile(join(extDir, rel)) });
+  for (const rel of files) entries.push({ name: `${folder}/${rel}`, data: normalize(rel, await readFile(join(extDir, rel))) });
   const bytes = zip(entries);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   return {
