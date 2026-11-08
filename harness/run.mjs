@@ -249,7 +249,7 @@ async function main() {
       });
       await cdp.send("Page.navigate", { url }, sessionId);
       await Promise.race([loaded, sleep(8000)]);
-      await sleep(800); // extension loader + detector import
+      await sleep(3000); // extension loader + detector import
 
       // Trusted click on Start (real input event, like a user).
       const box = await cdp.send(
@@ -275,7 +275,8 @@ async function main() {
       let lastPanels = [];
       let shot = null;
       const extra = page.rel.includes("video") ? 4000 : 0; // video page records first
-      const runEnd = startedAt + page.seconds * 1000 + extra;
+      let runEnd = page.rel.includes("video") ? startedAt + 30000 : startedAt + page.seconds * 1000 + extra; // video: until playback starts, then 3.5 s
+      let playingSeen = !page.rel.includes("video"); // video: judge a fixed window after playback starts, not after Start
       const shoot = async (suffix) => {
         const { data } = await cdp.send("Page.captureScreenshot", { format: "png" }, sessionId);
         const file = join(SHOTS, page.rel.replaceAll("/", "_").replace(/\.html$/, `${suffix}.png`));
@@ -284,6 +285,13 @@ async function main() {
       };
       while (Date.now() < runEnd - 100) {
         await sleep(400); // DOM.getDocument(pierce) is heavy: polling faster stalls the page and trips the gap rule
+        if (!playingSeen) {
+          const pl = await cdp.send("Runtime.evaluate", { expression: `(() => { const v = document.querySelector("video"); return !!v && !v.paused && v.currentTime > 0.1; })()`, returnByValue: true }, sessionId);
+          if (pl.result.value === true) {
+            playingSeen = true;
+            runEnd = Math.min(Date.now() + 3500, startedAt + 30000); // slow machines record slower: allow 3.5 s of playback
+          }
+        }
         const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true }, sessionId);
         lastPanels = shieldPanels(root);
         // Page lockdown (threat T6 fix): panels are gone on purpose, media is
