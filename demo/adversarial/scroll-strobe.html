@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="shield-expected" content="block">
+<title>Scroll-linked strobe | Seizure Shield adversarial test</title>
+<link rel="stylesheet" href="../demo.css">
+<style>
+  /* Stage stays in view while the page scrolls. */
+  #stage { position: fixed; right: 16px; bottom: 16px; }
+  /* 10 dark/light cycles across the scroll range, driven by scrolling, not time. */
+  #stage.scroll-run { animation: demo-strobe linear 10 both; animation-timeline: scroll(root); }
+  .spacer { height: 4000px; }
+</style>
+</head>
+<body>
+<p class="warning" role="note"><strong>Warning: flashing test content.</strong> This page is a synthetic attack fixture for the Seizure Shield extension. If you are sensitive to flashing light, do not press Start. Nothing moves until you press Start; Stop, Escape or switching tabs ends the run. Run at 100% browser zoom and low screen brightness.</p>
+<h1>Scroll-linked strobe</h1>
+<p>A CSS background-color animation bound to the page's scroll position (<code>animation-timeline: scroll()</code>) instead of time: 10 dark/light cycles across the scroll range. After Start, the page scrolls itself down and up once a second, which plays about 10 cycles per second. A real attack would rely on the user scrolling quickly. The box is fixed at the bottom right.</p>
+<p class="meta">Expected shield verdict: <strong>block</strong>. Colors #222222 and #777777, 320 by 180 CSS px. Default run 3 s; add <code>?seconds=N</code> (1 to 10). <a href="../index.html">All fixtures</a></p>
+<div class="controls">
+<button id="start" type="button">Start</button>
+<button id="stop" type="button" disabled>Stop</button>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<div id="stage" class="stage" data-kind="static" data-label="scroll-linked strobe, about 10 cycles per second" role="img" aria-label="Test box animated by scrolling"></div>
+<div class="spacer" aria-hidden="true"></div>
+<script src="../fixture.js"></script>
+<script src="scroll-strobe.js"></script>
+</body>
+</html>
