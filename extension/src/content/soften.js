@@ -33,6 +33,7 @@
 import { DEFAULT_TAU } from "../detect/soften.js";
 import { createGlSoftener } from "./glsoften.js";
 import { readAsync, asyncReadAvailable } from "./glread.js";
+import { GROUND, INK, RULE, MONO, ENTER_MS, ENTER_KEYFRAMES } from "../shared/theme.js";
 
 // GPU clamp (glsoften.js, David's masked brightness clamp): regions the raw
 // detector marks as flashing are clamped; the rest passes through sharp.
@@ -72,11 +73,15 @@ const CSS = `
   .layer::backdrop { display: none; }
   canvas { position: absolute; left: 0; top: 0; display: block; pointer-events: none; image-rendering: auto;
            opacity: 1; transition: opacity ${FADE_MS}ms linear; }
-  .badge { position: absolute; margin: 8px; padding: 4px 10px; border-radius: 4px; pointer-events: none;
-           font: 600 13px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-           color: #ffffff; background: rgba(0, 0, 0, 0.78); }
+  /* Badge in the FlashBan look: square, ruled, mono uppercase label (INK on GROUND 18:1).
+     It labels content that is already softened, so it may ease in; the soften itself never waits for it. */
+  .badge { position: absolute; margin: 8px; padding: 3px 8px; border-radius: 0; pointer-events: none;
+           font: 600 12px/1.3 ${MONO}; letter-spacing: 0.04em; text-transform: uppercase;
+           color: ${INK}; background: ${GROUND}; border: 1px solid ${RULE};
+           animation: fb-enter ${ENTER_MS}ms ease-out both; }
+  ${ENTER_KEYFRAMES}
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  @media (prefers-reduced-motion: reduce) { canvas { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { canvas { transition: none; } .badge { animation: none; } }
 `;
 
 /**

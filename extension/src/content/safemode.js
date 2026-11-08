@@ -12,6 +12,8 @@
 //   temporary dim is released, which is skipped under prefers-reduced-motion.
 // - "Show anyway" only works for trusted (real user) clicks or key presses.
 
+import { GROUND, INK, MUTE, ACCENT, RULE, GRAIN_DARK, FONT, MONO, ENTER_MS, ENTER_KEYFRAMES } from "../shared/theme.js";
+
 const FADE_MS = 250;
 const ANNOUNCE_GAP_MS = 5000;
 const COMPACT_W = 220;
@@ -58,8 +60,8 @@ const SHADOW_CSS = `
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 8px; padding: 12px; overflow: hidden; text-align: center;
     pointer-events: auto; opacity: 1; transition: opacity ${FADE_MS}ms linear;
-    font: 600 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    color: #ffffff;
+    font: 600 15px/1.35 ${FONT};
+    color: ${INK};
   }
   .panel[hidden] { display: none; }
   /* Dim: the content stays visible but clearly darker, with a small label in
@@ -79,7 +81,7 @@ const SHADOW_CSS = `
   }
   .panel.dim button { pointer-events: auto; }
   .panel.dim .title, .panel.dim .reason {
-    background: #121212; padding: 3px 8px; border-radius: 0; max-width: calc(100% - 16px);
+    background: ${GROUND}; padding: 3px 8px; border-radius: 0; max-width: calc(100% - 16px);
   }
   .panel.dim .title { font-size: 14px; }
   .panel.dim.checking .reason { display: none; }
@@ -99,39 +101,44 @@ const SHADOW_CSS = `
   }
   .pagecheck.fading { opacity: 0; }
   .pagecheck p {
-    margin: 0; padding: 6px 12px; border-radius: 0; background: #121212; color: #ffffff; border: 1px solid #3a3a36;
-    font: 600 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 6px 12px; border-radius: 0; background: ${GROUND}; color: ${INK}; border: 1px solid ${RULE};
+    font: 600 14px/1.35 ${FONT};
   }
   .pagecheck .brand { margin-right: 8px; display: inline-block; }
-  @media (prefers-reduced-motion: reduce) { .pagecheck { transition: none; } }
+  /* Motion (slow, one-shot, never on what dims or covers): the page-check label
+     and the bar ease in; the dim behind the label appears at once. */
+  ${ENTER_KEYFRAMES}
+  .pagecheck p { animation: fb-enter ${ENTER_MS}ms ease-out both; }
+  @media (prefers-reduced-motion: reduce) { .pagecheck { transition: none; } .pagecheck p { animation: none; } }
   /* The one bypass control for the page (lead decision, Sat 7:01 PM, David's
      proposal): a slim bar at the top right, never over the content it
      protects, with one button that shows the original on this site. */
   .bar {
     position: fixed; top: 8px; right: 8px; max-width: calc(100vw - 16px); box-sizing: border-box;
     display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px;
-    background: #121212; color: #ffffff; border-radius: 0; border: 1px solid #3a3a36; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
-    pointer-events: auto; font: 600 13px/1.25 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: ${GROUND}; color: ${INK}; border-radius: 0; border: 1px solid ${RULE}; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    pointer-events: auto; font: 600 13px/1.25 ${FONT};
     text-align: left;
   }
+  .bar:not([hidden]) { animation: fb-enter ${ENTER_MS}ms ease-out both; }
   .bar[hidden] { display: none; }
   .bar .brand { margin: 0; }
   .bar .text { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bar button { min-height: 32px; padding: 4px 12px; font-size: 13px; white-space: nowrap; }
-  .panel.cover { background: #121212; }
+  .panel.cover { background: ${GROUND}; }
   /* Dithering look: a decorative band in two near-identical blacks (static, ~1.1:1, never behind text). */
   .panel.cover::before {
     content: ""; position: absolute; left: 0; right: 0; top: 0; height: 12px;
-    background: repeating-conic-gradient(#1d1d1a 0 25%, #121212 0 50%) 0 0 / 4px 4px; pointer-events: none;
+    background: repeating-conic-gradient(${GRAIN_DARK} 0 25%, ${GROUND} 0 50%) 0 0 / 4px 4px; pointer-events: none;
   }
   .brand {
     margin: 0; padding: 2px 8px; border-radius: 0;
-    background: #ffd84d; color: #121212; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
-    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace; text-transform: uppercase;
+    background: ${ACCENT}; color: ${GROUND}; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+    font-family: ${MONO}; text-transform: uppercase;
   }
   .panel.fading { opacity: 0; }
   .title { margin: 0; font-size: 16px; }
-  .reason { margin: 0; font-weight: 400; font-size: 13px; color: #e8e8e8; max-width: 36em; }
+  .reason { margin: 0; font-weight: 400; font-size: 13px; color: ${MUTE}; max-width: 36em; }
   .panel.compact { gap: 4px; padding: 6px; }
   .panel.compact .reason { display: none; }
   .panel.compact .title { font-size: 13px; }
@@ -139,9 +146,13 @@ const SHADOW_CSS = `
   button {
     font: inherit; font-size: 14px; min-height: 44px; min-width: 44px;
     padding: 8px 16px; border-radius: 0; cursor: pointer;
-    border: 2px solid #ffd84d; background: #ffd84d; color: #121212;
+    border: 2px solid ${ACCENT}; background: ${ACCENT}; color: ${GROUND};
+    transition: background-color 150ms ease-out, color 150ms ease-out, outline-offset 150ms ease-out;
   }
-  button:focus-visible { outline: 3px solid #ffffff; outline-offset: 3px; }
+  /* Hover inverts to accent-on-ground (13.5:1), a slow colour change, never a blink. */
+  button:hover { background: ${GROUND}; color: ${ACCENT}; }
+  button:focus-visible { outline: 3px solid ${INK}; outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { button { transition: none; } .bar { animation: none; } }
   .sr {
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;

@@ -5,6 +5,7 @@
 import { normalizeSettings, registrableDomain, isValidDomain } from "../shared/settings.js";
 import { validateContentMessage, validateHudSubscribe, applyViolation, pruneLog } from "./validate.js";
 import { animatedFromBytes } from "./imagesniff.js";
+import { GROUND, INK, ACCENT, FONT } from "../shared/theme.js";
 
 const HUD_MIN_GAP_MS = 100; // at most 10 relayed messages per second per source
 const HUD_PAGE_PREFIX = chrome.runtime.getURL("hud/");
@@ -16,14 +17,15 @@ const HUD_PAGE_PREFIX = chrome.runtime.getURL("hud/");
 const LOCKDOWN_CSS = `
 canvas, video, img, picture, svg, iframe, embed, object { visibility: hidden !important; }
 *, *::before, *::after { animation-play-state: paused !important; transition: none !important; }
-html, body { background: #121212 !important; background-image: none !important; }
+html, body { background: ${GROUND} !important; background-image: none !important; }
 body { filter: grayscale(1) brightness(0.25) !important; }
 html::after {
   content: "FlashBan dimmed this page: it was flashing and kept trying to remove FlashBan's protection. To see it anyway, open FlashBan and turn off protection for this site." !important;
   display: block !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important;
   z-index: 2147483647 !important; margin: 0 !important; padding: 14px 18px !important;
-  background: #121212 !important; color: #ffffff !important;
-  font: 600 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
+  background: ${GROUND} !important; color: ${INK} !important;
+  border: 0 !important; border-bottom: 3px solid ${ACCENT} !important; border-radius: 0 !important; box-shadow: none !important;
+  font: 600 16px/1.4 ${FONT} !important;
   text-align: center !important; visibility: visible !important; opacity: 1 !important; filter: none !important;
 }
 `;

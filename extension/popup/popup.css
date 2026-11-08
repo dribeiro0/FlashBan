@@ -1,5 +1,6 @@
 /* FlashBan popup in the dithering look (matches site/, demo/showcase and hud.css).
-   Static UI: no animations or transitions anywhere (our own UI must never flash).
+   Motion: slow (150-300 ms), one-shot, opacity/transform/colour only, never a blink,
+   pulse or loop, and all of it off under prefers-reduced-motion (our UI must never flash).
    Dither appears only on the small brand swatch, low contrast, never behind text. */
 :root {
   color-scheme: light dark;
@@ -27,10 +28,16 @@
     --grain: repeating-conic-gradient(#5e6844 0 25%, #4f583a 0 50%) 0 0 / 4px 4px;
   }
 }
-* {
-  box-sizing: border-box;
-  transition: none !important;
-  animation: none !important;
+* { box-sizing: border-box; }
+@keyframes fb-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  main { animation: fb-enter 250ms ease-out both; }
+  details[open] > :not(summary) { animation: fb-enter 200ms ease-out both; }
+  button { transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out; }
+  :focus-visible { transition: outline-offset 150ms ease-out; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 body {
   margin: 0;
@@ -46,9 +53,9 @@ h1 {
   align-items: center;
   gap: 10px;
   margin: 0;
-  padding: 12px 16px 10px;
+  padding: 10px 14px 8px;
   border-bottom: 1.5px solid var(--rule);
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.01em;
 }
@@ -62,7 +69,7 @@ h1::before {
 }
 .status {
   margin: 0;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-bottom: 1.5px solid var(--rule);
   font-weight: 600;
 }
@@ -71,7 +78,7 @@ h1::before {
   align-items: flex-start;
   gap: 10px;
   margin: 0;
-  padding: 8px 16px 0;
+  padding: 6px 14px 0;
 }
 .row input {
   width: 18px;
@@ -80,17 +87,17 @@ h1::before {
   flex: none;
   accent-color: var(--accent);
 }
-main > .row { padding: 12px 16px; border-bottom: 1px solid var(--soft); }
+main > .row { padding: 10px 14px; border-bottom: 1px solid var(--soft); }
 fieldset {
   margin: 0;
-  padding: 10px 0 12px;
+  padding: 8px 0 10px;
   border: 0;
   border-bottom: 1px solid var(--soft);
 }
 legend {
   float: left;
   width: 100%;
-  padding: 0 16px 2px;
+  padding: 0 14px 2px;
   font: 600 11px/1.4 var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -98,7 +105,7 @@ legend {
 }
 legend + * { clear: left; }
 .hint {
-  margin: 2px 16px 4px 44px;
+  margin: 1px 14px 3px 42px;
   color: var(--muted);
   font-size: 12.5px;
 }
@@ -113,9 +120,9 @@ summary {
   padding: 4px 0;
 }
 button {
-  margin: 8px 16px 0;
-  min-height: 36px;
-  padding: 6px 12px;
+  margin: 8px 14px 0;
+  min-height: 32px;
+  padding: 4px 12px;
   border: 1.5px solid var(--fg);
   border-radius: 0;
   background: var(--fg);
@@ -124,6 +131,7 @@ button {
   cursor: pointer;
 }
 details button { margin-left: 0; }
+button:hover:not(:disabled) { background: var(--bg); color: var(--fg); }
 button:disabled {
   opacity: 1;
   background: transparent;
