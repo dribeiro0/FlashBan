@@ -7,7 +7,7 @@
 
 import * as safemode from "./safemode.js";
 import { loadDetector } from "./detector.js";
-import { backdropOf, effectiveColor, visibleArea, relativeLuminance } from "./domflicker.js";
+import { backdropOf, effectiveColor, visibleArea, relativeLuminance, parseComputedColor } from "./domflicker.js";
 import { startSoften, softenable } from "./soften.js";
 import { readAsync } from "./glread.js";
 import { normalizeSettings, registrableDomain } from "../shared/settings.js";
@@ -76,6 +76,8 @@ const MAX_DOM_SOURCES = 24; // CPU guard (threat T5)
 const DOM_CHILD_SHARE = 0.25; // also watch direct children covering at least this share
 const DOM_MAX_CHILDREN = 6;
 const BACKDROP_CACHE_MS = 250;
+const MEDIA_OVERLAP_SHARE = 0.5; // a DOM layer this much over a measured video/canvas is player chrome
+const MEDIA_OVERLAP_CACHE_MS = 500;
 
 const REASONS = {
   general: "It was flashing faster than is safe.",
@@ -1218,6 +1220,8 @@ class DomSource extends Source {
     /** @type {ReturnType<typeof backdropOf> | null} */ this.backdrop = null;
     this.backdropAt = -Infinity;
     this.area = 0;
+    this.overMediaAt = -Infinity;
+    this.overMediaVal = false;
   }
 
   /** @param {number} now */
@@ -1266,12 +1270,63 @@ class DomSource extends Source {
     return true;
   }
 
+  /**
+   * Is this element mostly a see-through layer over (or the box around) a
+   * video or canvas we're already measuring? Cached for MEDIA_OVERLAP_CACHE_MS.
+   * An opaque layer (background alpha >= 0.9) still counts as page content:
+   * a page can't hide a strobe by placing it over a video.
+   * @param {number} t
+   */
+  overMedia(t) {
+    if (t - this.overMediaAt < MEDIA_OVERLAP_CACHE_MS) return this.overMediaVal;
+    this.overMediaAt = t;
+    this.overMediaVal = false;
+    try {
+      const el = this.el;
+      const r = el.getBoundingClientRect();
+      const a = r.width * r.height;
+      if (!(a > 0)) return false;
+      let bgAlpha = 0;
+      const bg = parseComputedColor(getComputedStyle(el).backgroundColor);
+      if (bg) bgAlpha = bg[3];
+      for (const m of sources.values()) {
+        if (m.kind !== "video" && m.kind !== "canvas") continue;
+        if (!m.el.isConnected) continue;
+        const mr = m.el.getBoundingClientRect();
+        const ow = Math.min(r.right, mr.right) - Math.max(r.left, mr.left);
+        const oh = Math.min(r.bottom, mr.bottom) - Math.max(r.top, mr.top);
+        if (ow <= 0 || oh <= 0) continue;
+        const share = (ow * oh) / a;
+        if (share < MEDIA_OVERLAP_SHARE) continue;
+        if (el.contains(m.el) || bgAlpha < 0.9) {
+          this.overMediaVal = true;
+          break;
+        }
+      }
+    } catch {}
+    return this.overMediaVal;
+  }
+
   /** @param {number} t */
   sample(t) {
     if (this.stopped || !enabled || !this.el.isConnected || t <= this.lastT) return;
     const { area } = visibleArea(this.el);
     if (area < DOM_MIN_AREA) {
       // Off screen or tiny: nothing to protect right now; restart cleanly later.
+      if (this.onScreen) {
+        this.onScreen = false;
+        this.resetDetector();
+      }
+      return;
+    }
+    if (this.overMedia(t)) {
+      // Player chrome over a video we measure by its pixels (Sat 11:25 PM,
+      // Rick Astley on Avery's laptop): YouTube's controls, overlays and end
+      // cards fade in and out over the video, their computed colours swung
+      // against the player's black background (not the video actually seen
+      // through them), so they read as flashing, got softened, and their area
+      // pushed the page aggregate over the limit, covering the video. What
+      // shows there is the video, which its own detector checks.
       if (this.onScreen) {
         this.onScreen = false;
         this.resetDetector();
