@@ -82,6 +82,15 @@ const RECHECK_CALM_MS = 1500; // a covered video's new source must be calm this 
 const MEDIA_OVERLAP_SHARE = 0.5; // a DOM layer this much over a measured video/canvas is player chrome
 const MEDIA_OVERLAP_CACHE_MS = 500;
 const LAYER_ALPHA_WATCH = 0.2; // a layer over media seen this opaque even once is always watched
+// How "soften" keeps flashing media watchable (David, Sun 2:40 AM).
+// "dim": the safemode dim layer, a 72% black click-through layer with a greyscale
+// backdrop. Safe by arithmetic, not by tracking: the brightest pixel left is
+// sRGB 0.28 (relative luminance ~0.065), under the 0.10 a flash needs, and
+// greyscale leaves no red to flash. No frame readback or averaging, so motion
+// stays sharp with no trails, ghosting or blocks. Per-pixel temporal filtering
+// (the GPU soften) can't tell a moving bright object from a flash, so it always
+// smeared or hid moving content; it is kept behind "gpu" for reference.
+const SOFTEN_STYLE = "dim";
 
 const REASONS = {
   general: "It was flashing faster than is safe.",
@@ -98,6 +107,7 @@ const REASONS = {
   css: "A rapidly flashing animation was paused.",
   unknownStyle: "It changes too fast to check, so it's dimmed to be safe.",
   glow: "A decorative glow was faded.",
+  softDim: "It was flashing, so it's dimmed and in greyscale, where it can't flash. It keeps playing.",
 };
 
 // ---------------------------------------------------------------- state
@@ -1113,6 +1123,14 @@ class Source {
     if (settings.onFlash !== "soften" || this.softFailed) return false;
     if (this.kind === "dom") return this.softenDom(report, t);
     if (!softenable(v)) return false;
+    if (SOFTEN_STYLE === "dim") {
+      // Dim + greyscale: the content stays visible and playing, darker and grey,
+      // and nothing in it can reach a flash. Stays for this element (no on/off).
+      safemode.guard(v, "dim", REASONS.softDim, { canShow: true });
+      this.persistentDim = true;
+      this.noteViolation(report, t); // still logged: the site served flashing media
+      return true;
+    }
     let soft = null;
     try {
       soft = startSoften(/** @type {any} */ (v), {
