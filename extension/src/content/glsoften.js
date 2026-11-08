@@ -24,9 +24,12 @@ const AVG_TAU = 0.5;
 // Share of the average's colour kept inside the mask (the rest goes to grey of
 // the same luminance): the lagging average's colours looked too vibrant and
 // smeared behind moving things (David's real-GPU check), and less saturation
-// also means less red.
-const BASE_CHROMA = 0.45;
-const DETAIL_GAIN = 0.6; // how much of the frame's fine detail is kept inside the mask
+// also means less red. David (Sun 1:25 AM): grey it out entirely, no colour.
+const BASE_CHROMA = 0;
+// How much of the frame's fine detail is laid back on inside the mask. At 0.6 the
+// flat clamped base plus stride-4 detail looked blocky ("cubed"), and the detail
+// term is added after the clamp, so less of it is also safer.
+const DETAIL_GAIN = 0.2;
 const DETAIL_STRIDE_PX = 4; // low-pass tap spacing for the detail estimate
 const MAX_STEP = 0.15; // largest share of the way to a new frame the average may move per processed frame
 
