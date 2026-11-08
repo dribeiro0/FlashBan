@@ -59,7 +59,7 @@ const ANIM_EXT = /\.(gif|webp|apng)(\?|#|$)/i;
 const CORS_VIDEO_HOSTS = /(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be)$/i;
 const CLEAR_GLOW_OPACITY = 0.5; // unverifiable elements this see-through get faded, not covered
 const BOOT_DIM_MAX_MS = 1500; // the loader's load-time media dim lifts by this long after start, verdict or not
-const BOOT_VERDICT_MS = 600; // ...or once a source has this much calm sampling behind it (a 3 Hz strobe shows in 600 ms)
+const BOOT_VERDICT_MS = 1000; // ...or once a source has a full detector window of calm samples (Yaovi: a 4 Hz strobe needs ~0.75-1 s to be called)
 // Script-driven DOM flicker (class / style / hidden toggles)
 const DOM_HOT_MUTATIONS = 2; // mutations within 1 s before we start sampling an element
 const DOM_HOT_MS = 1500; // keep sampling this long after the last mutation
