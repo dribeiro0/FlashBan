@@ -6,7 +6,7 @@ Behavior matches the dim + greyscale build. Evidence below is Yaovi’s three-ru
 
 ## How to use this
 
-- **3 minutes, 6 slides.** About 30 seconds each. Say the notes in your own words; you don't need to memorise them.
+- **3 minutes, 6 slides.** Spoken notes: 314 words (about 126 seconds at 150 words/minute), leaving time for short demo holds. Actual timing must be rehearsed; cut words rather than the warning or limits.
 - **You talk, Jun drives the laptop.** Lines in *[brackets and italics]* are cues for the driver, not things to say.
 - **Safety first.** Say the warning on slide 2 before anything moves on screen. If anyone asks us not to show flashing, the driver shows the screenshots instead. That is still a complete pitch.
 - **Never claim more than we have.** FlashBan is not a medical device and doesn't guarantee protection. Say "reduces", "softens", "catches", never "prevents seizures".
@@ -31,39 +31,39 @@ Words you might hear, in plain terms:
 **On the slide:** "FlashBan". One line: "For 1 in 4,000 people, a flashing screen can cause a seizure." A still image only.
 
 **Say:**
-> About one in four thousand people have photosensitive epilepsy. For them, a strobing ad, video or GIF can trigger a seizure. The web has a rule against this: nothing should flash more than three times a second. But nothing in the browser enforces it, and by the time you see a strobe, it's too late.
-> It's also used as a weapon. People send flashing images to people with epilepsy on purpose. In England that's now a crime. We built FlashBan to treat flashing as both an accessibility barrier and a security threat.
+> About one in four thousand people have photosensitive epilepsy. A flashing ad or video can become an accessibility barrier, or a deliberate attack. FlashBan is a Chrome extension that detects flashing content and tones it down while keeping the page usable.
 
 ---
+
 
 ## Slide 2: Soften, don't break the page (0:25 to 1:10)
 
 **On the slide:** "FlashBan detects flashing and tones it down to reduce exposure."
 
 **Say first, before anything moves:**
-> Quick warning: next is a short, dimmed flashing pattern we made ourselves. If you'd rather not see it, look away for about five seconds.
+> Warning: the next test contains flashing light. If anyone would rather not see it, we’ll use the static screenshots instead.
 
 *[Driver: open the canvas demo page with the HUD open beside it. Press Start. FlashBan dims it and turns it grey. Point at the HUD estimates.]*
 
 **Say:**
-> This test page flashes four times a second, over the limit. FlashBan detects it and dims it in greyscale. Motion and audio keep playing while the brightness changes are reduced. The numbers on the side are detector estimates from sampled frames, using the WCAG flash rules.
-> Keeping the page usable matters. We wanted people to keep using the page, so we tone it down first. Users can also choose to hide flashing content, and hostile pages can be locked down.
-> Okay, the flashing part is done.
+> This synthetic canvas flashes four times a second. FlashBan dims it and turns it grey; motion keeps playing while brightness changes are reduced. The HUD shows detector estimates, not measurements of your display.
+> We also slow CSS animations and smooth script-driven flicker. Users can choose to hide flashing content instead.
 
 **If the live demo fails:** *[Driver: show the screenshot.]* "Here's the same test from last night."
 
 ---
+
 
 ## Slide 3: Tested across sources and everyday pages (1:10 to 1:40)
 
 **On the slide:** two columns. "Caught: video, canvas, animated images, CSS animations, flickering page elements." "Not flagged: scene cuts, a camera flash, slow fades, dark mode, a sunset."
 
 **Say:**
-> Flashing can come from a video, an image, a page animation, or a script flicking colours on and off. FlashBan checks every one of them.
-> Just as important: it leaves normal content alone. Our automated test runs every page in a real Chrome browser. On build 0c610e2 it passed 29 of 29 pages, three runs in a row: all 16 attack pages were protected, and all 8 everyday/control pages were left alone. Zero false alarms in that test set.
-> Content we can't look inside, like protected video, is dimmed and labelled "can't verify". We'd rather be careful than guess.
+> We tested the real extension in Chrome: 29 of 29 pages passed three runs on build 0c610e2. All 16 attack pages were protected, and eight everyday or control pages were left alone. That’s zero false alarms in this test set.
+> Protected or unreadable video stays dimmed and labelled, rather than being silently allowed.
 
 ---
+
 
 ## Slide 4: Security: a page can't switch it off (1:40 to 2:10)
 
@@ -72,11 +72,11 @@ Words you might hear, in plain terms:
 *[Driver: open the overlay-killer attack page and press Start.]*
 
 **Say:**
-> We treat this as an attack, so we attacked FlashBan ourselves. This page deletes our protection many times a second. FlashBan notices, and locks the page down with browser-level styles the page can't see or remove: our overlay-killer test reached lockdown in about 1.25 seconds on that build.
-> Every trick we found became a permanent test page: strobes that hide between our checks, red-only flashes, a page that waits ten seconds before strobing, and pages that undo our softening.
-> And it's private. Using a seizure shield reveals a health condition, so there are no accounts and no server. FlashBan keeps site domains, dates and basic detector metrics on your own computer, and you can clear the log with one click.
+> This page repeatedly deletes our protection. FlashBan notices and applies browser-level lockdown styles. Our test reached lockdown in about 1.25 seconds on that build.
+> Privacy is built in: no extension accounts or reporting server. Domains and basic detector metrics stay in a local log, with one-click clearing and 30-day deletion.
 
 ---
+
 
 ## Slide 5: Built for the people who need it (2:10 to 2:35)
 
@@ -85,19 +85,21 @@ Words you might hear, in plain terms:
 *[Driver: put the mouse down. Tab to the "Show original on this site" button on FlashBan's bar at the top right and press Enter.]*
 
 **Say:**
-> An accessibility tool has to be accessible itself. Everything works with just a keyboard, with a clear focus outline. One button on a slim bar shows the original on that site if you choose to, and the page can't press it for you. Screen readers announce what FlashBan did and why. Our own design never flashes and respects reduced-motion settings. Automated checks found zero violations in the tested popup states; the overlay also has a previous test-build check. That does not replace a manual keyboard and screen-reader check.
+> The popup and bypass are designed for keyboard use, with visible focus. Protection announces itself to screen readers and respects reduced motion. Automated checks found zero violations in the tested popup states; the overlay has a previous test-build check. Manual accessibility checks still matter.
 
 ---
+
 
 ## Slide 6: Honest limits, and what's next (2:35 to 3:00)
 
 **On the slide:** "Not a medical device." Limits: "Protected and cross-origin video can't be measured, so it's dimmed." "The first frames of a new flash can reach the screen before detection reacts." "Websites can detect that FlashBan is installed." Next: "Hide FlashBan from websites, check protected video by screen capture, Firefox."
 
 **Say:**
-> We want to be honest. FlashBan is not a medical device and can't promise to stop every seizure. Protected video can't be measured, so we dim it. The first frames of a brand-new flash can reach the screen before detection reacts; response time depends on the page and machine. And today a website could tell FlashBan is installed, which could reveal someone's condition. Fixing that is first on our list, then checking protected video and a Firefox version.
-> Thank you. We're happy to take questions.
+> FlashBan reduces exposure; it is not a medical device or a guarantee. First frames can reach the screen before detection reacts. DRM and cross-origin video may only be dimmed. Websites can currently detect the extension, potentially revealing a health condition.
+> Our next steps are reducing that fingerprinting risk, improving protected-video analysis, and supporting Firefox. Thank you.
 
 ---
+
 
 ## One-minute security demo (for the Built To Be Trusted judges)
 
