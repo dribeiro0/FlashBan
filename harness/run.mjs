@@ -39,6 +39,12 @@ const ONLY = opt("--only")?.split(",").map((s) => s.trim());
 const SHOTS = opt("--shots");
 const JSON_OUT = opt("--json");
 const RUN_SECONDS = 3;
+// --url <https://...> [--seconds N]: open one real page instead of the demo set
+// (e.g. a YouTube video), start its first <video> muted, watch for N seconds
+// (default 15) and screenshot it. Expected verdict is "block" (it reports what
+// the shield did; judge the screenshot yourself).
+const URL_ARG = opt("--url");
+const URL_SECONDS = Math.min(60, Math.max(3, Number(opt("--seconds")) || 15));
 
 const CHROME_CANDIDATES = [
   process.env.CHROME,
@@ -102,7 +108,11 @@ function connectPipe(child) {
 // ------------------------------------------------------------ helpers
 
 async function pagesToRun() {
-  /** @type {{ rel: string, expected: string, title: string }[]} */
+  if (URL_ARG) {
+    if (!/^https?:\/\//i.test(URL_ARG)) throw new Error("--url must start with http:// or https://");
+    return [{ rel: "url.html", url: URL_ARG, expected: "block", title: URL_ARG, seconds: URL_SECONDS, forbid: [] }];
+  }
+  /** @type {{ rel: string, expected: string, title: string, url?: string }[]} */
   const pages = [];
   async function walk(dir) {
     for (const e of await readdir(dir, { withFileTypes: true })) {
@@ -233,7 +243,7 @@ async function main() {
 
     for (const page of pages) {
       await hookWorker();
-      const url = `http://127.0.0.1:${PORT}/${page.rel}?seconds=${page.seconds}`;
+      const url = page.url || `http://127.0.0.1:${PORT}/${page.rel}?seconds=${page.seconds}`;
       const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank" });
       const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
       await cdp.send("Page.enable", {}, sessionId);
@@ -258,6 +268,10 @@ async function main() {
         sessionId,
       );
       const xy = box.result.value;
+      if (page.url) {
+        // Real page: start its first video muted (autoplay with sound is blocked).
+        await cdp.send("Runtime.evaluate", { expression: `(() => { const v = document.querySelector("video"); if (!v) return false; v.muted = true; v.play().catch(() => {}); return true; })()`, returnByValue: true }, sessionId);
+      }
       const startedAt = Date.now();
       if (xy) {
         for (const type of ["mousePressed", "mouseReleased"]) {
@@ -343,6 +357,7 @@ async function main() {
         }
       }
       if (SHOTS && !shot) shot = await shoot("");
+      if (SHOTS && page.url) await shoot("-end"); // real page: also the state at the end of the watch
       const panels = lastPanels;
 
       let violations = [];
