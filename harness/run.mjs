@@ -285,6 +285,7 @@ async function main() {
       let everCovered = false;
       let everSoftened = false;
       let everLocked = false;
+      let everDimProtect = false; // protective dim + greyscale seen (soften since #133)
       let firstCoverMs = null;
       let lastPanels = [];
       let shot = null;
@@ -346,6 +347,13 @@ async function main() {
           }
         }
         if (lastPanels.some((p) => /softened/i.test(p))) everSoftened = true;
+        // A protective dim (soften = dim + greyscale since #133) counts the moment
+        // it appears, like a softened layer; only the short "Checking" dim waits for
+        // the end of the run.
+        if (lastPanels.some((p) => /can't flash/i.test(p)) && !everDimProtect) {
+          everDimProtect = true;
+          if (firstCoverMs === null) firstCoverMs = Date.now() - startedAt;
+        }
         const covered = lastPanels.some((p) => /hidden|softened/i.test(p));
         if (covered && !everCovered) {
           everCovered = true;
@@ -382,7 +390,7 @@ async function main() {
       const actual = everSoftened && !fellBack && (stillSoftened || !panels.length)
         ? "soften"
         : everLocked && (lockedNow || !violations.length || covered) ? "lockdown"
-        : covered ? "block" : dimmed ? "dim" : violations.length ? "detected" : "allow";
+        : covered ? "block" : dimmed || everDimProtect ? "dim" : violations.length ? "detected" : "allow";
       // Protective outcomes: soften (output verified below the limit), cover,
       // page lockdown (media hidden by user-origin CSS), or fail-closed dim.
       // "detected" always fails: on a block page nothing protected the user; on
