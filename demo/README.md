@@ -23,6 +23,8 @@ Then open http://localhost:8080/ with the unpacked extension loaded. (Opening th
 | adversarial/late-start.html | canvas, 10 s calm then strobe (T8) | 4 cycles/s for 3 s | block |
 | adversarial/aliasing.html | canvas at 12.5 cycles/s; a fixed 80 ms sampling grid sees one state (T1) | 12.5 cycles/s | block |
 | adversarial/aliasing-30hz.html | canvas changing on every animation frame; every-other-frame sampling sees one state (T1) | half the display rate | block |
+| adversarial/tainted.html | canvas strobe on a canvas tainted by a cross-origin image (the other localhost hostname, same port), so it can't be read (T4) | 4 cycles/s | block (fail-closed dim) |
+| adversarial/cpu-flood.html | 40 small canvases (60x40 each) at 4 cycles/s with random phases, plus ~8 ms busy work per frame (T5) | 4 cycles/s | block (soften, cover or dim; never a silent allow) |
 | adversarial/soften-killer-css.html | CSS strobe; page resets playbackRate to 1 every frame (T6) | 4 cycles/s, 6 s | block (cover or lockdown, not soften) |
 | adversarial/soften-killer-dom.html | class-toggle strobe; page strips the soften transition every frame (T6) | 4 cycles/s, 6 s | block (cover or lockdown, not soften) |
 
