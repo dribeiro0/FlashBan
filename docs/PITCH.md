@@ -82,10 +82,10 @@ Words you might hear, in plain terms:
 
 **On the slide:** "Keyboard. Screen reader. Reduced motion. Never flashes itself."
 
-*[Driver: put the mouse down. Tab to the FlashBan button and press Enter.]*
+*[Driver: put the mouse down. Tab to the "Show original on this site" button on FlashBan's bar at the top right and press Enter.]*
 
 **Say:**
-> An accessibility tool has to be accessible itself. Everything works with just a keyboard, with a clear focus outline. Screen readers announce what FlashBan did and why. Our own design never flashes and respects reduced-motion settings. Automated accessibility checks found zero problems in the popup and the overlay.
+> An accessibility tool has to be accessible itself. Everything works with just a keyboard, with a clear focus outline. One button on a slim bar shows the original on that site if you choose to, and the page can't press it for you. Screen readers announce what FlashBan did and why. Our own design never flashes and respects reduced-motion settings. Automated accessibility checks found zero problems in the popup and the overlay.
 
 ---
 

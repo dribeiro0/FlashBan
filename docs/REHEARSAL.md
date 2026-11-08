@@ -13,7 +13,7 @@ Devpost is due Sunday 9:00 AM; judging is at 9:30 AM.
   - [ ] Slide 2: `canvas.html` with the HUD open ("Open HUD for this tab") → softened, numbers show.
   - [ ] Slide 3: one benign page (`demo/benign/`) → nothing happens.
   - [ ] Slide 4: `demo/adversarial/overlay-killer.html` → lockdown, badge on the icon.
-  - [ ] Slide 5: keyboard only: Tab reaches FlashBan's button, with a visible focus ring, and Enter works.
+  - [ ] Slide 5: keyboard only: Tab reaches "Show original on this site" on FlashBan's bar, with a visible focus ring, and Enter works. Turn protection back on in the popup afterwards.
 - [ ] **Screenshots for backup**, saved on the laptop and on a phone: canvas softened with the HUD, overlay-killer lockdown, the harness table, the popup.
 - [ ] Fill in every [bracket] in PITCH.md from the harness run on the frozen build (Yaovi's agent posts the numbers). Delete any sentence whose number we don't have.
 - [ ] **Rehearsal 1:** time it. Target 2:45–3:00. Cut words, not slides.
