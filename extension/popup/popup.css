@@ -24,7 +24,7 @@
     --soft: #44433d;
     --accent: #b5c48a; /* 10:1 */
     --accent-fg: #161614;
-    --focus: #ffd84d;
+    --focus: #b5c48a;
     --grain: repeating-conic-gradient(#5e6844 0 25%, #4f583a 0 50%) 0 0 / 4px 4px;
   }
 }

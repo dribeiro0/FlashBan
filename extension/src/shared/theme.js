@@ -2,12 +2,12 @@
 // the lockdown stylesheet (background/sw.js), in one place so the three stay in
 // sync. Matches extension/hud/hud.css, extension/popup/popup.css and site/.
 // Static strings only: these are interpolated into CSS text, never into HTML.
-// Contrast: INK on GROUND 18.1:1, MUTE on GROUND 15.3:1, GROUND on ACCENT 13.5:1.
+// Contrast: INK on GROUND 18.1:1, MUTE on GROUND 15.3:1, GROUND on ACCENT 10.0:1 (all AAA).
 
 export const GROUND = "#121212";
 export const INK = "#ffffff";
 export const MUTE = "#e8e8e8";
-export const ACCENT = "#ffd84d"; // brand chip and buttons
+export const ACCENT = "#b5c48a"; // olive, brand chip and buttons (matches popup/HUD/site dark accent)
 export const RULE = "#3a3a36"; // 1px borders on dark surfaces
 export const GRAIN_DARK = "#1d1d1a"; // decorative dither tone next to GROUND (~1.1:1, never behind text)
 // System fonts only: page overlays never load font files (no extra web-accessible resources).

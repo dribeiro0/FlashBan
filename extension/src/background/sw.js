@@ -43,7 +43,7 @@ function markTab(tabId, on) {
   try {
     chrome.action.setBadgeText({ tabId, text: on ? "!" : "" });
     if (on) {
-      chrome.action.setBadgeBackgroundColor({ tabId, color: "#ffd84d" });
+      chrome.action.setBadgeBackgroundColor({ tabId, color: "#b5c48a" });
       chrome.action.setBadgeTextColor?.({ tabId, color: "#121212" });
     }
     chrome.action.setTitle({ tabId, title: on ? LOCKDOWN_TITLE : "FlashBan" });
