@@ -83,9 +83,9 @@ const MEDIA_OVERLAP_SHARE = 0.5; // a DOM layer this much over a measured video/
 const MEDIA_OVERLAP_CACHE_MS = 500;
 const LAYER_ALPHA_WATCH = 0.2; // a layer over media seen this opaque even once is always watched
 // How "soften" keeps flashing media watchable (David, Sun 2:40 AM).
-// "dim": the safemode dim layer, a 72% black click-through layer with a greyscale
+// "dim": the safemode dim layer, an 80% black click-through layer with a greyscale
 // backdrop. Safe by arithmetic, not by tracking: the brightest pixel left is
-// sRGB 0.28 (relative luminance ~0.065), under the 0.10 a flash needs, and
+// sRGB 0.20 (relative luminance ~0.033), under the 0.10 a flash needs, and
 // greyscale leaves no red to flash. No frame readback or averaging, so motion
 // stays sharp with no trails, ghosting or blocks. Per-pixel temporal filtering
 // (the GPU soften) can't tell a moving bright object from a flash, so it always

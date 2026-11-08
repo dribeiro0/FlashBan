@@ -67,14 +67,14 @@ const SHADOW_CSS = `
   /* Dim: the content stays visible but clearly darker, with a small label in
      the corner. Clicks go through to the page (only the "Show anyway" button
      catches them), so a dimmed thumbnail or player still works. Safety math:
-     a 72% black layer leaves at most 28% of the sRGB value, so even a
-     white/black strobe swings relative luminance by under 0.07 (WCAG's flash
+     an 80% black layer leaves at most 20% of the sRGB value, so even a
+     white/black strobe swings relative luminance by under 0.034 (WCAG's flash
      threshold is 0.10), and grayscale takes the colour out of red flashes.
      Cover: opaque, centred message, blocks clicks. No frames (lead, Sat 6:33 PM). */
   .panel.dim {
     justify-content: flex-start; align-items: flex-start; text-align: left;
     gap: 6px; padding: 8px;
-    background: rgba(0, 0, 0, 0.72);
+    background: rgba(0, 0, 0, 0.8); /* David, Sun 3:40 AM: 72% -> 80%, colour shifts half as visible */
     -webkit-backdrop-filter: grayscale(1);
     backdrop-filter: grayscale(1);
     pointer-events: none;
