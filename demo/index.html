@@ -25,6 +25,7 @@
 <li><a href="adversarial/late-start.html">Late-start strobe</a> (T8): 10 s calm, then 3 s strobe, expected <strong>block</strong></li>
 <li><a href="adversarial/early-start.html">Early-start strobe</a> (T8): starts flashing at page load with <code>?autostart=1</code>, expected <strong>block</strong></li>
 <li><a href="adversarial/scroll-strobe.html">Scroll-linked strobe</a>: CSS animation on a scroll timeline, page scrolls itself, expected <strong>block</strong></li>
+<li><a href="adversarial/raise-media.html">Raise the media</a> (T6): lifts the strobe above the shield (max z-index, own top-layer popover every frame), expected <strong>block</strong></li>
 <li><a href="adversarial/aliasing.html">Aliasing strobe</a> (T1): 12.5 cycles/s, invisible to a fixed 80 ms sampler, expected <strong>block</strong></li>
 <li><a href="adversarial/aliasing-30hz.html">Every-frame strobe</a> (T1): changes every frame (30 cycles/s at 60 Hz), invisible to every-other-frame sampling, expected <strong>block</strong></li>
 <li><a href="adversarial/tainted.html">Tainted canvas</a> (T4): a strobe on a canvas FlashBan can't read, expected <strong>block</strong> (fail-closed dim)</li>
