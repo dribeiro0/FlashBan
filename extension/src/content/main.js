@@ -968,6 +968,14 @@ class Source {
   handleReport(report, t) {
     this.lastRaw = report; // for getStatus diagnostics (numbers only)
     this.lastRawAt = performance.now();
+    // Page elements: only a measured flash counts. The DOM tick samples a
+    // quiet element about once a second, so the detector's gap rule ("blind
+    // for a whole window": block with no reason) fired on YouTube's player
+    // box and covered the whole player (Sat 12:12 AM, Avery's laptop). An
+    // element we can't watch closely is left alone, never dimmed (see drop()).
+    if (this.kind === "dom" && !report.reason && (report.violation || report.severity !== "none")) {
+      report = { ...report, severity: "none", violation: false, undersampled: false };
+    }
     // A video sampled on every presented frame can't hide flashes between
     // samples, so the detector's gap rule ("undersampled", and the block after a
     // full-window gap, which carries no reason) doesn't apply: a 10 fps video
