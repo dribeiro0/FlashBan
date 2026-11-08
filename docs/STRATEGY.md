@@ -155,7 +155,7 @@ Hash-chained log entries with a WebCrypto-signed export and a verify page. Stron
 
 ### 7.6 Small ones
 
-- **Repeat-offender rule:** a domain with a past violation gets the strict preset and guarded start (Avery approved "listed domain = strict + guarded start" for the shared list; this applies it locally).
+- **Repeat-offender rule:** a domain with a past violation gets guarded start and always-dimmed unverifiable media (no longer the strict preset, #106) (Avery approved "listed domain = strict + guarded start" for the shared list; this applies it locally).
 - **Check before you send:** a page where you drop a GIF/video and get "safe / risky / can't verify". The detector is pure, so it runs in a normal page.
 - **Caregiver lock:** a passcode on the options page so the preset can't be weakened.
 - **Adaptation:** dropped except as the repeat-offender rule. It only helps on the second exposure, and the harm is the first.
