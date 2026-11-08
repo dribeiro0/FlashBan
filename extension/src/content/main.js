@@ -505,6 +505,26 @@ class Source {
         this.applyUnverifiableDim(); // dim the moment playback starts
         return;
       }
+      // A different video in the same element (YouTube reuses one <video> and
+      // changes the page address per video; its source change isn't always seen):
+      // judge the new content instead of keeping the old verdict forever.
+      if (this.verdictHref && location.href !== this.verdictHref && !safemode.wasShownByUser(v)) {
+        this.verdictHref = "";
+        if (safemode.guardMode(v) === "cover") {
+          // Stay covered; the cover lifts after RECHECK_CALM_MS of calm frames.
+          const now = performance.now();
+          this.softFailed = false;
+          this.recheckSince = now;
+          this.recheckCalmFrom = now;
+        } else if (this.persistentDim && !this.unverifiable && safemode.guardMode(v) === "dim") {
+          // Flashing dim from the old video: drop it and check the new one
+          // from the start (guarded start dims it briefly while it is checked).
+          this.persistentDim = false;
+          this.flatDim = false;
+          safemode.release(v, { immediate: true });
+          this.guardedStartDone = false;
+        }
+      }
       if (safemode.guardMode(v) === "cover" && !safemode.wasShownByUser(v) && !this.recheckSince) {
         v.pause(); // the page may not restart covered flashing video
         this.pausedByUsAt = performance.now();
@@ -1134,8 +1154,9 @@ class Source {
     if (SOFTEN_STYLE === "dim") {
       // Dim + greyscale: the content stays visible and playing, darker and grey,
       // and nothing in it can reach a flash. Stays for this element (no on/off).
-      const alpha = STRENGTH_DIM[/** @type {1|2|3|4} */ (settings.strength)] ?? 0.8;
+      const alpha = STRENGTH_DIM[/** @type {1|2|3|4} */ (settings.strength)] ?? 0.94;
       safemode.guard(v, "dim", REASONS.softDim, { canShow: true, alpha });
+      this.verdictHref = location.href; // a later video at another address is judged afresh
       this.persistentDim = true;
       this.noteViolation(report, t); // still logged: the site served flashing media
       return true;
@@ -1181,6 +1202,7 @@ class Source {
     if (this.trySoften(report, t)) return;
     const reason = REASONS[/** @type {keyof typeof REASONS} */ (report.reason)] || REASONS.unknown;
     safemode.guard(el, "cover", reason, { canShow: true });
+    this.verdictHref = location.href; // a later video at another address is judged afresh
     if (el instanceof HTMLVideoElement && !el.paused) el.pause();
     if (t - this.lastViolationMsg >= VIOLATION_MSG_INTERVAL_MS || !this.lastViolationMsg) {
       this.lastViolationMsg = t;

@@ -37,7 +37,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   allowlist: [],
   hud: false,
   onFlash: "soften",
-  strength: 2,
+  strength: 4, // David, Sun 4:20 AM: default 94% dim
 });
 
 const DOMAIN_RE = /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$/;

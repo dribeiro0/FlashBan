@@ -79,7 +79,7 @@ function render() {
 
 /** @param {number} s */
 function describeStrength(s) {
-  const [name, text] = STRENGTH_TEXT[/** @type {1|2|3|4|5} */ (s)] || STRENGTH_TEXT[2];
+  const [name, text] = STRENGTH_TEXT[/** @type {1|2|3|4|5} */ (s)] || STRENGTH_TEXT[4];
   strength.setAttribute("aria-valuetext", `${s} of 5, ${name}`);
   strengthDesc.textContent = text;
 }

@@ -5,11 +5,11 @@ import { normalizeSettings, STRENGTH_DIM, STRENGTH_BLOCK, DEFAULT_SETTINGS } fro
 
 const lin = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
 
-test("strength defaults to 2 and keeps only integers 1-5", () => {
-  assert.equal(DEFAULT_SETTINGS.strength, 2);
-  assert.equal(normalizeSettings({}).strength, 2);
+test("strength defaults to 4 and keeps only integers 1-5", () => {
+  assert.equal(DEFAULT_SETTINGS.strength, 4);
+  assert.equal(normalizeSettings({}).strength, 4);
   for (const s of [1, 2, 3, 4, 5]) assert.equal(normalizeSettings({ strength: s }).strength, s);
-  for (const bad of [0, 6, 2.5, "3", null, -1, Infinity]) assert.equal(normalizeSettings({ strength: bad }).strength, 2);
+  for (const bad of [0, 6, 2.5, "3", null, -1, Infinity]) assert.equal(normalizeSettings({ strength: bad }).strength, 4);
 });
 
 test("every dim step leaves less than the 0.10 luminance change a flash needs", () => {
