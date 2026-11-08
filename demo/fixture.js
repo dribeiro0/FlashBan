@@ -165,4 +165,6 @@
   }
   reduce.addEventListener("change", applyReduce);
   applyReduce();
+  // ?autostart=1 starts the run at page load (early-start attack page, harness only); reduced motion still wins.
+  if (params.get("autostart") === "1" && !startBtn.disabled) start();
 })();
