@@ -146,3 +146,20 @@ test("hsl(), rgba() and missing keyframe values are understood", () => {
   const implicit = anim([{ offset: 0 }, { offset: 0.5, opacity: 0 }, { offset: 1 }], { duration: 250 });
   assert.equal(analyzeAnimation(implicit).violation, true);
 });
+
+test("C10: empty keyframes on a scroll timeline (non-numeric duration) is not a violation (github.com tab bar)", () => {
+  for (const duration of ["auto", {}]) {
+    const r = analyzeAnimation(anim([{ offset: 0 }, { offset: 1 }], { duration }));
+    assert.equal(r.violation, false);
+  }
+});
+
+test("C11: visual keyframes on a scroll timeline (non-numeric duration) still fail closed (scroll-linked strobe)", () => {
+  const r = analyzeAnimation(anim([{ backgroundColor: "black" }, { backgroundColor: "white" }], { duration: "auto" }));
+  assert.equal(r.violation, true);
+});
+
+test("C12: transform-only keyframes on a scroll timeline are not a violation", () => {
+  const r = analyzeAnimation(anim([{ transform: "none" }, { transform: "translateX(10px)" }], { duration: "auto" }));
+  assert.equal(r.violation, false);
+});

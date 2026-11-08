@@ -124,7 +124,8 @@
         if (running) stop("Video could not be prepared or played. Static.");
       });
     } else {
-      say("Running: static control. Nothing changes for " + seconds + " s.");
+      // kind "static": the page's own script (if any) drives the stage, e.g. scroll-strobe.html
+      say(stage.dataset.label ? "Running: " + stage.dataset.label + ", " + seconds + " s." : "Running: static control. Nothing changes for " + seconds + " s.");
       timer = setTimeout(function () { stop("Run finished after " + seconds + " s."); }, seconds * 1000);
     }
   }
