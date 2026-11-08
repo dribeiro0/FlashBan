@@ -46,36 +46,21 @@ Words you might hear, in plain terms:
 *[Driver: open the canvas demo page with the HUD open beside it. Press Start. FlashBan dims it and turns it grey. Point at the HUD estimates.]*
 
 **Say:**
-<<<<<<< HEAD
 > This synthetic canvas flashes four times a second. FlashBan dims it and turns it grey; motion keeps playing while brightness changes are reduced. The HUD shows detector estimates, not measurements of your display.
 > We also slow CSS animations and smooth script-driven flicker. Users can choose to hide flashing content instead.
-=======
-> This test page flashes four times a second, over the limit. FlashBan detects it and dims it in greyscale. Motion and audio keep playing while the brightness changes are reduced. The numbers on the side are detector estimates from sampled frames, using the WCAG flash rules.
-> Keeping the page usable matters. We wanted people to keep using the page, so we tone it down first. Users can also choose to hide flashing content, and hostile pages can be locked down.
-> Okay, the flashing part is done.
->>>>>>> origin/146-rubric-readiness-copy
 
 **If the live demo fails:** *[Driver: show the screenshot.]* "Here's the same test from last night."
 
 ---
 
-<<<<<<< HEAD
 
-=======
->>>>>>> origin/146-rubric-readiness-copy
 ## Slide 3: Tested across sources and everyday pages (1:10 to 1:40)
 
 **On the slide:** two columns. "Caught: video, canvas, animated images, CSS animations, flickering page elements." "Not flagged: scene cuts, a camera flash, slow fades, dark mode, a sunset."
 
 **Say:**
-<<<<<<< HEAD
 > We tested the real extension in Chrome: 29 of 29 pages passed three runs on build 0c610e2. All 16 attack pages were protected, and eight everyday or control pages were left alone. That’s zero false alarms in this test set.
 > Protected or unreadable video stays dimmed and labelled, rather than being silently allowed.
-=======
-> Flashing can come from a video, an image, a page animation, or a script flicking colours on and off. FlashBan checks every one of them.
-> Just as important: it leaves normal content alone. Our automated test runs every page in a real Chrome browser. On build 0c610e2 it passed 29 of 29 pages, three runs in a row: all 16 attack pages were protected, and all 8 everyday/control pages were left alone. Zero false alarms in that test set.
-> Content we can't look inside, like protected video, is dimmed and labelled "can't verify". We'd rather be careful than guess.
->>>>>>> origin/146-rubric-readiness-copy
 
 ---
 
@@ -87,14 +72,8 @@ Words you might hear, in plain terms:
 *[Driver: open the overlay-killer attack page and press Start.]*
 
 **Say:**
-<<<<<<< HEAD
 > This page repeatedly deletes our protection. FlashBan notices and applies browser-level lockdown styles. Our test reached lockdown in about 1.25 seconds on that build.
 > Privacy is built in: no extension accounts or reporting server. Domains and basic detector metrics stay in a local log, with one-click clearing and 30-day deletion.
-=======
-> We treat this as an attack, so we attacked FlashBan ourselves. This page deletes our protection many times a second. FlashBan notices, and locks the page down with browser-level styles the page can't see or remove: our overlay-killer test reached lockdown in about 1.25 seconds on that build.
-> Every trick we found became a permanent test page: strobes that hide between our checks, red-only flashes, a page that waits ten seconds before strobing, and pages that undo our softening.
-> And it's private. Using a seizure shield reveals a health condition, so there are no accounts and no server. FlashBan keeps site domains, dates and basic detector metrics on your own computer, and you can clear the log with one click.
->>>>>>> origin/146-rubric-readiness-copy
 
 ---
 
@@ -106,11 +85,7 @@ Words you might hear, in plain terms:
 *[Driver: put the mouse down. Tab to the "Show original on this site" button on FlashBan's bar at the top right and press Enter.]*
 
 **Say:**
-<<<<<<< HEAD
 > The popup and bypass are designed for keyboard use, with visible focus. Protection announces itself to screen readers and respects reduced motion. Automated checks found zero violations in the tested popup states; the overlay has a previous test-build check. Manual accessibility checks still matter.
-=======
-> An accessibility tool has to be accessible itself. Everything works with just a keyboard, with a clear focus outline. One button on a slim bar shows the original on that site if you choose to, and the page can't press it for you. Screen readers announce what FlashBan did and why. Our own design never flashes and respects reduced-motion settings. Automated checks found zero violations in the tested popup states; the overlay also has a previous test-build check. That does not replace a manual keyboard and screen-reader check.
->>>>>>> origin/146-rubric-readiness-copy
 
 ---
 
@@ -120,13 +95,8 @@ Words you might hear, in plain terms:
 **On the slide:** "Not a medical device." Limits: "Protected and cross-origin video can't be measured, so it's dimmed." "The first frames of a new flash can reach the screen before detection reacts." "Websites can detect that FlashBan is installed." Next: "Hide FlashBan from websites, check protected video by screen capture, Firefox."
 
 **Say:**
-<<<<<<< HEAD
 > FlashBan reduces exposure; it is not a medical device or a guarantee. First frames can reach the screen before detection reacts. DRM and cross-origin video may only be dimmed. Websites can currently detect the extension, potentially revealing a health condition.
 > Our next steps are reducing that fingerprinting risk, improving protected-video analysis, and supporting Firefox. Thank you.
-=======
-> We want to be honest. FlashBan is not a medical device and can't promise to stop every seizure. Protected video can't be measured, so we dim it. The first frames of a brand-new flash can reach the screen before detection reacts; response time depends on the page and machine. And today a website could tell FlashBan is installed, which could reveal someone's condition. Fixing that is first on our list, then checking protected video and a Firefox version.
-> Thank you. We're happy to take questions.
->>>>>>> origin/146-rubric-readiness-copy
 
 ---
 
@@ -136,7 +106,7 @@ Words you might hear, in plain terms:
 *[Driver: overlay-killer page, HUD optional.]*
 
 > A troll controls the page, so they can run code against us. This page tries to delete FlashBan's protection many times a second. *[Start.]* FlashBan counts the attacks, and after a few it locks the whole page down with styles from the browser itself, which the page can't see or remove. Our overlay-killer test reaches lockdown in about 1.25 seconds on build 0c610e2, and the badge on the FlashBan icon shows why.
-> We also tested pages that undo our softening; they get covered every time. Every one of these attacks is in our automated test, and on build 0c610e2 it passes 29 of 29 pages three runs in a row, including all 16 attack pages.
+> We also tested pages that undo our softening; they get covered or locked down every time. Every one of these attacks is in our automated test, and on build 0c610e2 it passes 29 of 29 pages three runs in a row, including all 16 attack pages.
 
 ---
 
