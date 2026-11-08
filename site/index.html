@@ -24,8 +24,8 @@
             video, no blink), only displaces cells near the pointer trail (never brightens), redraws only while the gaze
             or trail is settling, and holds still under reduced motion. The dithered plate is the fallback.
   inside    horizontal panels with tabs (pattern studied on naughtyduk.com/projects/primal: a wheel listener with
-            passive:false captures the wheel at the end of the page and turns it into progress). Ours steps one panel
-            per wheel gesture over the track and releases at both ends; tabs and arrow keys work; reduced motion jumps.
+            passive:false captures the wheel at the end of the page and turns it into progress). Ours leaves the vertical
+            wheel to the page; sideways swipes, Shift+wheel, tabs and arrow keys move it; reduced motion jumps.
   scripts   one classic IIFE: one shared WebGL2 context raymarches a signed-distance shape and Bayer-dithers it in
             the same pass (silhouette outline from the ray's closest approach), then copies it into each [data-art]
             canvas; fit-to-width headings, reveals, scroll-only parallax and marquee, phone menu, download box.
@@ -41,7 +41,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-lIOX4s2nEqEx1gW0gEEtcaYjGdHD9jRM4kXGCoXCGqk=' 'sha256-y7jnANXIVIUuYgPYcTL2oZNWdshWGmM2rr2ezNBzPwI='; style-src 'self' 'sha256-8vaj2ZhcAxcXhwL6K5yZ7wkY7rzfnEDrZbn7AQyVTGU=' 'sha256-zN5JlC5t3YydcyzfmPy6G+nNc18qmwTqpcWvemd9ojc='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-yEMVs0/RJ/BaqFone1Q7hOHbDIQUd5SGW7jP4B12lrk=' 'sha256-AmOdYRUrBG5lAnMfHLiTu+xeTE2CXvNODj7CV9ggBWA='; style-src 'self' 'sha256-8vaj2ZhcAxcXhwL6K5yZ7wkY7rzfnEDrZbn7AQyVTGU=' 'sha256-zN5JlC5t3YydcyzfmPy6G+nNc18qmwTqpcWvemd9ojc='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — reduce exposure to flashing content</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and tones it down to reduce exposure. No account, no FlashBan server.">
@@ -395,7 +395,7 @@ body.menu-open .menu-btn .w2{top:0}
         <button type="button" data-to="changelog">Changelog</button>
       </nav>
     </div>
-    <div class="hz-track" id="hzTrack" tabindex="0" role="region" aria-label="Inside FlashBan. Scrolls sideways: use the tabs, the arrow keys or the scroll wheel.">
+    <div class="hz-track" id="hzTrack" tabindex="0" role="region" aria-label="Inside FlashBan. Scrolls sideways: use the tabs, the arrow keys, a sideways swipe or Shift and the scroll wheel.">
       <article class="hz-panel" id="about" aria-labelledby="pa-t">
         <h3 class="hz-t" id="pa-t">What it is</h3>
         <div class="hz-cols">
@@ -910,8 +910,8 @@ schedule();
 
 /* ---------- "Inside FlashBan": horizontal panels with tabs ----------
    Pattern studied on naughtyduk.com/projects/primal, where a wheel listener (passive:false) captures the wheel at
-   the end of the page and turns it into progress. Here the vertical wheel over the track steps one panel per
-   gesture and lets go at either end, so the page keeps scrolling. Tabs and arrow keys move it too; a hairline
+   the end of the page and turns it into progress. Here the vertical wheel is left alone (it scrolls the page);
+   sideways swipes and Shift+wheel move the panels natively. Tabs and arrow keys move it too; a hairline
    shows progress. Reduced motion: jumps instead of slides. All panels stay in the page for screen readers. */
 (function(){
   const track=document.getElementById("hzTrack"),bar=document.getElementById("hzBar");
@@ -932,17 +932,7 @@ schedule();
     bar.style.transform=`scaleX(${m>0?(track.scrollLeft/m).toFixed(4):1})`;
   }
   tabs.forEach((t,k)=>t.addEventListener("click",()=>go(k)));
-  // Vertical wheel over the track: one panel per gesture; at the first/last panel the page scrolls as normal.
-  let acc=0,lock=false;
-  track.addEventListener("wheel",e=>{
-    if(Math.abs(e.deltaX)>Math.abs(e.deltaY)||e.ctrlKey) return;      // trackpad sideways swipes and zoom stay native
-    const dir=Math.sign(e.deltaY),x=track.scrollLeft;
-    if(!dir||(dir<0&&x<=1)||(dir>0&&x>=max()-1)) return;                // release at the ends
-    e.preventDefault();
-    if(lock) return;
-    acc+=e.deltaY;
-    if(Math.abs(acc)>=40){ lock=true; acc=0; go(current()+dir); setTimeout(()=>{lock=false;},reduce?150:450); }
-  },{passive:false});
+  // Wheel: vertical scrolls the page as normal; sideways swipes and Shift+wheel move the panels (native).
   track.addEventListener("scroll",()=>requestAnimationFrame(update),{passive:true});
   addEventListener("resize",()=>requestAnimationFrame(update));
   // A link to #tested (nav) or any panel id lands on that panel.
