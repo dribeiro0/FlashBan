@@ -45,11 +45,11 @@
     <section aria-labelledby="threats">
       <h2 id="threats">Attacks we test against</h2>
       <p class="muted">From our threat model. "Tested" means a passing unit test or an attack page in <code>demo/adversarial/</code> that passes <code>node harness/run.mjs</code> against the real extension.</p>
-      <p class="muted">Harness evidence below is from main <code>0c610e2</code> after dim + greyscale shipped: three headless runs on our slower Windows laptop, 29/29 expected verdicts each run, all 16 attacks protected 3/3, all 8 benign/control pages allowed 3/3. Video passed in all three runs. The table records dimmed pages by end state, so no first-dim timings are claimed here. <a href="https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718973934">Full results</a>. Later builds need their own checks.</p>
+      <p class="muted">Harness evidence below is from main <code>d474896</code> (dim + greyscale, Protection strength, red blocked): three headless runs on our Windows laptop, plugged in, 29/29 expected verdicts each run, all 16 attacks protected 3/3, all 8 benign/control pages allowed 3/3. Protection appeared 0.42 to 1.7 s after a strobe started on most pages; the overlay-killer page was locked down in 1.25 s every run. <a href="https://github.com/dribeiro0/FlashBan/issues/1">Full results on the team board</a>. Later builds need their own checks.</p>
       <div class="table"><table>
         <thead><tr><th scope="col">Threat</th><th scope="col">Defence</th><th scope="col">Status</th></tr></thead>
         <tbody>
-          <tr><th scope="row">A strobe timed between samples</th><td>Sampling with real timestamps</td><td><span class="status tested">tested</span> 12.5 Hz dimmed and in greyscale</td></tr>
+          <tr><th scope="row">A strobe timed between samples</th><td>Sampling with real timestamps</td><td><span class="status tested">tested</span> 12.5 and 30 Hz dimmed in 0.42–0.50 s</td></tr>
           <tr><th scope="row">A big flash split into small tiles</th><td>Add flashing area up across elements</td><td><span class="status tested">tested</span> unit test</td></tr>
           <tr><th scope="row">Red-only flashes that pass the brightness check</th><td>Separate red-flash detector; red flashing is always blocked</td><td><span class="status tested">tested</span> blocked (paused and covered)</td></tr>
           <tr><th scope="row">Pixels hidden from analysis (tainted canvas, DRM)</th><td>Fail closed: dim and label</td><td><span class="status tested">tested</span> tainted canvas dimmed</td></tr>
