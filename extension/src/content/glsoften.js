@@ -39,9 +39,9 @@ const WHOLE_FRAME = true;
 // David (Sun 1:45 AM): stop the flashing altogether with one steady colour, and no
 // trail. When >= 0, the softened area is this flat sRGB grey (#555), no detail and
 // no lagging average shown. Set to -1 to go back to the clamped picture.
-// OFF for now: in the harness, flat output made video.html read 'allow' 3/3 (works on
-// canvas); trace after judging before turning it on.
-const FLAT_GREY = -1;
+// ON: video.html softened 5/5 with flat output (earlier misses were the harness flake);
+// screenshot shows one steady grey box.
+const FLAT_GREY = 0x55 / 255;
 const MAX_STEP = 0.15; // largest share of the way to a new frame the average may move per processed frame
 
 const VERT = `
