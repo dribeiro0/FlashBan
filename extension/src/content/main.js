@@ -19,11 +19,13 @@ const MIN_MEDIA_CSS_PX = 16; // ignore media smaller than this on either side
 const GUARD_START_MIN_AREA = 64 * 64; // smaller media skip guarded start
 const VIDEO_CHECK_MS = 2000; // a video that starts gets a light, see-through dim for this long
 const VIDEO_CHECK_MAX_MS = 3500; // ...and never longer than this, whatever the detector is unsure about
-// Media is sampled on every presented frame, capped at ~30 Hz: sparser
-// sampling aliases (a 7.5 Hz strobe sampled every 117 ms showed up as 1-2
-// flashes a second and slipped through in testing). The cost meter (T5) steps
-// the sample size down and then fails closed if the readbacks get too slow.
-const MIN_SAMPLE_MS = 25;
+// Media is sampled on EVERY presented frame (and every animation frame for
+// canvases and images). Any fixed skip aliases: sampling every 80 ms let a
+// 7.5 Hz strobe look like 1-2 flashes a second, and every other frame at
+// 60 fps never saw a strobe that flips on each frame (David, Sat 7:03 PM).
+// The cost meter (T5) steps the sample size down and then fails closed if
+// the readbacks get too slow.
+const MIN_SAMPLE_MS = 0;
 const GAP_WINDOW_MS = 4000; // video: judge sampling gaps over this long...
 const GAP_MAX_SHARE = 0.5; // ...and if more than this share of samples came after a long gap, we can't keep up (fail closed, T5)
 const LONG_GAP_MS = 250; // a sample this long after the previous one means we were blind in between
@@ -498,9 +500,8 @@ class Source {
         const t = meta.expectedDisplayTime || now;
         const presented = typeof meta.presentedFrames === "number" ? meta.presentedFrames : -1;
         this.callbacksSinceSample++;
-        // Every presented frame, except that a 60 fps video is sampled every
-        // other frame (MIN_SAMPLE_MS): sparser sampling aliases strobes away.
-        if (t - this.lastT >= MIN_SAMPLE_MS || this.lastT === 0) {
+        // Every presented frame (MIN_SAMPLE_MS is 0): any skip aliases strobes away.
+        if (t - this.lastT > MIN_SAMPLE_MS || this.lastT === 0) {
           // "Complete": every presented frame since the last sample came with a
           // callback (none were skipped by a blocked main thread). Then a long
           // gap is the video's own frame rate, not missed frames.
@@ -1178,7 +1179,7 @@ function canvasTick(/** @type {number} */ now) {
       if (typeof v.requestVideoFrameCallback === "function" || v.paused) continue;
     }
     active++;
-    if (now - s.lastT >= MIN_SAMPLE_MS) s.sample(now);
+    if (now - s.lastT > MIN_SAMPLE_MS) s.sample(now);
   }
   if (active) canvasLoop = requestAnimationFrame(canvasTick);
 }

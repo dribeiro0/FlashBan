@@ -16,6 +16,10 @@ export type DetectorOptions = {
 export type FrameSample = {
   t: number;                    // ms timestamp (performance.now or rVFC mediaTime*1000)
   pixels: Uint8ClampedArray;    // RGBA, sampleWidth * sampleHeight * 4
+  // Additive (Nov 7, v stays 1): false = no presented frame was missed since the
+  // last sample (rVFC presentedFrames jumped by 1), so a gap over 100 ms is the
+  // content's own frame rate and isn't "undersampled". Absent/true = fail closed.
+  dropped?: boolean;
 };
 
 export type FlashReport = {
@@ -37,6 +41,15 @@ export type FlashReport = {
 export function createDetector(opts: DetectorOptions): {
   push(sample: FrameSample): FlashReport;
   peek(): FlashReport;          // last report without a new sample (HUD polling)
+  mask(): Uint8Array | null;    // additive (Nov 7): copy, 1 = sample pixel over the flash limit (general or red); null if the detector always blocks
+  reset(): void;
+};
+
+// Soften filter #2 (additive, Nov 7): brightness clamp inside the detector's mask.
+// No mask = whole frame clamped. Never throws; bad input returns grey and sets failed (caller blocks).
+export function createClampSoftener(opts: { width: number; height: number; maskWidth?: number; maskHeight?: number }): {
+  push(pixels: Uint8ClampedArray, t: number, mask?: Uint8Array): Uint8ClampedArray;
+  readonly failed: boolean;
   reset(): void;
 };
 

@@ -12,7 +12,7 @@ Built by team FlashBan at Hackcessability (Tech Access track; entered in the Bui
 - **Softens first**, so people aren't interrupted: flashing video, canvas and animated images keep playing through a smoothing filter (checked again by a second detector), CSS animations are slowed to about one cycle per second, and flickering elements get a slow fade. If softening can't get the flashing under the limit, FlashBan pauses the content and **covers** it with a static panel ("Show anyway" brings it back, by your choice only).
 - **Fails closed:** media FlashBan can't check is always dimmed and labelled "can't verify".
 - **Locks down hostile pages:** if a page keeps deleting or restyling FlashBan's protection, FlashBan hides the page's media with browser-level styles the page can't see or remove, shows a banner, and marks the toolbar icon with "!".
-- **Keeps a local log** of sites that flashed (domain and date only), shown in the popup with **Clear my data**. Entries older than 30 days are deleted. Nothing is sent anywhere.
+- **Keeps a local log** of sites that flashed (domain and date only), shown in the popup with **Clear my data**. Entries older than 30 days are deleted. Nothing about you is sent to us or anyone else; there is no server. The one network request FlashBan makes: for a cross-origin .webp or .apng image the page is already loading, the extension fetches the file's first bytes without cookies to tell a still image from an animated one, and only a yes/no comes back. GIFs are never probed; they always count as animated.
 
 ## Install (unpacked)
 
@@ -62,6 +62,7 @@ The overlay's shadow root is closed in the shipped build; the axe run used a tes
 - Websites can detect that FlashBan is installed by probing its extension files, which can reveal a health condition. The fix is bundling the content scripts; not done yet.
 - The first frames of a new flash can reach the screen before detection reacts (typically well under a second; times above).
 - Content outside the browser isn't covered.
+- The WebP/APNG still-or-animated probe can be fooled by the image's server (it can tell the probe from the page's own request), and image hosts can see that this browser runs FlashBan. GIFs are never probed, so an animated GIF is always dimmed.
 - Flashes split across iframes aren't added together: each frame is judged on its own (the cross-element area sum works within one frame).
 - Brightness is computed from sRGB pixel values. HDR, display colour profiles and screen brightness aren't modelled, and the area rule assumes WCAG's typical viewing distance (a 341 by 256 px field at 100% zoom).
 - Red flash uses WCAG's formula on linear-light values; tools that use gamma-encoded values can disagree at the edges.
