@@ -3,9 +3,10 @@
   FLASHBAN · website home (site/index.html)
   what      The landing page for FlashBan, a Chrome extension that softens flashing content for people with
             photosensitive epilepsy. Every fact on it comes from README.md, security/THREAT_MODEL.md or git history.
-  safety    This page is for photosensitive visitors, so nothing on it flashes or moves by itself. The 3D plates
-            hold still and only tilt, eased, while the pointer moves over them; the marquee and hero parallax
-            move only with scroll; reveals are slow fades. prefers-reduced-motion turns all of that off.
+  safety    This page is for photosensitive visitors, so nothing on it flashes. The 3D plates hold still and only
+            tilt, eased, while the pointer moves over them; the hero parallax moves only with scroll; the marquee
+            drifts slowly (40 px/s) and has a Pause motion button (WCAG 2.2.2); reveals are slow fades.
+            prefers-reduced-motion turns all of that off.
             Dither is low contrast (close tones) because fine high-contrast patterns can trigger pattern
             sensitivity.
   security  Strict CSP below. The one inline <style> and inline <script> are allowed by their SHA-256 hashes;
@@ -41,7 +42,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-yEMVs0/RJ/BaqFone1Q7hOHbDIQUd5SGW7jP4B12lrk=' 'sha256-AmOdYRUrBG5lAnMfHLiTu+xeTE2CXvNODj7CV9ggBWA='; style-src 'self' 'sha256-8vaj2ZhcAxcXhwL6K5yZ7wkY7rzfnEDrZbn7AQyVTGU=' 'sha256-zN5JlC5t3YydcyzfmPy6G+nNc18qmwTqpcWvemd9ojc='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-EWjmP7igKRIoRQWEGlmq7svQmOGxvr+hRswNLXZFqlU=' 'sha256-LDQshOpHmwxpKOq9P/uJhRrCq4vi/vRi5Xhd4k8YiIg='; style-src 'self' 'sha256-LEtvrriUOzt54mtsjm3bihgGMMSoNcyBP14+hi0EQz8=' 'sha256-M5nTlhBeMGFkJMMiuBjUtop0YGDDrVwiDhUgtabIThc='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>FlashBan — reduce exposure to flashing content</title>
 <meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and tones it down to reduce exposure. No account, no FlashBan server.">
@@ -186,12 +187,15 @@ body.menu-open .menu-btn .w2{top:0}
 .bdisc{width:44px;height:44px;border:1px solid var(--ink);border-radius:50%;display:flex;align-items:center;justify-content:center}
 .bdisc svg{width:20px;height:20px;stroke-width:1.5}
 
-/* marquee: drifts slowly on its own (stops off-screen, in hidden tabs and under reduced motion) */
+/* marquee: drifts slowly on its own; Pause motion button stops it (also stops off-screen, in hidden tabs and under reduced motion) */
 .marq-wrap{position:relative;z-index:1;padding:48px 0 64px}
 .marq{height:168px;overflow:hidden;display:flex;align-items:center;container-type:size}
 .track{display:flex;flex-shrink:0;font:900 100cqh/1 var(--display);text-transform:uppercase;will-change:transform}
 .mi{display:flex;align-items:center;flex-shrink:0;gap:.3em;padding-right:.3em;white-space:nowrap}
 .sq{display:inline-block;width:.14em;height:.14em;background:currentColor}
+.marq-ctl{display:flex;justify-content:flex-end;padding:12px 24px 0}
+.marq-ctl button{background:none;color:inherit;cursor:pointer;padding:8px 14px;min-height:44px}
+.marq-ctl button[hidden]{display:none}
 
 /* tested wall */
 .clients{position:relative;z-index:1;padding:0 24px 56px}
@@ -536,6 +540,7 @@ body.menu-open .menu-btn .w2{top:0}
       <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
       <div class="mi"><span>Softened, not stopped</span><span class="sq"></span></div>
     </div></div>
+    <div class="marq-ctl"><button type="button" class="btn" id="marqPP" aria-controls="track" hidden><span class="label fg" id="marqPPl">Pause motion</span></button></div>
   </section>
 </main>
 
@@ -961,17 +966,19 @@ else{
 
 /* ---------- hero parallax (scroll only) + marquee (slow drift + scroll) ----------
    The "Softened, not stopped" band drifts sideways at 40 px/s by real time: even, slow motion, nothing flashes.
-   It keeps moving under the pointer (owner's choice; no pause control, so WCAG 2.2.2 is not met for this band).
-   It stops off-screen and in a hidden tab. Reduced motion: no drift and no parallax. */
+   A visible, keyboard-reachable Pause motion / Play motion button under it stops both the drift and the scroll
+   offset (WCAG 2.2.2). It stops off-screen and in a hidden tab. Reduced motion: no drift, no parallax, and no
+   button (nothing moves, so there is nothing to pause). */
 const hero=document.getElementById("heroArt"),track=document.getElementById("track");
 const marq=track.closest(".marq-wrap");
 const DRIFT=40; // px per second
-let drift=0,lastT=0,onScreen=false,driving=false;
+let drift=0,lastT=0,onScreen=false,driving=false,paused=false,heldY=0;
+const pp=document.getElementById("marqPP"),ppl=document.getElementById("marqPPl");
 function place(){
   const w=track.firstElementChild.offsetWidth||1;
-  track.style.transform=`translate3d(${-((drift+scrollY*.35)%w).toFixed(1)}px,0,0)`;
+  track.style.transform=`translate3d(${-((drift+(paused?heldY:scrollY)*.35)%w).toFixed(1)}px,0,0)`;
 }
-const moving=()=>!reduce&&onScreen&&!document.hidden;
+const moving=()=>!reduce&&!paused&&onScreen&&!document.hidden;
 function step(t){
   if(!moving()){ driving=false; lastT=0; return; }
   const dt=lastT?Math.min(100,t-lastT):16.7; lastT=t;
@@ -987,6 +994,16 @@ function onScroll(){
 addEventListener("scroll",()=>requestAnimationFrame(onScroll),{passive:true});
 new IntersectionObserver(es=>es.forEach(e=>{onScreen=e.isIntersecting;kick();})).observe(marq);
 document.addEventListener("visibilitychange",kick);
+if(!reduce){
+  pp.hidden=false;
+  pp.addEventListener("click",()=>{
+    if(paused){ drift-=(scrollY-heldY)*.35; } // resume from where it stopped, no jump
+    else heldY=scrollY;
+    paused=!paused;
+    ppl.textContent=paused?"Play motion":"Pause motion";
+    place(); kick();
+  });
+}
 onScroll();
 
 /* ---------- download box (from download/latest.js, written by node site/build.mjs) ---------- */
