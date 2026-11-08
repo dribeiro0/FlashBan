@@ -79,7 +79,7 @@ const SHADOW_CSS = `
   }
   .panel.dim button { pointer-events: auto; }
   .panel.dim .title, .panel.dim .reason {
-    background: #121212; padding: 3px 8px; border-radius: 4px; max-width: calc(100% - 16px);
+    background: #121212; padding: 3px 8px; border-radius: 0; max-width: calc(100% - 16px);
   }
   .panel.dim .title { font-size: 14px; }
   .panel.dim.checking .reason { display: none; }
@@ -99,7 +99,7 @@ const SHADOW_CSS = `
   }
   .pagecheck.fading { opacity: 0; }
   .pagecheck p {
-    margin: 0; padding: 6px 12px; border-radius: 6px; background: #121212; color: #ffffff;
+    margin: 0; padding: 6px 12px; border-radius: 0; background: #121212; color: #ffffff; border: 1px solid #3a3a36;
     font: 600 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   .pagecheck .brand { margin-right: 8px; display: inline-block; }
@@ -110,7 +110,7 @@ const SHADOW_CSS = `
   .bar {
     position: fixed; top: 8px; right: 8px; max-width: calc(100vw - 16px); box-sizing: border-box;
     display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px;
-    background: #121212; color: #ffffff; border-radius: 999px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    background: #121212; color: #ffffff; border-radius: 0; border: 1px solid #3a3a36; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
     pointer-events: auto; font: 600 13px/1.25 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     text-align: left;
   }
@@ -119,9 +119,15 @@ const SHADOW_CSS = `
   .bar .text { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bar button { min-height: 32px; padding: 4px 12px; font-size: 13px; white-space: nowrap; }
   .panel.cover { background: #121212; }
+  /* Dithering look: a decorative band in two near-identical blacks (static, ~1.1:1, never behind text). */
+  .panel.cover::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 12px;
+    background: repeating-conic-gradient(#1d1d1a 0 25%, #121212 0 50%) 0 0 / 4px 4px; pointer-events: none;
+  }
   .brand {
-    margin: 0; padding: 2px 8px; border-radius: 4px;
-    background: #ffd84d; color: #121212; font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+    margin: 0; padding: 2px 8px; border-radius: 0;
+    background: #ffd84d; color: #121212; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace; text-transform: uppercase;
   }
   .panel.fading { opacity: 0; }
   .title { margin: 0; font-size: 16px; }
@@ -132,7 +138,7 @@ const SHADOW_CSS = `
   .panel.compact button { min-height: 32px; padding: 4px 10px; font-size: 13px; }
   button {
     font: inherit; font-size: 14px; min-height: 44px; min-width: 44px;
-    padding: 8px 16px; border-radius: 6px; cursor: pointer;
+    padding: 8px 16px; border-radius: 0; cursor: pointer;
     border: 2px solid #ffd84d; background: #ffd84d; color: #121212;
   }
   button:focus-visible { outline: 3px solid #ffffff; outline-offset: 3px; }
@@ -143,6 +149,7 @@ const SHADOW_CSS = `
   @media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
   @media (forced-colors: active) {
     .panel.dim, .panel.cover { background: Canvas; color: CanvasText; }
+    .panel.cover::before { display: none; }
     .reason { color: CanvasText; }
     button { border-color: ButtonText; background: ButtonFace; color: ButtonText; }
   }
