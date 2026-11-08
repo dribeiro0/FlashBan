@@ -25,6 +25,8 @@ Then open http://localhost:8080/ with the unpacked extension loaded. (Opening th
 | adversarial/early-start.html | canvas strobe that starts at page load with `?autostart=1` (otherwise Start-gated) (T8) | 4 cycles/s, 4 s | block |
 | adversarial/scroll-strobe.html | CSS background animation on `animation-timeline: scroll()`, page scrolls down/up each second (scroll-linked strobe) | ~10 cycles/s | block |
 | adversarial/raise-media.html | canvas strobe raised above the cover every frame: max z-index and its own re-opened top-layer popover (T6) | 4 cycles/s | block |
+| adversarial/srcswap.html | one video element: 3 s strobe, then a calm source (srcObject); calm should play uncovered within ~1.5 s | 4 cycles/s | block (then release) |
+| adversarial/srcflip.html | one video element flipping strobe/calm every 600 ms (srcObject) | 8 cycles/s | block |
 | adversarial/aliasing.html | canvas at 12.5 cycles/s; a fixed 80 ms sampling grid sees one state (T1) | 12.5 cycles/s | block |
 | adversarial/aliasing-30hz.html | canvas changing on every animation frame; every-other-frame sampling sees one state (T1) | half the display rate | block |
 | adversarial/tainted.html | canvas strobe on a canvas tainted by a cross-origin image (the other localhost hostname, same port), so it can't be read (T4) | 4 cycles/s | block (fail-closed dim) |
