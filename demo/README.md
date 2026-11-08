@@ -21,6 +21,7 @@ Then open http://localhost:8080/ with the unpacked extension loaded. (Opening th
 | adversarial/overlay-killer.html | canvas strobe plus a script that removes/hides unknown nodes, closes dialogs and popovers, keeps a max z-index layer (T6) | 4 cycles/s, 10 s | block |
 | adversarial/red-only.html | canvas, #c80000 vs #616161 (luminance change 0.004, UCS distance 0.26) (T3) | 4 cycles/s | block |
 | adversarial/late-start.html | canvas, 10 s calm then strobe (T8) | 4 cycles/s for 3 s | block |
+| adversarial/early-start.html | canvas strobe that starts at page load with `?autostart=1` (otherwise Start-gated) (T8) | 4 cycles/s, 4 s | block |
 | adversarial/aliasing.html | canvas at 12.5 cycles/s; a fixed 80 ms sampling grid sees one state (T1) | 12.5 cycles/s | block |
 | adversarial/aliasing-30hz.html | canvas changing on every animation frame; every-other-frame sampling sees one state (T1) | half the display rate | block |
 | adversarial/tainted.html | canvas strobe on a canvas tainted by a cross-origin image (the other localhost hostname, same port), so it can't be read (T4) | 4 cycles/s | block (fail-closed dim) |
