@@ -46,13 +46,64 @@ test("T5: 4 Hz sampled at 4 Hz on phase is never clean, and blocks after a windo
   }
 });
 
-test("T6: a 1000 ms backwards seek holds warn for one window, no throw", () => {
+test("T6: a seek after flashing holds warn for one window, no throw", () => {
+  // Changed Nov 7: the hold only applies if something was flashing before the jump.
   const d = createDetector(OPTS);
-  drive(d, W, H, grid(60, 3000), calm);
+  // 2 Hz flashing (counted, but under the limit), then a 1000 ms backwards seek to calm.
+  drive(d, W, H, grid(60, 3000), whole(square(250)));
   const after = drive(d, W, H, grid(60, 4000, 2000), calm);
   assert.equal(after[0].r.severity, "warn");
   assert.ok(after.filter(({ t }) => t < 2900).every(({ r }) => r.severity === "warn"));
   assert.equal(after.at(-1).r.severity, "none");
+});
+
+test("T6b: a calm video that loops or seeks is not dimmed", () => {
+  const d = createDetector(OPTS);
+  drive(d, W, H, grid(60, 3000), calm);
+  const after = drive(d, W, H, grid(60, 4000, 2000), calm);
+  for (const { r } of after) assert.equal(r.severity, "none");
+});
+
+// ---- dropped-frame flag (FrameSample.dropped, additive) ----
+
+/** Drive with an explicit dropped flag on every sample. */
+function driveFlag(d, times, paint, dropped) {
+  const px = new Uint8ClampedArray(W * H * 4);
+  return times.map((t, i) => {
+    paint(px, t, i);
+    return { t, r: d.push(dropped === undefined ? { t, pixels: px } : { t, pixels: px, dropped }) };
+  });
+}
+
+test("D1a: an 8 fps video with no dropped frames is not undersampled", () => {
+  const reps = driveFlag(createDetector(OPTS), grid(8, 4000), calm, false);
+  for (const { r } of reps) {
+    assert.equal(r.undersampled, false);
+    assert.equal(r.severity, "none");
+  }
+});
+
+test("D1a: the same 8 fps samples WITHOUT the flag keep the old fail-closed gap rule", () => {
+  const reps = driveFlag(createDetector(OPTS), grid(8, 4000), calm, undefined);
+  assert.ok(reps.slice(1).every(({ r }) => r.undersampled));
+  assert.equal(reps.at(-1).r.severity, "block"); // gaps for a whole window
+});
+
+test("D1a: real dropped frames still warn (dropped: true)", () => {
+  const reps = driveFlag(createDetector(OPTS), grid(8, 2000), calm, true);
+  assert.ok(reps.slice(1).every(({ r }) => r.undersampled));
+});
+
+test("D1a: a 1.5 s buffering stall with no dropped frames is not a warning", () => {
+  const times = [...grid(30, 2000), ...grid(30, 5000, 3500)];
+  const reps = driveFlag(createDetector(OPTS), times, calm, false);
+  for (const { r } of reps) assert.equal(r.severity, "none");
+});
+
+test("D1a: a 4 Hz strobe inside an 8 fps video is still caught", () => {
+  // Every frame flips (125 ms per frame = half a 4 Hz cycle).
+  const reps = driveFlag(createDetector(OPTS), grid(8, 4000), hz4, false);
+  assert.ok(reps.some(({ r }) => r.violation));
 });
 
 test("T7: a looping 800 ms strobe still reaches a violation", () => {

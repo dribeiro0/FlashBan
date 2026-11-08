@@ -105,7 +105,8 @@ Gray `G128` is about L = 0.216, close to pure red's L = 0.2126, so a swing betwe
 | Re4 | 4 Hz, red (255,0,0) <-> white (255,255,255) | **violation**, reason `both` |
 | Re5 | Re1 at 3 Hz (6 transitions per second) | none |
 | Re6 | Re1 at 4 Hz but red region only 341 sample px (at the area threshold) | none; 342 px is a violation. Red area is judged separately from general area |
-| Re7 | Preset `strict`, one red flash pair (2 transitions) in a second | **violation**, reason `red` (strict treats any red flash as a violation) |
+| Re7 | Preset `strict`, red at 1.5 Hz (3 transitions per second) | **violation**, reason `red`; `wcag` none. Changed Nov 7: strict needs more than one red flash (3+ transitions) in the window |
+| Re7b | Preset `strict`, one red blink (2 transitions), or a red title card held 1.5 s | none (false-positive fix: a red badge or title card isn't a hazard) |
 | Re8 | All-black frames and all-red frames only (no alternation) | none. Pixels with R+G+B = 0 skip the chromaticity maths without producing NaN |
 
 ## 7. Irregular timing and sampling
@@ -117,7 +118,9 @@ Gray `G128` is about L = 0.216, close to pure red's L = 0.2126, so a swing betwe
 | T3 | 4 Hz square wave with seeded jittered intervals between 8 and 40 ms | **violation**. Intervals stay under the 100 ms gap limit, so no `undersampled` |
 | T4 | 4 Hz wave, then a 150 ms gap with no samples, then it resumes | `undersampled` true and `severity` at least `warn` for the report after the gap; back to normal after a window |
 | T5 | 4 Hz square wave sampled **at 4 Hz on phase** (aliasing: every sample sees the same level), 3 s | `undersampled` true, severity at least `warn` (and `block` after a full window of such gaps). Never a clean `none` |
-| T6 | Video-style timestamps: samples at `mediaTime * 1000`, then a backwards jump of 1,000 ms (seek) | holds `warn` for one window; no throw. Implementation note: instead of a hard reset, the detector keeps a continuous internal clock (one normal step after the last sample), so history survives the jump |
+| T6b | A calm video that loops or seeks backwards | none: the warn hold applies only if something was flashing before the jump (false-positive fix, Nov 7) |
+| D1a | `dropped: false` on every sample: 8 fps calm video; a 1.5 s buffering stall; a 4 Hz strobe inside 8 fps | not undersampled and none for the calm cases; the strobe is still a **violation**. Without the flag the old gap rule applies (block after a window of gaps); `dropped: true` still warns |
+| T6 | Video-style timestamps: samples at `mediaTime * 1000`, then a backwards jump of 1,000 ms (seek) after flashing | holds `warn` for one window; no throw. Implementation note: instead of a hard reset, the detector keeps a continuous internal clock (one normal step after the last sample), so history survives the jump |
 | T7 | Looping strobe: 800 ms of 4 Hz, jump back to 0, repeat | still reaches a violation within a few loops (the continuous clock keeps transitions across the loop point; a hard reset would never see 7) |
 | T8 | Two samples with identical `t` | second one ignored, no double counting, no throw |
 | T9 | Long safe intro: constant for 30 s, then 4 Hz begins at `t0` (threat T8) | violation by `t0 + 1000` ms at the latest |
