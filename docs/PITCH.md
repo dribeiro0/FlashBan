@@ -2,7 +2,7 @@
 
 For: Yaovi (@unseentrader007), presenter. Prepared by Jun (@sysoutprntlne).
 Judging: Sunday 9:30 AM. Track: Tech Access, plus the Built To Be Trusted security award. Criteria: Accessibility Impact, Technical Depth, Design, Presentation, Creativity.
-Everything here matches what shipped (README.md, docs/DEVPOST.md). Numbers in [brackets] are filled from the harness run on the frozen build. If a number is still in brackets on Sunday morning, leave that sentence out.
+Behavior matches the dim + greyscale build. Evidence below is Yaovi’s three-run table on main `0c610e2` (board comment 6718973934): 29/29 pages, 16 attack pages and 8 benign/control pages. The final demo tag is still awaiting the lead/backup decision; re-check these numbers on that tag before judging. Bracketed driver cues are not spoken claims.
 
 ## How to use this
 
@@ -17,7 +17,7 @@ Words you might hear, in plain terms:
 |---|---|
 | Photosensitive epilepsy | Flashing or flickering light can cause a seizure. About 1 in 4,000 people have it. |
 | WCAG 2.3.1 | The web accessibility rule: nothing should flash more than three times in any one second over a large part of the screen. |
-| Soften | We smooth the flashing out so the video or animation keeps playing, just without the strobe. |
+| Soften | Video/canvas/animated images stay playing but are dimmed and turned grey. CSS animations are slowed; script-driven flicker is smoothed. |
 | Cover | When softening isn't enough, we pause it and put a plain panel over it. |
 | Lockdown | If a page keeps attacking our protection, we dim the whole page with styles the page can't touch. |
 | Fail closed | If we can't check something, we dim it to be safe instead of letting it through. |
@@ -38,29 +38,29 @@ Words you might hear, in plain terms:
 
 ## Slide 2: Soften, don't break the page (0:25 to 1:10)
 
-**On the slide:** "FlashBan watches every page and softens flashing before it reaches you."
+**On the slide:** "FlashBan detects flashing and tones it down to reduce exposure."
 
 **Say first, before anything moves:**
 > Quick warning: next is a short, dimmed flashing pattern we made ourselves. If you'd rather not see it, look away for about five seconds.
 
-*[Driver: open the canvas demo page with the HUD open beside it. Press Start. FlashBan softens it. Point at the HUD numbers.]*
+*[Driver: open the canvas demo page with the HUD open beside it. Press Start. FlashBan dims it and turns it grey. Point at the HUD estimates.]*
 
 **Say:**
-> This test page flashes four times a second, over the limit. FlashBan caught it in under a second and softened it: it keeps playing, but the strobe is smoothed out. The numbers on the side are what our detector measured, using the exact WCAG formulas.
-> Most tools protect you by taking content away. We wanted people to keep using the page, so we soften first, and only cover it when softening isn't enough.
+> This test page flashes four times a second, over the limit. FlashBan detects it and dims it in greyscale. Motion and audio keep playing while the brightness changes are reduced. The numbers on the side are detector estimates from sampled frames, using the WCAG flash rules.
+> Keeping the page usable matters. We wanted people to keep using the page, so we tone it down first. Users can also choose to hide flashing content, and hostile pages can be locked down.
 > Okay, the flashing part is done.
 
 **If the live demo fails:** *[Driver: show the screenshot.]* "Here's the same test from last night."
 
 ---
 
-## Slide 3: It works everywhere, and it doesn't cry wolf (1:10 to 1:40)
+## Slide 3: Tested across sources and everyday pages (1:10 to 1:40)
 
 **On the slide:** two columns. "Caught: video, canvas, animated images, CSS animations, flickering page elements." "Not flagged: scene cuts, a camera flash, slow fades, dark mode, a sunset."
 
 **Say:**
 > Flashing can come from a video, an image, a page animation, or a script flicking colours on and off. FlashBan checks every one of them.
-> Just as important: it leaves normal content alone. Our automated test runs every page in a real Chrome browser. It passes [17 of 17] pages, three runs in a row, including [7] everyday pages, like a camera flash or a sunset, that must never be touched. Zero false alarms.
+> Just as important: it leaves normal content alone. Our automated test runs every page in a real Chrome browser. On build 0c610e2 it passed 29 of 29 pages, three runs in a row: all 16 attack pages were protected, and all 8 everyday/control pages were left alone. Zero false alarms in that test set.
 > Content we can't look inside, like protected video, is dimmed and labelled "can't verify". We'd rather be careful than guess.
 
 ---
@@ -72,9 +72,9 @@ Words you might hear, in plain terms:
 *[Driver: open the overlay-killer attack page and press Start.]*
 
 **Say:**
-> We treat this as an attack, so we attacked FlashBan ourselves. This page deletes our protection many times a second. FlashBan notices, and locks the page down with browser-level styles the page can't see or remove: in [0.9] seconds, the flashing is gone.
+> We treat this as an attack, so we attacked FlashBan ourselves. This page deletes our protection many times a second. FlashBan notices, and locks the page down with browser-level styles the page can't see or remove: our overlay-killer test reached lockdown in about 1.25 seconds on that build.
 > Every trick we found became a permanent test page: strobes that hide between our checks, red-only flashes, a page that waits ten seconds before strobing, and pages that undo our softening.
-> And it's private. Using a seizure shield reveals a health condition, so there are no accounts and no server. FlashBan only keeps a list of site names on your own computer, and you can clear it with one click.
+> And it's private. Using a seizure shield reveals a health condition, so there are no accounts and no server. FlashBan keeps site domains, dates and basic detector metrics on your own computer, and you can clear the log with one click.
 
 ---
 
@@ -85,16 +85,16 @@ Words you might hear, in plain terms:
 *[Driver: put the mouse down. Tab to the "Show original on this site" button on FlashBan's bar at the top right and press Enter.]*
 
 **Say:**
-> An accessibility tool has to be accessible itself. Everything works with just a keyboard, with a clear focus outline. One button on a slim bar shows the original on that site if you choose to, and the page can't press it for you. Screen readers announce what FlashBan did and why. Our own design never flashes and respects reduced-motion settings. Automated accessibility checks found zero problems in the popup and the overlay.
+> An accessibility tool has to be accessible itself. Everything works with just a keyboard, with a clear focus outline. One button on a slim bar shows the original on that site if you choose to, and the page can't press it for you. Screen readers announce what FlashBan did and why. Our own design never flashes and respects reduced-motion settings. Automated checks found zero violations in the tested popup states; the overlay also has a previous test-build check. That does not replace a manual keyboard and screen-reader check.
 
 ---
 
 ## Slide 6: Honest limits, and what's next (2:35 to 3:00)
 
-**On the slide:** "Not a medical device." Limits: "Protected and cross-origin video can't be measured, so it's dimmed." "The first fraction of a second of a new flash can reach the screen." "Websites can detect that FlashBan is installed." Next: "Hide FlashBan from websites, check protected video by screen capture, Firefox."
+**On the slide:** "Not a medical device." Limits: "Protected and cross-origin video can't be measured, so it's dimmed." "The first frames of a new flash can reach the screen before detection reacts." "Websites can detect that FlashBan is installed." Next: "Hide FlashBan from websites, check protected video by screen capture, Firefox."
 
 **Say:**
-> We want to be honest. FlashBan is not a medical device and can't promise to stop every seizure. Protected video can't be measured, so we dim it. A brand-new flash can show for a fraction of a second before we catch it. And today a website could tell FlashBan is installed, which could reveal someone's condition. Fixing that is first on our list, then checking protected video and a Firefox version.
+> We want to be honest. FlashBan is not a medical device and can't promise to stop every seizure. Protected video can't be measured, so we dim it. The first frames of a brand-new flash can reach the screen before detection reacts; response time depends on the page and machine. And today a website could tell FlashBan is installed, which could reveal someone's condition. Fixing that is first on our list, then checking protected video and a Firefox version.
 > Thank you. We're happy to take questions.
 
 ---
@@ -103,8 +103,8 @@ Words you might hear, in plain terms:
 
 *[Driver: overlay-killer page, HUD optional.]*
 
-> A troll controls the page, so they can run code against us. This page tries to delete FlashBan's protection many times a second. *[Start.]* FlashBan counts the attacks, and after a few it locks the whole page down with styles from the browser itself, which the page can't see or remove. The flashing is gone in under a second, and the badge on the FlashBan icon shows why.
-> We also tested pages that undo our softening; they get covered every time. Every one of these attacks is in our automated test, and it passes [17 of 17] pages three runs in a row.
+> A troll controls the page, so they can run code against us. This page tries to delete FlashBan's protection many times a second. *[Start.]* FlashBan counts the attacks, and after a few it locks the whole page down with styles from the browser itself, which the page can't see or remove. Our overlay-killer test reaches lockdown in about 1.25 seconds on build 0c610e2, and the badge on the FlashBan icon shows why.
+> We also tested pages that undo our softening; they get covered every time. Every one of these attacks is in our automated test, and on build 0c610e2 it passes 29 of 29 pages three runs in a row, including all 16 attack pages.
 
 ---
 
@@ -114,9 +114,9 @@ Words you might hear, in plain terms:
 |---|---|
 | Did you test it on people with epilepsy? | No, and we never would; it would be unsafe. We only use patterns we generated, and we check the detector's numbers against the WCAG formulas. |
 | Does it work on YouTube? | Yes for detection on the page itself, but much video comes from other servers or is protected, and then we can't read the pixels. In that case we dim it instead of guessing. |
-| How fast does it react? | Usually within about half a second to a second. That's why we say "reduces", not "prevents". |
+| How fast does it react? | It depends on the source, page and machine. The overlay-killer test reached lockdown in about 1.25 seconds on build 0c610e2; that is not a universal reaction-time guarantee. |
 | Does it slow my browser? | It checks a small, shrunk copy of each frame and measures its own cost. If it can't keep up, it dims what it couldn't check instead of freezing the page. |
-| What data do you collect? | None leaves your computer. There's a local list of site names and dates with a "Clear my data" button, and old entries delete themselves after 30 days. |
+| What data do you collect? | The local log keeps domains, dates, counts and basic detector metrics, with "Clear my data" and 30-day deletion. It is not uploaded. An image-animation probe can contact the image host; that privacy limit is documented. |
 | Where are your API keys? | There are none. No server, no accounts, no secrets. |
 | How would a screen-reader user use it? | There's no login. Everything works by keyboard, and the overlay announces itself to screen readers. |
 | Why not just stop all animation? | That breaks most of the web. We only step in when something actually flashes too fast, and we soften rather than remove. |

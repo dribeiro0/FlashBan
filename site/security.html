@@ -30,7 +30,7 @@
         <thead><tr><th scope="col">Data</th><th scope="col">Where</th><th scope="col">How long</th></tr></thead>
         <tbody>
           <tr><th scope="row">Your settings (sensitivity, soften or hide, per-site switch)</th><td>this computer</td><td>until you change them</td></tr>
-          <tr><th scope="row">Domain and date of sites that flashed</th><td>this computer</td><td>30 days, or until "Clear my data"</td></tr>
+          <tr><th scope="row">Domains, dates, counts, peak flash estimates and source types</th><td>this computer</td><td>30 days, or until "Clear my data"</td></tr>
           <tr><th scope="row">Accounts, identifiers, full URLs, page content, screenshots</th><td>never collected</td><td>–</td></tr>
         </tbody>
       </table></div>
@@ -44,18 +44,18 @@
     <section aria-labelledby="threats">
       <h2 id="threats">Attacks we test against</h2>
       <p class="muted">From our threat model. "Tested" means a passing unit test or an attack page in <code>demo/adversarial/</code> that passes <code>node harness/run.mjs</code> against the real extension.</p>
-      <p class="muted">Harness timings below are from tag <code>demo</code> (<code>47d9023</code>), three headless runs on our slowest Windows laptop: 26/27 expected verdicts each run, all 14 attacks protected 3/3, all 8 benign/static pages allowed 3/3. The synthetic <code>video.html</code> page was missed in all three runs on that machine; reliable video protection is not established by this run. <a href="https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718646482">Full results</a>. Later builds need their own checks.</p>
+      <p class="muted">Harness evidence below is from main <code>0c610e2</code> after dim + greyscale shipped: three headless runs on our slower Windows laptop, 29/29 expected verdicts each run, all 16 attacks protected 3/3, all 8 benign/control pages allowed 3/3. Video passed in all three runs. The table records dimmed pages by end state, so no first-dim timings are claimed here. <a href="https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718973934">Full results</a>. Later builds need their own checks.</p>
       <div class="table"><table>
         <thead><tr><th scope="col">Threat</th><th scope="col">Defence</th><th scope="col">Status</th></tr></thead>
         <tbody>
-          <tr><th scope="row">A strobe timed between samples</th><td>Sampling with real timestamps</td><td><span class="status tested">tested</span> 12.5 Hz softened in 0.45–0.46 s</td></tr>
+          <tr><th scope="row">A strobe timed between samples</th><td>Sampling with real timestamps</td><td><span class="status tested">tested</span> 12.5 Hz dimmed and in greyscale</td></tr>
           <tr><th scope="row">A big flash split into small tiles</th><td>Add flashing area up across elements</td><td><span class="status tested">tested</span> unit test</td></tr>
-          <tr><th scope="row">Red-only flashes that pass the brightness check</th><td>Separate red-flash detector</td><td><span class="status tested">tested</span> softened in 1.24–1.25 s</td></tr>
+          <tr><th scope="row">Red-only flashes that pass the brightness check</th><td>Separate red-flash detector</td><td><span class="status tested">tested</span> dimmed and in greyscale</td></tr>
           <tr><th scope="row">Pixels hidden from analysis (tainted canvas, DRM)</th><td>Fail closed: dim and label</td><td><span class="status tested">tested</span> tainted canvas dimmed</td></tr>
-          <tr><th scope="row">Many strobes to exhaust the CPU</th><td>Per-page budget, then fail closed</td><td><span class="status tested">tested</span> softened or blocked in 1.7–2.3 s</td></tr>
-          <tr><th scope="row">Page deletes or restyles the overlay</th><td>Closed shadow root, top layer, re-applied guard, then lockdown</td><td><span class="status tested">tested</span> locked down in 1.24–1.28 s</td></tr>
+          <tr><th scope="row">Many strobes to exhaust the CPU</th><td>Per-page budget, then fail closed</td><td><span class="status tested">tested</span> protected by dimming</td></tr>
+          <tr><th scope="row">Page deletes or restyles the overlay</th><td>Closed shadow root, top layer, re-applied guard, then lockdown</td><td><span class="status tested">tested</span> locked down in 1.24–1.25 s</td></tr>
           <tr><th scope="row">Page spoofs messages to the extension</th><td>Only our own extension id is trusted; every message shape-checked</td><td><span class="status tested">tested</span> unit tests</td></tr>
-          <tr><th scope="row">Flashing that starts after a calm intro</th><td>Detection never stops</td><td><span class="status tested">tested</span> caught ~1.2 s after it starts</td></tr>
+          <tr><th scope="row">Flashing that starts after a calm intro</th><td>Detection never stops</td><td><span class="status tested">tested</span> dimmed after the calm intro</td></tr>
           <tr><th scope="row">Remote code in the extension</th><td>No remote scripts, no eval, strict CSP</td><td><span class="status">built</span> by review</td></tr>
           <tr><th scope="row">Our own overlay flickering</th><td>Static overlay; no motion under reduced motion</td><td><span class="status">built</span></td></tr>
         </tbody>
@@ -68,7 +68,7 @@
       <ul class="rows">
         <li><span>Unreadable video</span><p>DRM and cross-origin video without CORS can't be measured, only dimmed.</p></li>
         <li><span>Detectable</span><p>Websites can tell FlashBan is installed by probing its extension files, which can reveal a health condition. Fix (bundling the content scripts) not done yet.</p></li>
-        <li><span>First frames</span><p>The first frames of a new flash can reach the screen before FlashBan reacts, typically well under a second.</p></li>
+        <li><span>First frames</span><p>The first frames of a new flash can reach the screen before FlashBan reacts; response time depends on the page, source and machine.</p></li>
         <li><span>Outside the browser</span><p>Apps, games and video outside Chrome aren't covered.</p></li>
         <li><span>Image probe</span><p>The still-or-animated probe for WebP/APNG can be fooled by the image's server, and image hosts can see that this browser runs FlashBan.</p></li>
         <li><span>Iframes</span><p>Flashes split across iframes aren't added together; each frame is judged on its own.</p></li>

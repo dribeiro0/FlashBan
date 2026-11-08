@@ -43,8 +43,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-lIOX4s2nEqEx1gW0gEEtcaYjGdHD9jRM4kXGCoXCGqk=' 'sha256-y7jnANXIVIUuYgPYcTL2oZNWdshWGmM2rr2ezNBzPwI='; style-src 'self' 'sha256-8vaj2ZhcAxcXhwL6K5yZ7wkY7rzfnEDrZbn7AQyVTGU=' 'sha256-zN5JlC5t3YydcyzfmPy6G+nNc18qmwTqpcWvemd9ojc='; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<title>FlashBan — flashing content, softened before it reaches you</title>
-<meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and softens it before it reaches you. No account, no server.">
+<title>FlashBan — reduce exposure to flashing content</title>
+<meta name="description" content="FlashBan is a free Chrome extension that finds flashing video, GIFs, canvas and animation and tones it down to reduce exposure. No account, no FlashBan server.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230e0e0e'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='Arial Narrow,Arial' font-weight='900' font-size='18' fill='%23edeae3'%3EFB%3C/text%3E%3C/svg%3E">
 <style>
 @font-face{font-family:"Sofia Sans Extra Condensed";font-weight:900;font-style:normal;font-display:swap;src:url(fonts/sofia-sans-extra-condensed-900.woff2) format("woff2")}
@@ -399,7 +399,7 @@ body.menu-open .menu-btn .w2{top:0}
       <article class="hz-panel" id="about" aria-labelledby="pa-t">
         <h3 class="hz-t" id="pa-t">What it is</h3>
         <div class="hz-cols">
-          <p class="body">FlashBan is a free Chrome extension for people with photosensitive epilepsy. It finds flashing video, GIFs, canvas and animation and softens just that part, before it reaches you.</p>
+          <p class="body">FlashBan is a free Chrome extension for people with photosensitive epilepsy. It finds flashing video, GIFs, canvas and animation and tones it down to reduce exposure.</p>
           <div class="hz-col">
             <p class="body">Soften first. Cover only if it won't calm down. Dim what it can't check. No account and no server: the only record is a site's domain, on your computer, for 30 days.</p>
             <p class="body mute">Not a medical device. It reduces exposure to flashing content; it can't guarantee protection.</p>
@@ -414,19 +414,19 @@ body.menu-open .menu-btn .w2{top:0}
           <li><span class="n">02</span><span class="h">Measure brightness and red</span><span class="d">Relative luminance per WCAG, plus a separate check for saturated red. Near-black noise counts as having no colour.</span></li>
           <li><span class="n">03</span><span class="h">Count in a one-second window</span><span class="d">By the clock, not by frames. Flashing area is added up across elements, so one big flash split into tiles still counts.</span></li>
           <li><span class="n">04</span><span class="h">Decide</span><span class="d">Over the limit (WCAG by default; Strict and Relaxed in the popup) means act. Can't read it at all means fail closed.</span></li>
-          <li><span class="n">05</span><span class="h">Soften, cover or dim</span><span class="d">Soften keeps it playing, checked again by a second detector. Cover pauses it if softening isn't enough. Dim labels what couldn't be checked.</span></li>
+          <li><span class="n">05</span><span class="h">Soften, cover or dim</span><span class="d">Flashing media stays playing but is dimmed and in greyscale. CSS animation is slowed; a cover or lockdown protects content when needed. Unreadable media stays dimmed.</span></li>
         </ol>
       </article>
       <article class="hz-panel" id="states" aria-labelledby="ps-t">
         <h3 class="hz-t" id="ps-t">What you see on the page</h3>
         <div class="grid">
       <a class="card" href="how.html">
-        <span class="ov-chip"><b>FlashBan</b>Flashing softened</span>
-        <div class="cap"><div class="cap-row"><h3>Softened</h3>
+        <span class="ov-chip"><b>FlashBan</b>Dimmed for safety</span>
+        <div class="cap"><div class="cap-row"><h3>Dimmed</h3>
           <div class="meta"><span class="label">Default</span><span class="label">▪</span><span class="label">Still playing</span></div></div></div>
       </a>
       <a class="card" href="how.html">
-        <div class="ov-cover"><strong>Flashing content hidden</strong><p>It kept flashing after softening, so it's paused and covered. "Show original on this site" in FlashBan's bar brings the site back.</p></div>
+        <div class="ov-cover"><strong>Flashing content hidden</strong><p>Flashing content is paused and covered. "Show original on this site" in FlashBan's bar brings the site back.</p></div>
         <div class="cap"><div class="cap-row"><h3>Covered</h3>
           <div class="meta"><span class="label">Won't calm</span><span class="label">▪</span><span class="label">Paused</span></div></div></div>
       </a>
@@ -453,13 +453,13 @@ body.menu-open .menu-btn .w2{top:0}
       <article class="hz-panel" id="tested" aria-labelledby="pt-t">
         <div class="hz-row"><h3 class="hz-t" id="pt-t">Tested</h3><a class="label fg" href="security.html">Threat model →</a></div>
         <p class="label">Attack pages it beats ▪ node harness/run.mjs</p>
-        <p class="body ink-mute">Judging baseline: tag demo (47d9023), three headless runs on our slowest Windows laptop. 26 of 27 pages matched each run; all 14 attacks were protected 3/3. The synthetic video page was missed 3/3 on that machine. <a href="https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718646482">Full results</a>. Later builds need their own checks.</p>
+        <p class="body">Tested build: main 0c610e2, three headless runs on our slower Windows laptop. 29 of 29 pages matched each run; all 16 attack pages were protected and all 8 benign/control pages allowed. <a href="https://github.com/dribeiro0/FlashBan/issues/1#issuecomment-6718973934">Full results</a>. These results describe that build and test set; later builds need their own checks.</p>
         <ul class="wall">
-      <li class="cell"><span class="num">1.3 s</span><span class="what">A page deletes FlashBan's cover every frame: locked down in 1.24–1.28 s.</span><span class="label">Overlay killer ▪ T6</span></li>
-      <li class="cell"><span class="num">1.3 s</span><span class="what">Red-only flashes with almost no brightness change: softened in 1.24–1.25 s.</span><span class="label">Red only ▪ T3</span></li>
-      <li class="cell"><span class="num">0.46 s</span><span class="what">A 12.5 Hz strobe timed between samples: softened in 0.45–0.46 s.</span><span class="label">Aliasing ▪ T1</span></li>
-      <li class="cell"><span class="num">1.2 s</span><span class="what">Flashing after 10 calm seconds: caught after it starts.</span><span class="label">Late start ▪ T8</span></li>
-      <li class="cell"><span class="num">2.3 s</span><span class="what">40 strobes plus busy work: softened or blocked in 1.7–2.3 s.</span><span class="label">CPU flood ▪ T5</span></li>
+      <li class="cell"><span class="num">1.3 s</span><span class="what">A page deletes FlashBan's cover every frame: locked down in 1.24–1.25 s.</span><span class="label">Overlay killer ▪ T6</span></li>
+      <li class="cell"><span class="num">Dim</span><span class="what">Red-only flashes with almost no brightness change: dimmed and in greyscale.</span><span class="label">Red only ▪ T3</span></li>
+      <li class="cell"><span class="num">Dim</span><span class="what">A 12.5 Hz strobe timed between samples: dimmed and in greyscale.</span><span class="label">Aliasing ▪ T1</span></li>
+      <li class="cell"><span class="num">Dim</span><span class="what">Flashing after 10 calm seconds: dimmed after it starts.</span><span class="label">Late start ▪ T8</span></li>
+      <li class="cell"><span class="num">Dim</span><span class="what">40 strobes plus busy work: protected by dimming.</span><span class="label">CPU flood ▪ T5</span></li>
       <li class="cell"><span class="num">Dim</span><span class="what">A strobe on a canvas it can't read: dimmed and labelled.</span><span class="label">Tainted canvas ▪ T4</span></li>
       <li class="cell"><span class="num">16 tiles</span><span class="what">One big flash split into small tiles: still blocked.</span><span class="label">Split area ▪ T2</span></li>
       <li class="cell"><span class="num">0 of 8</span><span class="what">Benign/static pages flagged across three runs (24 allow verdicts).</span><span class="label">False positives in this test set</span></li>

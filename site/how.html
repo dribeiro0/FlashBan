@@ -21,8 +21,8 @@
   <div class="wrap">
     <section class="hero" aria-labelledby="t">
       <div>
-        <h1 id="t">From every frame to <em>a flat field.</em></h1>
-        <p class="lede">FlashBan reads the pixels and animations already on the page, counts flashes by the clock, and usually acts in under a second.</p>
+        <h1 id="t">From flashing content to <em>a calmer page.</em></h1>
+        <p class="lede">FlashBan reads the pixels and animations already on the page, counts flashes by the clock, and tones down content that crosses the limit. The first frames can reach the screen before it reacts.</p>
       </div>
       <figure class="plate">
         <canvas data-scene="window" width="720" height="300" role="img" aria-label="Eight bars standing for one second of samples; alternating tall and short bars show light and dark states"></canvas>
@@ -37,16 +37,16 @@
         <li><div><h3>Measure brightness and red</h3><p>Relative luminance per WCAG, plus a separate check for saturated red, which can trigger seizures at lower brightness. Near-black noise is treated as having no colour.</p></div></li>
         <li><div><h3>Count flashes in a one-second window</h3><p>By real time, not frame counts, so a slow machine can't make a strobe look slower than it is. Flashing area is added up across elements, so a big flash split into small tiles still counts.</p></div></li>
         <li><div><h3>Decide</h3><p>Over the limit (WCAG by default; Strict and Relaxed are in the popup) means act. Can't read it at all means fail closed.</p></div></li>
-        <li><div><h3>Soften, cover or dim</h3><p>Soften keeps it playing with the flashing smoothed, checked again by a second detector. Cover pauses it behind a plain panel if softening isn't enough. Dim labels what couldn't be checked.</p></div></li>
+        <li><div><h3>Soften, cover or dim</h3><p>Flashing media stays playing but is dimmed and turned grey. CSS animation is slowed; script-driven flicker is smoothed. Users can choose a cover instead. Media that cannot be checked stays dimmed and labelled.</p></div></li>
       </ol>
     </section>
 
     <section aria-labelledby="states">
       <h2 id="states">What you see on the page</h2>
       <div class="split">
-        <figure class="plate"><canvas data-scene="softened" width="560" height="315" role="img" aria-label="Softened: the flashing area flattened, the scene still visible"></canvas><figcaption>Softened: still playing, flashing smoothed.</figcaption></figure>
+        <figure class="plate"><canvas data-scene="dimmed" width="560" height="315" role="img" aria-label="Flashing media dimmed and in greyscale, with the scene still visible"></canvas><figcaption>Dimmed and in greyscale: still playing.</figcaption></figure>
         <ul class="rows">
-          <li><span>Softened</span><p>The default. A label says "Flashing softened"; the video, game or GIF keeps going.</p></li>
+          <li><span>Dimmed for safety</span><p>The default for flashing media: dimmed and in greyscale while it keeps playing. CSS animation is slowed and script-driven flicker is smoothed.</p></li>
           <li><span>Covered</span><p>"Flashing content hidden" on a plain panel. To see the site as it is, press "Show original on this site" in FlashBan's bar. Pages can't press it for you: only real clicks count.</p></li>
           <li><span>Can't verify</span><p>Dimmed and labelled. Protected or cross-origin video can only be dimmed, not checked.</p></li>
           <li><span>Locked down</span><p>When a page keeps fighting the protection, its media is hidden and the toolbar icon shows "!".</p></li>
