@@ -67,14 +67,16 @@ const SHADOW_CSS = `
   /* Dim: the content stays visible but clearly darker, with a small label in
      the corner. Clicks go through to the page (only the "Show anyway" button
      catches them), so a dimmed thumbnail or player still works. Safety math:
-     a 72% black layer leaves at most 28% of the sRGB value, so even a
-     white/black strobe swings relative luminance by under 0.07 (WCAG's flash
+     an 80% black layer leaves at most 20% of the sRGB value, so even a
+     white/black strobe swings relative luminance by under 0.034 (WCAG's flash
      threshold is 0.10), and grayscale takes the colour out of red flashes.
      Cover: opaque, centred message, blocks clicks. No frames (lead, Sat 6:33 PM). */
   .panel.dim {
     justify-content: flex-start; align-items: flex-start; text-align: left;
     gap: 6px; padding: 8px;
-    background: rgba(0, 0, 0, 0.72);
+    /* Darkness comes from the popup's protection strength (--dim-a, 0.72-0.94; the
+       caller clamps to the 0.72 safe floor). Default 80% (David, Sun 3:40 AM). */
+    background: rgba(0, 0, 0, var(--dim-a, 0.8));
     -webkit-backdrop-filter: grayscale(1);
     backdrop-filter: grayscale(1);
     pointer-events: none;
@@ -215,7 +217,7 @@ let lastRaiseCheck = 0;
  * @param {Element} el
  * @param {"dim" | "cover"} mode
  * @param {string} reason   plain-language text shown and announced to the user
- * @param {{ canShow?: boolean, announce?: boolean, light?: boolean }} [opts]
+ * @param {{ canShow?: boolean, announce?: boolean, light?: boolean, alpha?: number }} [opts]
  *   canShow: offer a "Show anyway" button (default: true for cover, false for dim)
  *   light: a see-through dim that doesn't block clicks (a video's short check)
  */
@@ -227,7 +229,7 @@ export function guard(el, mode, reason, opts = {}) {
   if (!g) {
     const panel = document.createElement("div");
     panel.className = "panel";
-    g = { el, mode, reason, canShow: false, panel, fadeTimer: 0, rendered: false, light: false };
+    g = { el, mode, reason, canShow: false, panel, fadeTimer: 0, rendered: false, light: false, alpha: 0 };
     guards.set(el, g);
     /** @type {HTMLDivElement} */ (layer).append(panel);
   }
@@ -238,8 +240,10 @@ export function guard(el, mode, reason, opts = {}) {
   }
   const canShow = opts.canShow ?? mode === "cover";
   const light = mode === "dim" && !!opts.light;
+  // Dim darkness: never under the 0.72 safety floor; 0 = the stylesheet default.
+  const alpha = mode === "dim" && typeof opts.alpha === "number" && Number.isFinite(opts.alpha) ? Math.min(0.97, Math.max(0.72, opts.alpha)) : 0;
   const isNew = !g.rendered;
-  const changed = isNew || wasFading || g.mode !== mode || g.reason !== reason || g.canShow !== canShow || g.light !== light;
+  const changed = isNew || wasFading || g.mode !== mode || g.reason !== reason || g.canShow !== canShow || g.light !== light || g.alpha !== alpha;
   // Callers may guard the same element on every frame; only rebuild the panel
   // when something changed, or keyboard focus on its button would be lost.
   if (!changed) return;
@@ -248,6 +252,7 @@ export function guard(el, mode, reason, opts = {}) {
   g.reason = reason;
   g.canShow = canShow;
   g.light = light;
+  g.alpha = alpha;
   g.rendered = true;
   render(g);
   position(g);
@@ -533,6 +538,8 @@ function raise() {
 function render(g) {
   const { panel } = g;
   panel.className = `panel ${g.mode}${g.mode === "dim" && !g.canShow ? " checking" : ""}${g.light ? " light" : ""}`;
+  if (g.alpha) panel.style.setProperty("--dim-a", String(g.alpha));
+  else panel.style.removeProperty("--dim-a");
   panel.replaceChildren();
   panel.setAttribute("role", "group");
   panel.setAttribute("aria-label", g.mode === "cover" ? "Flashing content hidden by FlashBan" : "Content dimmed by FlashBan");

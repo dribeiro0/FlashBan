@@ -10,7 +10,7 @@ import { loadDetector } from "./detector.js";
 import { backdropOf, effectiveColor, visibleArea, relativeLuminance, parseComputedColor } from "./domflicker.js";
 import { startSoften, softenable } from "./soften.js";
 import { readAsync } from "./glread.js";
-import { normalizeSettings, registrableDomain } from "../shared/settings.js";
+import { normalizeSettings, registrableDomain, STRENGTH_DIM, STRENGTH_BLOCK } from "../shared/settings.js";
 
 // ---------------------------------------------------------------- tuning
 
@@ -83,14 +83,19 @@ const MEDIA_OVERLAP_SHARE = 0.5; // a DOM layer this much over a measured video/
 const MEDIA_OVERLAP_CACHE_MS = 500;
 const LAYER_ALPHA_WATCH = 0.2; // a layer over media seen this opaque even once is always watched
 // How "soften" keeps flashing media watchable (David, Sun 2:40 AM).
-// "dim": the safemode dim layer, a 72% black click-through layer with a greyscale
+// "dim": the safemode dim layer, an 80% black click-through layer with a greyscale
 // backdrop. Safe by arithmetic, not by tracking: the brightest pixel left is
-// sRGB 0.28 (relative luminance ~0.065), under the 0.10 a flash needs, and
+// sRGB 0.20 (relative luminance ~0.033), under the 0.10 a flash needs, and
 // greyscale leaves no red to flash. No frame readback or averaging, so motion
 // stays sharp with no trails, ghosting or blocks. Per-pixel temporal filtering
 // (the GPU soften) can't tell a moving bright object from a flash, so it always
 // smeared or hid moving content; it is kept behind "gpu" for reference.
 const SOFTEN_STYLE = "dim";
+// Severe flashing is blocked (covered and paused), not dimmed (David, Sun 3:50 AM,
+// on a red neon-tunnel video): any red flashing (the most provoking kind), or a
+// flash rate at least this high (twice the WCAG limit). Ordinary over-the-limit
+// flashing stays dimmed + greyscale so it remains watchable.
+const SEVERE_FLASHES_PER_S = 6;
 
 const REASONS = {
   general: "It was flashing faster than is safe.",
@@ -499,6 +504,26 @@ class Source {
       if (this.unverifiable) {
         this.applyUnverifiableDim(); // dim the moment playback starts
         return;
+      }
+      // A different video in the same element (YouTube reuses one <video> and
+      // changes the page address per video; its source change isn't always seen):
+      // judge the new content instead of keeping the old verdict forever.
+      if (this.verdictHref && location.href !== this.verdictHref && !safemode.wasShownByUser(v)) {
+        this.verdictHref = "";
+        if (safemode.guardMode(v) === "cover") {
+          // Stay covered; the cover lifts after RECHECK_CALM_MS of calm frames.
+          const now = performance.now();
+          this.softFailed = false;
+          this.recheckSince = now;
+          this.recheckCalmFrom = now;
+        } else if (this.persistentDim && !this.unverifiable && safemode.guardMode(v) === "dim") {
+          // Flashing dim from the old video: drop it and check the new one
+          // from the start (guarded start dims it briefly while it is checked).
+          this.persistentDim = false;
+          this.flatDim = false;
+          safemode.release(v, { immediate: true });
+          this.guardedStartDone = false;
+        }
       }
       if (safemode.guardMode(v) === "cover" && !safemode.wasShownByUser(v) && !this.recheckSince) {
         v.pause(); // the page may not restart covered flashing video
@@ -1123,10 +1148,15 @@ class Source {
     if (settings.onFlash !== "soften" || this.softFailed) return false;
     if (this.kind === "dom") return this.softenDom(report, t);
     if (!softenable(v)) return false;
+    const severe = report.reason === "red" || report.reason === "both" || (report.flashesPerSecond || 0) >= SEVERE_FLASHES_PER_S;
+    if (severe) return false; // block() covers and pauses it
+    if (settings.strength >= STRENGTH_BLOCK) return false; // the popup's top step: block
     if (SOFTEN_STYLE === "dim") {
       // Dim + greyscale: the content stays visible and playing, darker and grey,
       // and nothing in it can reach a flash. Stays for this element (no on/off).
-      safemode.guard(v, "dim", REASONS.softDim, { canShow: true });
+      const alpha = STRENGTH_DIM[/** @type {1|2|3|4} */ (settings.strength)] ?? 0.94;
+      safemode.guard(v, "dim", REASONS.softDim, { canShow: true, alpha });
+      this.verdictHref = location.href; // a later video at another address is judged afresh
       this.persistentDim = true;
       this.noteViolation(report, t); // still logged: the site served flashing media
       return true;
@@ -1172,6 +1202,7 @@ class Source {
     if (this.trySoften(report, t)) return;
     const reason = REASONS[/** @type {keyof typeof REASONS} */ (report.reason)] || REASONS.unknown;
     safemode.guard(el, "cover", reason, { canShow: true });
+    this.verdictHref = location.href; // a later video at another address is judged afresh
     if (el instanceof HTMLVideoElement && !el.paused) el.pause();
     if (t - this.lastViolationMsg >= VIOLATION_MSG_INTERVAL_MS || !this.lastViolationMsg) {
       this.lastViolationMsg = t;
