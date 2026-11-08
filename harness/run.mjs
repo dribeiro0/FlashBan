@@ -189,31 +189,50 @@ async function main() {
   try {
     const { id: extId } = await cdp.send("Extensions.loadUnpacked", { path: EXT });
 
-    // Hook the service worker so we see every violation message the content script sends.
+    // Hook the service worker so we see every violation message the content
+    // script sends. MV3 service workers restart during long runs, which drops
+    // the hook (and our debugger session), so hookWorker() runs before every
+    // page and before reading results: it re-finds the worker and re-installs
+    // the hook if it's missing.
     await cdp.send("Target.setDiscoverTargets", { discover: true });
     let swSession = null;
-    for (let i = 0; i < 50 && !swSession; i++) {
-      const { targetInfos } = await cdp.send("Target.getTargets");
-      const sw = targetInfos.find((t) => t.type === "service_worker" && t.url.startsWith(`chrome-extension://${extId}/`));
-      if (sw) ({ sessionId: swSession } = await cdp.send("Target.attachToTarget", { targetId: sw.targetId, flatten: true }));
-      else await sleep(200);
-    }
-    if (!swSession) throw new Error("extension service worker not found");
-    await cdp.send(
-      "Runtime.evaluate",
-      {
-        expression: `globalThis.__harness = [];
-          chrome.runtime.onMessage.addListener((m, s) => {
-            if (s.id !== chrome.runtime.id || !m || m.type !== "violation") return;
-            __harness.push({ url: s.url, source: m.source, reason: m.report && m.report.reason, fps: m.report && m.report.flashesPerSecond, at: Date.now() });
-          }); true`,
-      },
-      swSession,
-    );
+    let swTarget = null;
+    const HOOK = `(() => {
+      if (globalThis.__harness) return "kept";
+      globalThis.__harness = [];
+      chrome.runtime.onMessage.addListener((m, s) => {
+        if (s.id !== chrome.runtime.id || !m || m.type !== "violation") return;
+        __harness.push({ url: s.url, source: m.source, reason: m.report && m.report.reason, fps: m.report && m.report.flashesPerSecond, at: Date.now() });
+      });
+      return "installed";
+    })()`;
+    const hookWorker = async () => {
+      for (let i = 0; i < 50; i++) {
+        const { targetInfos } = await cdp.send("Target.getTargets");
+        const sw = targetInfos.find((t) => t.type === "service_worker" && t.url.startsWith(`chrome-extension://${extId}/`));
+        if (!sw) {
+          await sleep(200);
+          continue;
+        }
+        if (sw.targetId !== swTarget || !swSession) {
+          ({ sessionId: swSession } = await cdp.send("Target.attachToTarget", { targetId: sw.targetId, flatten: true }));
+          swTarget = sw.targetId;
+        }
+        try {
+          await cdp.send("Runtime.evaluate", { expression: HOOK, returnByValue: true }, swSession);
+          return swSession;
+        } catch {
+          swSession = null; // stale session (worker restarted): attach again
+        }
+      }
+      throw new Error("extension service worker not found");
+    };
+    await hookWorker();
 
     if (SHOTS) await mkdir(SHOTS, { recursive: true });
 
     for (const page of pages) {
+      await hookWorker();
       const url = `http://127.0.0.1:${PORT}/${page.rel}?seconds=${page.seconds}`;
       const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank" });
       const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
@@ -317,12 +336,18 @@ async function main() {
       if (SHOTS && !shot) shot = await shoot("");
       const panels = lastPanels;
 
-      const { result } = await cdp.send(
-        "Runtime.evaluate",
-        { expression: `JSON.stringify(__harness.filter((v) => v.url && v.url.includes(${JSON.stringify("/" + page.rel)})))`, returnByValue: true },
-        swSession,
-      );
-      const violations = JSON.parse(result.value);
+      let violations = [];
+      try {
+        const session = await hookWorker();
+        const { result } = await cdp.send(
+          "Runtime.evaluate",
+          { expression: `JSON.stringify((globalThis.__harness || []).filter((v) => v.url && v.url.includes(${JSON.stringify("/" + page.rel)})))`, returnByValue: true },
+          session,
+        );
+        violations = JSON.parse(result.value);
+      } catch {
+        // worker restarted mid-page: the visible verdict (panels) still stands
+      }
       const covered = everCovered;
       const dimmed = panels.some((p) => /dimmed/i.test(p)); // still dimmed at the end
       const stillSoftened = panels.some((p) => /softened/i.test(p));
