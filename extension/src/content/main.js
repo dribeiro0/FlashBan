@@ -91,6 +91,11 @@ const LAYER_ALPHA_WATCH = 0.2; // a layer over media seen this opaque even once 
 // (the GPU soften) can't tell a moving bright object from a flash, so it always
 // smeared or hid moving content; it is kept behind "gpu" for reference.
 const SOFTEN_STYLE = "dim";
+// Severe flashing is blocked (covered and paused), not dimmed (David, Sun 3:50 AM,
+// on a red neon-tunnel video): any red flashing (the most provoking kind), or a
+// flash rate at least this high (twice the WCAG limit). Ordinary over-the-limit
+// flashing stays dimmed + greyscale so it remains watchable.
+const SEVERE_FLASHES_PER_S = 6;
 
 const REASONS = {
   general: "It was flashing faster than is safe.",
@@ -1123,6 +1128,8 @@ class Source {
     if (settings.onFlash !== "soften" || this.softFailed) return false;
     if (this.kind === "dom") return this.softenDom(report, t);
     if (!softenable(v)) return false;
+    const severe = report.reason === "red" || report.reason === "both" || (report.flashesPerSecond || 0) >= SEVERE_FLASHES_PER_S;
+    if (severe) return false; // block() covers and pauses it
     if (SOFTEN_STYLE === "dim") {
       // Dim + greyscale: the content stays visible and playing, darker and grey,
       // and nothing in it can reach a flash. Stays for this element (no on/off).
