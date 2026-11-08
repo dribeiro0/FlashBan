@@ -180,6 +180,8 @@ let tamperLocked = false;
 /** @type {(() => void) | null} */ let bypassHandler = null;
 let softened = 0;
 let barDismissed = false;
+let barShownAt = 0; // clicks in the first BAR_ARM_MS after it appears are ignored (clickjacking)
+const BAR_ARM_MS = 1000;
 let wrapperStyleText = "";
 let loopHandle = 0;
 let lastAnnounce = 0;
@@ -311,7 +313,10 @@ function refreshBar() {
   if (c.dim) parts.push(`dimming ${c.dim}`);
   if (c.cover) parts.push(`hiding ${c.cover}`);
   barText.textContent = `${capitalize(parts.join(", "))} ${total === 1 ? "item" : "items"} on this page`;
-  if (bar.hidden) bar.hidden = false;
+  if (bar.hidden) {
+    bar.hidden = false;
+    barShownAt = performance.now();
+  }
   openLayer();
   startLoop();
 }
@@ -449,6 +454,10 @@ function ensureLayer() {
   btn.setAttribute("aria-label", "Show the original on this site. FlashBan stops softening and dimming here until you turn it back on in the FlashBan popup.");
   btn.addEventListener("click", (e) => {
     if (!e.isTrusted) return; // the page can't press this for the user (T6/T7)
+    // A page could start a strobe while the user is clicking something it put
+    // at the top right, so the next click lands here. Like Chrome's permission
+    // prompts, the button only arms after it has been visible for a second.
+    if (performance.now() - barShownAt < BAR_ARM_MS) return;
     barDismissed = true;
     announce("Showing the original on this site. Turn FlashBan back on for this site in the FlashBan popup.");
     try {
