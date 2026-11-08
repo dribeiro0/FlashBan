@@ -84,6 +84,12 @@ export function validateContentMessage(raw) {
         return null;
       }
       if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+      // The probe runs with the extension's host permission (no CORS), on a URL
+      // the PAGE chose. Never aim it at the user's own machine or network: a page
+      // could otherwise use FlashBan to poke a router or a local service and read
+      // a one-bit answer (dimmed or not). A refused probe keeps the image dimmed
+      // while visible (fail closed), so refusing costs no safety.
+      if (isPrivateHost(u.hostname)) return null;
       return { type: "probeImage", v: 1, url: u.href };
     }
     case "violation": {
@@ -186,4 +192,27 @@ export function pruneLog(log, now) {
   const domains = { ...base.domains };
   for (const [name] of stale) delete domains[name];
   return { v: 1, domains };
+}
+
+/**
+ * Loopback, private, link-local, CGNAT and local-only hostnames (IPv4 and IPv6),
+ * so the image probe never reaches the user's machine or local network.
+ * @param {string} host  URL.hostname (IPv6 in brackets)
+ */
+export function isPrivateHost(host) {
+  const h = String(host).toLowerCase().replace(/\.$/, "");
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".lan") || h.endsWith(".home.arpa")) return true;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+  }
+  if (h.startsWith("[")) {
+    const ip = h.slice(1, -1);
+    if (ip === "::" || ip === "::1") return true;
+    if (/^f[cd][0-9a-f]{2}:/.test(ip) || /^fe[89ab][0-9a-f]:/.test(ip)) return true; // unique-local, link-local
+    const mapped = /^::ffff:(.+)$/.exec(ip); // IPv4-mapped: URL normalises it to hex groups
+    if (mapped) return true;
+  }
+  return false;
 }

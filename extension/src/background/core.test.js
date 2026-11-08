@@ -228,3 +228,16 @@ test("applyViolation also expires entries older than 30 days", () => {
   log = applyViolation(log, "new.com", "video", { flashesPerSecond: 4 }, LOG_RETENTION_MS + 1);
   assert.deepEqual(Object.keys(log.domains), ["new.com"]);
 });
+
+test("probeImage never targets the user's own machine or network", async () => {
+  const { isPrivateHost } = await import("./validate.js");
+  const msg = (url) => validateContentMessage({ type: "probeImage", v: 1, url });
+  for (const url of [
+    "http://localhost/a.webp", "http://127.0.0.1:8080/a.webp", "http://10.0.0.5/a.webp", "http://192.168.1.1/logo.webp",
+    "http://172.20.3.4/a.webp", "http://169.254.169.254/latest", "http://100.64.0.1/a.webp", "http://printer.local/a.webp",
+    "http://[::1]/a.webp", "http://[fd12::1]/a.webp", "http://[::ffff:127.0.0.1]/a.webp", "http://0.0.0.0/a.webp", "http://router.lan/a.webp",
+  ]) assert.equal(msg(url), null, url);
+  assert.ok(msg("https://cdn.example.com/cat.webp"), "public hosts are still probed");
+  assert.ok(msg("http://172.32.0.1/a.webp"), "172.32 is public");
+  assert.equal(isPrivateHost("example.com"), false);
+});
